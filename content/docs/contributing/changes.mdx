@@ -1,0 +1,63 @@
+---
+title: Change files
+description: How to describe a change for the release notes, and how the next version is worked out from it.
+nav: Change files
+sources:
+  - scripts/release.ts
+  - scripts/release-notes.ts
+  - src/app/changelog/releases.json
+  - package.json
+  - .github/workflows/ci.yml
+---
+
+Every change someone using or running CareerBot would notice comes with a change file: a short YAML file in `.changes/` that says how big the change is and what it means for a person. The release notes, the changelog and the next version number are all made from these files.
+
+## When you need one
+
+You need a change file when your branch changes any of these:
+
+- `src/` or `convex/` (tests and stories don't count)
+- `compose.yaml`, `Dockerfile`, `docker/` or `.env.example`
+- the `dependencies` in `package.json`
+
+Docs, tests and scripts don't need one.
+
+## Add one
+
+Make a file named for your change, such as `.changes/export-to-pdf.yaml`:
+
+```yaml title=".changes/export-to-pdf.yaml"
+bump: minor
+kind: new
+note: You can save any resume as a PDF.
+selfHost: null
+```
+
+| Field | What to write |
+|---|---|
+| `bump` | `patch` for a fix or small improvement, `minor` for something new (a screen, a table, a function, a setting), `breaking` when something that worked stops working the old way. |
+| `kind` | `new`, `better` or `fixed`: the section of the release notes it goes in. |
+| `note` | One plain sentence for a person: what they can now do, or what's fixed. No code, file names, commits, issues or pull requests. |
+| `selfHost` | `null`, or the steps someone who runs their own copy has to take when updating (Markdown), such as a new line for `.env`. Several steps go as a Markdown list (`- ` before each); each item becomes a step of its own in the notes. |
+| `shot` | Optional: the id of a docs screenshot that shows the change (from `src/app/docs/shots.json`). |
+| `issue` | Optional: the GitHub issue the change closes, as a number (`42`) or a link. |
+| `reviewed` | Optional: `true` when you've checked that a bump or a missing `selfHost` the check questions is right. |
+
+One file per change. A branch with several separate changes adds several files.
+
+## The check
+
+`pnpm lint` runs `pnpm changes:check`, which fails when:
+
+- your branch changes a path above but adds no change file,
+- a change file has a field missing or wrong, or a note that isn't one plain sentence,
+- the system map gains a screen, table or function but every change file says `patch`,
+- `.env.example` or `compose.yaml` changes but no change file has `selfHost` steps.
+
+The last two pass with `reviewed: true` in the change file.
+
+## The version
+
+`pnpm release:version` prints the next version and the change files behind it. The largest bump wins: before 1.0, `breaking` and `minor` raise the middle number (0.7.2 becomes 0.8.0) and `patch` the last (0.7.2 becomes 0.7.3); from 1.0, `breaking` raises the first.
+
+Releasing is the maintainer's: `pnpm release:prepare` turns the change files into the release notes, sets the new version and commits it, and the version tag publishes it. On a version tag, CI runs `scripts/release.ts check-consistency`, which refuses a tag that isn't the version in `package.json`, `compose.yaml` and the release notes.

@@ -1,0 +1,92 @@
+---
+title: A VPS with Coolify
+description: Rent a server with Coolify ready to install, point your domain at it, firewall it, then deploy CareerBot.
+nav: A VPS with Coolify
+sources:
+  - compose.yaml
+  - .env.example
+---
+
+The shortest way to a copy other people can reach: a VPS (a rented server) that comes with Coolify ready to install.
+Hetzner offers one, and so do other providers; look for Coolify in the provider's list of apps or images when you create
+the server. Any VPS with Ubuntu works too: install Coolify (or Dokploy) yourself with its one-line installer.
+
+<Callout>
+CareerBot on Coolify was tested on a test machine over plain HTTP, not yet on a rented VPS with HTTPS on a real domain.
+The steps are the same; HTTPS is Coolify's job.
+</Callout>
+
+## Pick a server
+
+- Ubuntu (24.04 was tested), amd64 or arm64.
+- At least 4 GB of memory: with self-hosted Convex the server runs the Convex backend and dashboard beside CareerBot.
+- A public IPv4 address, for the DNS records below.
+
+## DNS
+
+Point these hostnames at the server's address (an `A` record each; add `AAAA` records too if the server has IPv6):
+
+| Hostname | For | Goes to |
+| --- | --- | --- |
+| `careerbot.example.com` | The web app (`SITE_URL`) | `web`, port 3000 |
+| `convex.example.com` | Convex's API (`NEXT_PUBLIC_CONVEX_URL`) | `convex-backend`, port 3210 |
+| `convex-site.example.com` | Convex's HTTP actions: sign-in and Google Drive callbacks (`CONVEX_SITE_ORIGIN`) | `convex-backend`, port 3211 |
+| `convex-dashboard.example.com` (optional) | Convex's dashboard | `convex-dashboard`, port 6791 |
+
+With Convex's cloud you need only the first one.
+
+```text title="DNS records"
+careerbot          A   203.0.113.10
+convex             A   203.0.113.10
+convex-site        A   203.0.113.10
+convex-dashboard   A   203.0.113.10
+```
+
+`203.0.113.10` stands for your server's address. Coolify gets HTTPS certificates for them once the records point at
+the server.
+
+## Install and deploy
+
+<Steps>
+<Step title="Create the server">
+At your provider, create the server with Coolify ready to install (or plain Ubuntu, then run Coolify's installer:
+[Coolify](/docs/self-hosting/coolify#install-coolify)). Add your SSH key so you can log in as root.
+</Step>
+<Step title="Open Coolify">
+Open `http://<server address>:8000` and register the root account.
+</Step>
+<Step title="Deploy CareerBot">
+Follow [Run it on Coolify](/docs/self-hosting/coolify#deploy-careerbot) from Add the repository, with your own hostnames.
+</Step>
+<Step title="Firewall the server">
+See below.
+</Step>
+</Steps>
+
+## Firewall
+
+`compose.yaml` publishes its four ports on the server's own loopback address only (`BIND_ADDRESS`, default
+`127.0.0.1`), so nothing of CareerBot is reachable from outside except through the proxy:
+
+| Port | What answers |
+| --- | --- |
+| `WEB_PORT` (3000; 3001 on Dokploy) | The web app, over plain HTTP |
+| 3210 | Convex's API |
+| 3211 | Convex's HTTP actions |
+| 6791 | Convex's dashboard |
+
+Coolify's and Dokploy's proxies reach the containers on Docker's network, so they don't need these ports. Keep it that
+way: don't set `BIND_ADDRESS=0.0.0.0` on a server. From the internet those ports would skip the proxy and HTTPS, and
+Docker-published ports go around ufw.
+
+The server needs only 22 (SSH), 80 and 443 open, plus the panel's port while you set up (8000 for Coolify, 3000 for
+Dokploy) unless you give the panel a domain of its own. Most VPS providers (Hetzner's Cloud Firewall among them) have a
+firewall in front of the server: allow inbound TCP 22, 80 and 443 (and the panel's port), and nothing else.
+
+Tested on a Hetzner server with Coolify: with the default, 3000, 3210, 3211 and 6791 were closed from the internet while
+the three https hostnames worked through Coolify's proxy.
+
+## After this
+
+- [Keys and accounts](/docs/self-hosting/keys)
+- [Check it works](/docs/self-hosting/check-it-works)

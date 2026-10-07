@@ -1,0 +1,194 @@
+---
+title: Cloudflare Workers
+description: Run the web app as a Cloudflare Worker through OpenNext, with Convex's cloud as its database, the way careerbot.dev does.
+nav: Cloudflare Workers
+sources:
+  - wrangler.jsonc
+  - open-next.config.ts
+  - next.config.ts
+  - package.json
+  - scripts/sync-convex-env.sh
+  - scripts/with-secrets.sh
+  - docker/convex-keys.mjs
+  - convex/account.ts
+  - src/app/mode.ts
+---
+
+careerbot.dev runs this way: the web app is a Cloudflare Worker built with OpenNext (`pnpm cf:build`, `pnpm cf:deploy`),
+and Convex runs in Convex's cloud. There's no server to look after, but more steps than Docker, and you build on your
+own computer.
+
+<Callout title="Not yet tested for anyone but the maintainer" type="caution">
+The maintainer's own deploys run these commands from CI with the keys in Infisical. A stranger's copy (their own
+Cloudflare account, Worker and domain, with the keys set by hand and `CAREERBOT_MODE=self-hosted` in the Worker build)
+has not been tested end to end. Docker is the tested way.
+</Callout>
+
+## What you need
+
+- Node.js 22 and pnpm (`corepack enable pnpm`), Git.
+- A Cloudflare account with a domain on it.
+- A Convex project in Convex's cloud (the free plan).
+- An OpenRouter key, added in the app once you've signed in.
+
+## Install
+
+<Steps>
+<Step title="Get the code">
+
+```bash title="Terminal"
+git clone https://github.com/careerbotdev/careerbot.git
+cd careerbot
+pnpm install
+```
+
+</Step>
+<Step title="Make your Convex project">
+
+At [dashboard.convex.dev](https://dashboard.convex.dev), create a project. In it, Settings > URL & Deploy Key: copy the
+deployment URL (`https://your-deployment.convex.cloud`) and generate a production deploy key. In your terminal:
+
+```bash title="Terminal"
+export CONVEX_DEPLOY_KEY='prod:your-deployment|…'
+```
+
+Keep the quotes: the key has a `|` in it. The commands below use this deployment. Don't keep a `.env.local` with
+`CONVEX_DEPLOY_KEY` and `CONVEX_DEPLOYMENT` in the same folder: the Convex CLI refuses both at once.
+
+</Step>
+<Step title="Deploy CareerBot's functions">
+
+```bash title="Terminal"
+npx convex deploy -y
+```
+
+</Step>
+<Step title="Set the deployment's settings">
+
+The backend reads its settings from the Convex deployment's environment variables. `scripts/sync-convex-env.sh` copies
+them there, but its `dev` and `prod` targets read the maintainer's Infisical project. Set them directly instead.
+
+First the keys CareerBot makes for itself, the sign-in keys and the key that encrypts saved API keys:
+
+```bash title="Terminal"
+node docker/convex-keys.mjs jwt > convex-keys.env
+node docker/convex-keys.mjs master >> convex-keys.env
+npx convex env set --force --from-file convex-keys.env
+rm convex-keys.env
+```
+
+Then the rest. `CAREERBOT_MODE=self-hosted` makes it a copy you run yourself: username and password sign-in, and the
+owner adds people.
+
+```bash title="Terminal"
+npx convex env set SITE_URL https://careerbot.example.com
+npx convex env set CAREERBOT_MODE self-hosted
+```
+
+Optional ones, as you need them ([Keys and accounts](/docs/self-hosting/keys)):
+
+```bash title="Terminal"
+npx convex env set AUTH_GOOGLE_ID '…'
+npx convex env set AUTH_GOOGLE_SECRET '…'
+npx convex env set AUTH_GITHUB_ID '…'
+npx convex env set AUTH_GITHUB_SECRET '…'
+npx convex env set SIGNUP_ALLOWLIST 'wren@example.com'
+npx convex env set GOOGLE_PICKER_KEY '…'
+```
+
+The full list `sync-convex-env.sh` sets is `SITE_URL`, `CAREERBOT_MODE`, `JWT_PRIVATE_KEY`, `JWKS`, `AUTH_GITHUB_ID`,
+`AUTH_GITHUB_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `SIGNUP_ALLOWLIST`, `MASTER_KEY_V1`, `GOOGLE_PICKER_KEY`,
+`LIQUIDAI_API_KEY` and `AUTH_REDIRECT_ORIGINS`. What each does: [Configuration](/docs/self-hosting/configuration).
+
+If you'd rather keep them in a file: the script's `env` target uses no Infisical. With the keys in `.env`:
+`SECRETS_FILE=.env scripts/with-secrets.sh scripts/sync-convex-env.sh env`.
+
+</Step>
+<Step title="Point wrangler.jsonc at your Cloudflare account">
+
+`wrangler.jsonc` is the maintainer's. Change, at the top level:
+
+| Field | Now | Yours |
+| --- | --- | --- |
+| `name` | `careerbot-dev` | Your Worker's name, such as `careerbot` |
+| `account_id` | `your-cloudflare-account-id` | Your Cloudflare account ID (Workers & Pages overview in Cloudflare's dashboard) |
+| `services[0].service` (binding `WORKER_SELF_REFERENCE`) | `careerbot-dev` | The same as `name` |
+| `routes` | `dev.careerbot.dev`, `custom_domain: true` | Your hostname, such as `careerbot.example.com` |
+
+```jsonc title="wrangler.jsonc"
+"name": "careerbot",
+"account_id": "your-cloudflare-account-id",
+// …
+"services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "careerbot" }],
+"routes": [{ "pattern": "careerbot.example.com", "custom_domain": true }],
+```
+
+The `env.production` block is careerbot.dev's own Worker; delete it. `pnpm cf:deploy` without `--env` deploys the
+top level.
+
+</Step>
+<Step title="Build the Worker">
+
+The Worker has no `SITE_URL` or `NEXT_PUBLIC_CONVEX_URL` at run time: the build fixes them in. Set them, and
+`CAREERBOT_MODE`, for the build:
+
+```bash title="Terminal"
+SITE_URL=https://careerbot.example.com \
+NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud \
+CAREERBOT_MODE=self-hosted \
+pnpm cf:build
+```
+
+Without `CAREERBOT_MODE=self-hosted` the build is careerbot.dev's: the public website at `/`, and Google and GitHub
+sign-in for the emails in `SIGNUP_ALLOWLIST` only.
+
+</Step>
+<Step title="Deploy the Worker">
+
+```bash title="Terminal"
+npx wrangler login
+pnpm cf:deploy
+```
+
+Cloudflare adds the custom domain's DNS record and certificate.
+
+</Step>
+<Step title="Create the owner account">
+
+Make a setup code:
+
+```bash title="Terminal"
+npx convex run account:newSetupCode
+```
+
+It prints the code (`7KQ4-M2XD`, say). Open `https://careerbot.example.com` and use **Create your account**. Lost the
+password later? `npx convex run account:resetPassword '{"username":"wren"}'` gives a temporary one.
+
+</Step>
+</Steps>
+
+## Sign-in callbacks
+
+With Convex's cloud, Google and GitHub send people back to the deployment's HTTP actions address:
+
+```text title="Callback URLs"
+https://your-deployment.convex.site/api/auth/callback/google
+https://your-deployment.convex.site/api/auth/callback/github
+```
+
+## Updating
+
+This way follows the same releases as Docker, without the images: you build each release from the code. First read
+the release notes at [careerbot.dev/changelog](https://careerbot.dev/changelog) (do what any marked “Read before
+updating” ask) and back up ([Backups](/docs/self-hosting/updates#backups)). Then, in the folder you cloned:
+
+```bash title="Terminal"
+git pull
+pnpm install
+npx convex deploy -y
+SITE_URL=https://careerbot.example.com NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud CAREERBOT_MODE=self-hosted pnpm cf:build
+pnpm cf:deploy
+```
+
+The functions go to Convex before the new Worker goes out, the order Docker's setup step keeps too. `git pull` may
+conflict with your `wrangler.jsonc` changes; keep yours.

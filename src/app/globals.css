@@ -1,0 +1,367 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Values DESIGN.md describes in prose because its format has no slot for them: font stacks, breakpoints and easing.
+   Breakpoints: small is the default, `md:` is medium (768 to 1279), `lg:` is large (1280 and up). */
+@theme {
+  --font-sans: var(--font-inter), "Inter", system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace;
+  --breakpoint-*: initial;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 80rem;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* `dark:` utilities follow the same rule as the colors below. */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]) *) {
+      @slot;
+    }
+  }
+  &:where([data-theme="dark"] *) {
+    @slot;
+  }
+}
+
+/* The two elevation levels (DESIGN.md, Elevation & Depth). Plain properties rather than theme values, so dark mode can
+   swap them at runtime. */
+:root {
+  --elevation-raised: 0 8px 24px -6px rgb(21 23 26 / 16%), 0 2px 4px -2px rgb(21 23 26 / 8%);
+  --elevation-overlay: 0 24px 64px -12px rgb(21 23 26 / 28%), 0 4px 12px -4px rgb(21 23 26 / 10%);
+}
+@utility shadow-raised {
+  box-shadow: var(--elevation-raised);
+}
+@utility shadow-overlay {
+  box-shadow: var(--elevation-overlay);
+}
+/* The public website only: a card inside a mock-up, and the card that lifts while it moves. */
+@utility shadow-site-card {
+  box-shadow: var(--elevation-site-card);
+}
+@utility shadow-site-lift {
+  box-shadow: var(--elevation-site-lift);
+}
+:root {
+  --elevation-site-card: 0 1px 2px rgb(21 23 26 / 4%), 0 10px 28px rgb(21 23 26 / 6%);
+  --elevation-site-lift: 0 2px 4px rgb(21 23 26 / 6%), 0 18px 40px rgb(21 23 26 / 14%);
+  --site-mark-top: 46%;
+  --site-mark-end: 88%;
+}
+
+/* The public website's headline: its last words marked in amber like a highlighter (the Editorial concept's mark,
+   straight for Calm), drawn left to right once as the page opens and already there with reduced motion. Amber takes
+   ink text, so on a dark page the band covers the whole word (a band under ink letters would leave their tops dark on
+   dark). The hero keeps the words on one line where they fit; on the narrowest phones the band follows them onto two. */
+@utility site-mark {
+  color: var(--color-ink);
+  background-image: linear-gradient(transparent var(--site-mark-top), var(--color-primary) var(--site-mark-top) var(--site-mark-end), transparent var(--site-mark-end));
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  border-radius: 2px;
+  padding-inline: 0.08em;
+  margin-inline: -0.08em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  @media (prefers-reduced-motion: no-preference) {
+    animation: site-mark 700ms cubic-bezier(0.22, 1, 0.36, 1) 400ms both;
+  }
+}
+@keyframes site-mark {
+  from {
+    background-size: 0% 100%;
+  }
+}
+
+/* A small standalone link or text button's touch area: 44px on a phone, centred on it, without moving anything. Links
+   inside a sentence don't need it. */
+@utility tap {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: calc(50% - 22px) min(0px, calc(50% - 22px));
+  }
+  @media (width >= 48rem) {
+    &::after {
+      content: none;
+    }
+  }
+}
+
+/* Dark mode: swap each role color for its -dark twin from DESIGN.md. Follows the system setting unless data-theme is
+   set on <html>; any element with data-theme="dark" swaps its own subtree (Storybook shows light and dark side by side). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-surface: var(--color-surface-dark);
+    --color-text: var(--color-text-dark);
+    --color-muted: var(--color-muted-dark);
+    --color-border: var(--color-border-dark);
+    --color-subtle: var(--color-subtle-dark);
+    --color-subtle-active: var(--color-subtle-active-dark);
+    --color-steel-subtle: var(--color-steel-subtle-dark);
+    --color-good: var(--color-good-dark);
+    --color-good-subtle: var(--color-good-subtle-dark);
+    --color-good-text: var(--color-good-text-dark);
+    --color-caution: var(--color-caution-dark);
+    --color-caution-subtle: var(--color-caution-subtle-dark);
+    --color-caution-text: var(--color-caution-text-dark);
+    --color-control-border: var(--color-control-border-dark);
+    --color-hover: var(--color-hover-dark);
+    --color-inverse: var(--color-inverse-dark);
+    --color-inverse-text: var(--color-inverse-text-dark);
+    --color-inverse-muted: var(--color-inverse-muted-dark);
+    --color-backdrop: var(--color-backdrop-dark);
+    --color-site-skeleton: var(--color-site-skeleton-dark);
+    --color-site-skeleton-strong: var(--color-site-skeleton-strong-dark);
+    --color-site-line: var(--color-site-line-dark);
+    --color-site-fit: var(--color-site-fit-dark);
+    --color-site-highlight: var(--color-site-highlight-dark);
+    --elevation-site-card: 0 1px 2px rgb(0 0 0 / 30%), 0 10px 28px rgb(0 0 0 / 30%);
+    --elevation-site-lift: 0 2px 4px rgb(0 0 0 / 40%), 0 18px 40px rgb(0 0 0 / 50%);
+    --elevation-raised: 0 8px 24px -6px rgb(0 0 0 / 50%);
+    --elevation-overlay: 0 24px 64px -12px rgb(0 0 0 / 60%);
+    --site-mark-top: 4%;
+    --site-mark-end: 100%;
+    color-scheme: dark;
+  }
+}
+[data-theme="dark"] {
+  --color-surface: var(--color-surface-dark);
+  --color-text: var(--color-text-dark);
+  --color-muted: var(--color-muted-dark);
+  --color-border: var(--color-border-dark);
+  --color-subtle: var(--color-subtle-dark);
+  --color-subtle-active: var(--color-subtle-active-dark);
+  --color-steel-subtle: var(--color-steel-subtle-dark);
+  --color-good: var(--color-good-dark);
+  --color-good-subtle: var(--color-good-subtle-dark);
+  --color-good-text: var(--color-good-text-dark);
+  --color-caution: var(--color-caution-dark);
+  --color-caution-subtle: var(--color-caution-subtle-dark);
+  --color-caution-text: var(--color-caution-text-dark);
+  --color-control-border: var(--color-control-border-dark);
+  --color-hover: var(--color-hover-dark);
+  --color-inverse: var(--color-inverse-dark);
+  --color-inverse-text: var(--color-inverse-text-dark);
+  --color-inverse-muted: var(--color-inverse-muted-dark);
+  --color-backdrop: var(--color-backdrop-dark);
+  --color-site-skeleton: var(--color-site-skeleton-dark);
+  --color-site-skeleton-strong: var(--color-site-skeleton-strong-dark);
+  --color-site-line: var(--color-site-line-dark);
+  --color-site-fit: var(--color-site-fit-dark);
+  --color-site-highlight: var(--color-site-highlight-dark);
+  --elevation-site-card: 0 1px 2px rgb(0 0 0 / 30%), 0 10px 28px rgb(0 0 0 / 30%);
+  --elevation-site-lift: 0 2px 4px rgb(0 0 0 / 40%), 0 18px 40px rgb(0 0 0 / 50%);
+  --elevation-raised: 0 8px 24px -6px rgb(0 0 0 / 50%);
+  --elevation-overlay: 0 24px 64px -12px rgb(0 0 0 / 60%);
+  --site-mark-top: 4%;
+  --site-mark-end: 100%;
+  color-scheme: dark;
+}
+
+@layer base {
+  /* Solid, like a desktop tool: no rubber-band bounce, pull-to-refresh or scroll chaining, on the page or on any pane,
+     list or sheet that scrolls on its own (overscroll-behavior only affects elements that scroll). */
+  *,
+  ::before,
+  ::after {
+    overscroll-behavior: none;
+  }
+  body {
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-md);
+    line-height: var(--leading-body-md);
+  }
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+
+  /* The browser's own surfaces, themed (DESIGN.md, Components). */
+  ::selection {
+    background: var(--color-steel-subtle);
+    color: var(--color-text);
+  }
+  input,
+  textarea,
+  [contenteditable] {
+    caret-color: var(--color-text);
+  }
+  /* Focus: a 2px steel ring with a 1px gap, on anything focusable. Text fields replace it with a steel border. */
+  :focus-visible {
+    outline: 2px solid var(--color-steel);
+    outline-offset: 1px;
+  }
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+  /* Autofill keeps our field, not the browser's tint. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px var(--color-surface) inset;
+    -webkit-text-fill-color: var(--color-text);
+    caret-color: var(--color-text);
+    transition: background-color 9999s;
+  }
+  /* Number fields step with the arrow keys; no spinners. */
+  input[type="number"] {
+    appearance: textfield;
+  }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+  /* Scrollbars: 4px in `border` at rest, 8px in `control-border` under the pointer. */
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-border);
+    background-clip: content-box;
+    border: 4px solid transparent;
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-control-border);
+    border-width: 2px;
+  }
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--color-border) transparent;
+    }
+  }
+}
+
+/* Guided tours (src/components/Tour.ts): driver.js's card in our look. Paper surface, ink text, the raised shadow and
+   2px corners; Next in amber like a pane's one action, Back like a secondary button; the step count in muted label
+   type. On a phone the card sits at the bottom of the screen, full width, like the Sheet (DESIGN.md: nothing floats
+   beside the pointer on a phone). Unlayered, like driver.css, so these rules win over its own. */
+.driver-popover.cb-tour {
+  font-family: var(--font-sans);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--elevation-raised);
+  padding: 16px;
+  min-width: 260px;
+  max-width: 340px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .driver-popover.cb-tour {
+    background: var(--color-subtle);
+  }
+}
+[data-theme="dark"] .driver-popover.cb-tour {
+  background: var(--color-subtle);
+}
+.cb-tour .driver-popover-title {
+  font-size: var(--text-title-md);
+  line-height: var(--leading-title-md);
+  font-weight: var(--font-weight-title-md);
+  padding-right: 24px;
+}
+.cb-tour .driver-popover-description {
+  margin-top: 6px;
+  font-size: var(--text-body-sm);
+  line-height: var(--leading-body-sm);
+  color: var(--color-text);
+}
+.cb-tour .driver-popover-close-btn {
+  color: var(--color-muted);
+  width: 28px;
+  height: 28px;
+  top: 8px;
+  right: 8px;
+  border-radius: var(--radius-sm);
+}
+.cb-tour .driver-popover-close-btn:hover,
+.cb-tour .driver-popover-close-btn:focus-visible {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+.cb-tour .driver-popover-footer {
+  margin-top: 14px;
+  align-items: center;
+}
+.cb-tour .driver-popover-progress-text {
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+.cb-tour .driver-popover-footer-btn {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-body-sm);
+  font-weight: var(--font-weight-label);
+  cursor: pointer;
+  background: var(--color-subtle);
+  color: var(--color-text);
+  text-shadow: none;
+}
+.cb-tour .driver-popover-footer-btn:hover {
+  background: var(--color-hover);
+}
+.cb-tour .driver-popover-footer-btn:focus-visible {
+  outline: 2px solid var(--color-steel);
+  outline-offset: 1px;
+}
+.cb-tour .driver-popover-next-btn {
+  background: var(--color-primary);
+  color: var(--color-ink);
+}
+.cb-tour .driver-popover-next-btn:hover {
+  background: var(--color-primary-hover);
+}
+.cb-tour .driver-popover-btn-disabled {
+  display: none;
+}
+.cb-tour .driver-popover-navigation-btns button + button {
+  margin-left: 6px;
+}
+.cb-tour .driver-popover-arrow-side-top {
+  border-top-color: var(--color-surface);
+}
+.cb-tour .driver-popover-arrow-side-bottom {
+  border-bottom-color: var(--color-surface);
+}
+.cb-tour .driver-popover-arrow-side-left {
+  border-left-color: var(--color-surface);
+}
+.cb-tour .driver-popover-arrow-side-right {
+  border-right-color: var(--color-surface);
+}
+@media (width < 48rem) {
+  .driver-popover.cb-tour {
+    inset: auto 8px calc(8px + env(safe-area-inset-bottom)) 8px !important;
+    max-width: none;
+    min-width: 0;
+  }
+  .cb-tour .driver-popover-arrow {
+    display: none;
+  }
+  .cb-tour .driver-popover-footer-btn {
+    height: 44px;
+    padding: 0 16px;
+  }
+}

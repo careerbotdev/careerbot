@@ -1,0 +1,42 @@
+---
+title: Activity
+description: The work CareerBot is doing in the background, how far it has got, what finished or failed, and this month's spending.
+sources:
+  - src/components/Activity.tsx
+  - src/app/shell/useActivity.ts
+  - src/app/shell/Shell.tsx
+  - convex/activity.ts
+screen: activity
+---
+
+<ScreenFacts screen="activity" />
+
+Reading a story, finding companies, ranking roles, writing a resume: much of CareerBot's work runs in the background and takes minutes, not seconds. Activity is where you watch it. It isn't a page of its own; it opens from the frame around every screen.
+
+## Where it is
+
+- Large screens: the **Activity** row at the bottom of the sidebar. While work runs it reads, for example, "2 running", with a thin bar for how far along all of it is.
+- Medium screens: the icon in the rail.
+- Phone: a row in **More**, which opens the list as a sheet.
+
+Today's **Working** group shows the same running work.
+
+## What the list shows
+
+<Steps>
+<Step title="Running">Each piece of work with its progress and how far it has got ("24 of 38", or how many steps are done). Work that is queued or paused counts as running here, with a word on why it's waiting.</Step>
+<Step title="Failed">What stopped with a problem, and why. **Try again** starts it again; it costs about what the first try cost, from your budgets. A message says **Started again**, or why it couldn't.</Step>
+<Step title="Done">What finished in the last day, with the time and what it produced (for example how many facts wait for review).</Step>
+</Steps>
+
+Under the list is this month's spending: AI spent against your monthly budget and, if you set Apollo credits aside, credits used of them. With nothing going on the list says **Nothing running or recent**.
+
+When the AI budget is used up, AI work pauses until you raise it in [Settings](/docs/using/settings).
+
+## Related
+
+<Cards>
+<Card href="/docs/how-it-works/background-work" title="Background work and Activity">What runs on its own, and when.</Card>
+<Card href="/docs/using/reports" title="Reports">Work done and failed over time.</Card>
+<Card href="/docs/ai/budgets" title="Budgets and costs">How budgets pause work.</Card>
+</Cards>

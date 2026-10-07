@@ -1,0 +1,62 @@
+---
+title: Your goals
+description: How CareerBot turns your goals story into directions and limits, and fills each direction in for search and resumes.
+nav: Your goals
+sources:
+  - docs/architecture/model.c4
+  - convex/goals.ts
+  - convex/limitBuckets.ts
+  - convex/directions.ts
+  - src/app/goals/Goals.tsx
+  - src/app/goals/directions/Direction.tsx
+  - src/app/goals/directions/Directions.tsx
+---
+
+You say what you want next in one goals story, in your own words: the work, the pay, where, and what to avoid. CareerBot
+reads it into directions (kinds of work you're drawn to) and limits (what a role must or should meet). You review both
+in <Screen id="goals" /> and <Screen id="review" />. See [Writing your goals](/docs/best-practices/goals).
+
+## The steps
+
+<AiStage stage="goals" />
+
+## Reading your goals
+
+<AiStep id="goalsRead" /> runs when you choose **Read my goals** (or **Read my goals again** after a change). It reads
+your goals story against your approved record, directions and limits, and proposes:
+
+- Directions: the kinds of work you say you're drawn to.
+- Limits, each as a value in plain words and as filters CareerBot can check: pay, place, seniority and the like. A limit
+  is firm when you said it's a must, and a preference otherwise. It may hold for every direction or only some, and
+  only in some situations, like a lower level you'd accept to change fields.
+
+A value you didn't give is left out, never filled with a typical one: no pay ceiling you didn't name, no distance you
+didn't give. Directions and limits you rejected are passed so they aren't proposed again in any wording, and a limit
+resting only on a passage you rejected is skipped. Your approved directions and limits are kept as settled.
+
+Your goals story is read only here. Other steps never see it; they read only the directions and limits you approved.
+
+## Filters from wording
+
+When you edit a limit's wording and leave its filters alone, <AiStep id="limitRule" /> reads that wording, and nothing
+else, and sets the limit's filters to match what it now says. It never reads your goals story for it. If you change the
+limit again while it runs, its answer isn't saved.
+
+## Filling in directions
+
+<AiStep id="directionsStep" /> runs when you choose **Fill in** on a direction (or **Fill in directions missing
+detail** for all of them). For each approved direction it proposes:
+
+- Positioning: how to present your record for this kind of work.
+- The titles to aim at, and the words the market uses for the work.
+- Which of your stories carry over and which need reframing, each citing approved facts.
+- How your past titles translate.
+- Search criteria, used to find companies.
+
+**Suggest more** proposes directions you hadn't considered. A suggestion has to rest on approved facts, or it's dropped.
+
+Detail and criteria are reviewed separately, and only approved ones feed resumes and search. What you approved is
+never overwritten; directions you rejected or that are still waiting aren't proposed again.
+
+When you change an approved direction's title or summary, roles ranked before the change are marked, so you can rank
+them again. See [Roles](/docs/ai/roles).

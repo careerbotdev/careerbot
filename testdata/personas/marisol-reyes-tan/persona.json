@@ -1,0 +1,37 @@
+{
+  "slug": "marisol-reyes-tan",
+  "name": "Marisol Reyes-Tan",
+  "oneLine": "Middle school science teacher and department lead in Las Vegas, on an H-1B, who built her district's Canvas unit library and wants to move into instructional design at an ed-tech company or corporate L&D team.",
+  "workspaceName": "Marisol Reyes-Tan (test persona)",
+  "profile": {
+    "name": "Marisol Reyes-Tan",
+    "email": "marisol.reyes-tan@example.com",
+    "phone": "+1 555 010 3482",
+    "location": "Las Vegas, NV",
+    "links": ["https://example.com/mreyestan-teaches"]
+  },
+  "budgets": { "aiMonthlyUsd": 25, "apolloMonthlyCredits": 0, "apolloMode": "paused" },
+  "settings": { "resumeLength": "two" },
+  "stories": [
+    { "file": "stories/01-mojave-valley.md", "title": "Mojave Valley School District (Harmon Ridge Middle School)" },
+    { "file": "stories/02-canvas-unit-library.md", "title": "The Canvas science unit library" },
+    { "file": "stories/03-robotics-club.md", "title": "Harmon Ridge robotics club" },
+    { "file": "stories/04-santa-lucia-cebu.md", "title": "Colegio de Santa Lucia, Cebu" },
+    { "file": "stories/05-quillfern-summer.md", "title": "Quillfern Learning summer project" }
+  ],
+  "goals": "goals.md",
+  "projects": [
+    { "file": "projects/open-msci-units/README.md", "repo": "https://example.com/mreyestan-teaches/open-msci-units", "title": "open-msci-units" }
+  ],
+  "companies": [
+    { "name": "Lanternwise", "domain": "lanternwise.example", "why": "Millions of people finish real courses there, and I'd love to help experts turn what they know into something learners actually complete.", "fictional": true },
+    { "name": "Skillharbor", "domain": "skillharbor.example", "why": "Skillharbor Business designs training for working adults, which feels like the corporate L&D side I want to try.", "fictional": true },
+    { "name": "Chirpwise", "domain": "chirpwise.example", "why": "They test everything with learners and the lessons are tiny and well sequenced, which is exactly how I like to design.", "fictional": true },
+    { "name": "Northbeam Learning", "domain": "northbeamlearning.example", "why": "Middle school science curriculum written by former teachers, so it's basically my unit library at scale.", "fictional": true }
+  ],
+  "postings": [
+    { "file": "postings/01-lanternwise-instructional-designer.md", "company": "Lanternwise", "title": "Instructional Designer, Course Development", "location": "Remote (US)", "url": "https://example.com/jobs/marisol-reyes-tan-1", "expect": "fits", "why": "Instructional design with assessments, LMS course building and learner data; remote US, $95k–$120k, considers H-1B transfers, travel under 10%." },
+    { "file": "postings/02-skillharbor-learning-experience-designer.md", "company": "Skillharbor", "title": "Learning Experience Designer, Skillharbor Business", "location": "Remote (US)", "url": "https://example.com/jobs/marisol-reyes-tan-2", "expect": "fits", "why": "Learning experience design for workplace learners, storyboards, playtesting and workshops; remote US, $100k–$130k, supports visa transfers, one trip a year." },
+    { "file": "postings/03-northbeam-curriculum-designer.md", "company": "Northbeam Learning", "title": "Curriculum Designer, Middle School Science", "location": "Remote (US)", "url": "https://example.com/jobs/marisol-reyes-tan-3", "expect": "filtered", "why": "Content is a near-perfect match and pay ($88k–$104k), remote and travel are fine, but it cannot sponsor or take over H-1B sponsorship, which she needs." }
+  ]
+}

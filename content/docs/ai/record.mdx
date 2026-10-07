@@ -1,0 +1,80 @@
+---
+title: Keeping the record clean
+description: "The steps that read across what you approved: insights, skills, duplicates, same work and your GitHub projects."
+nav: Keeping the record clean
+sources:
+  - docs/architecture/model.c4
+  - convex/insights.ts
+  - convex/skills.ts
+  - convex/duplicates.ts
+  - convex/sameWork.ts
+  - convex/projects.ts
+  - convex/repoReader.ts
+  - src/app/record/roles/actions.ts
+  - src/app/record/skills/Skills.tsx
+  - src/app/record/insights/Insights.tsx
+  - src/app/record/projects/ProjectItem.tsx
+---
+
+Once you've approved facts, a few steps read across them: to say what's true of you across jobs, to list your skills
+once, to catch facts said twice, and to add your GitHub projects. Each proposes; nothing in your record changes until
+you decide in <Screen id="record" /> or <Screen id="review" />.
+
+## The steps
+
+<AiStage stage="record" />
+
+## Insights
+
+<AiStep id="insights" /> reads across your approved roles, facts, context, directions and projects, the way a career
+editor would, and proposes things that are true of you across jobs that you may never have put into words. Each insight
+cites the approved facts it rests on; an insight left with no approved fact behind it is dropped. A project's facts
+count as evidence just like a role's.
+
+It runs on its own, quietly, once a story or project is fully reviewed: nothing left from it to approve or reject. It
+also runs when you choose **Find new insights**. It needs at least two approved facts. It never brings back an insight
+you rejected, and doesn't repeat one you already have or one waiting for review.
+
+## Skills, tools and certifications
+
+<AiStep id="gatherSkills" /> runs only when you ask: **Gather** on Skills and tools in Record. It reads your approved
+roles' skills and tools, your approved projects' stacks and your approved facts, and proposes each skill, tool and
+certification once, named the way resumes and postings name it, with where your record shows it. Vague ones are
+flagged as low value, and near-duplicates are offered as merges. It never merges anything you approved, and never pairs
+two items you kept apart. A rejected skill is never proposed again, in any spelling.
+
+Resumes list only the skills you approved here.
+
+## Duplicates
+
+<AiStep id="duplicatesStep" /> runs only when you choose **Find duplicates** in Record, or **Find facts said twice**
+in Review. It looks within each role for facts that say the same thing, often one from each of two stories, and flags
+them. Nothing changes until you choose: **Merge** keeps one wording with both facts' sources, history and notes;
+**Keep both** keeps them apart, and that pair is never flagged again. A new search replaces the last one's flags.
+
+## Same work
+
+When a project is linked to a role, its facts and the role's facts often tell the same work twice: once from the
+repository, once from your story. <AiStep id="sameWorkStep" /> runs when you link a project to a role, and when you
+choose **Find same work**. It reads the approved facts of the project and of that role and suggests pairs that describe
+the same work, the richer one as the lead.
+
+**Connect** links the two facts without touching their words: resumes then write one line for them, from the lead, with
+the other as context. **Keep separate** means that pair is never suggested again. Unlinking or relinking the project
+drops the suggestions still waiting.
+
+## Reading a project
+
+<AiStep id="readProject" /> reads one of your GitHub repositories after you connect GitHub in Record and choose which
+repositories to read. Each repository is read whole, not just its code: the README, docs, planning and design files,
+changelogs, the stack from its manifests, a small sample of code and the commit history. It can open that one
+repository and nothing else.
+
+Secret-looking files, like env files, keys and certificates, are never fetched, and anything that looks like a
+password, key or token inside what is read is redacted before it goes to the AI. A large repository is read in parts,
+then the facts from those parts are merged into at most six.
+
+It proposes the project and facts about it, each citing the files it came from; a fact citing no file it read is
+flagged. It is told to write plainly: you built it, tools are tools, no inflated labels. The project and its facts wait
+in Review. Only approved ones reach insights, directions, role ranking and resumes. **Read again** on a project reads it
+against your record as it is now, and keeps what you approved or wrote.

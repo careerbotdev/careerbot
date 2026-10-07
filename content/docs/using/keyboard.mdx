@@ -1,0 +1,88 @@
+---
+title: Keyboard and ⌘K
+description: Search or jump anywhere with ⌘K, move between areas with G then a letter, and decide things with single keys.
+nav: Keyboard and ⌘K
+sources:
+  - src/app/shell/Shortcuts.tsx
+  - src/components/CommandPalette.tsx
+  - src/components/ReviewCard.tsx
+  - src/app/shell/Shell.tsx
+  - src/components/ListRow.tsx
+  - src/components/useSelection.ts
+  - src/app/shell/useTour.ts
+screen: shell
+---
+
+<ScreenFacts screen="shell" />
+
+CareerBot works fully with the keyboard. Single keys act only outside text fields, menus and dialogs, so typing is never taken for a command.
+
+## ⌘K: Search or jump to
+
+<Kbd>⌘K</Kbd> (<Kbd>Ctrl+K</Kbd> on Windows and Linux) opens **Search or jump to** from anywhere, and closes it again. It finds any screen, role, company or action by name. The screen you're on lists its own actions first; then come **Go to** (every screen and sub-page), **Help** and **Account**.
+
+- Arrow keys move, <Kbd>↵</Kbd> opens, <Kbd>Esc</Kbd> closes.
+- <Kbd>⌘↵</Kbd> opens the choice in the pane beside, rather than in place.
+- **Help** has **All shortcuts**, **Take the tour** of the screen you're on, and on large screens **Collapse sidebar** or **Expand sidebar**.
+- **Account** has **Sign out**.
+
+## G then a letter
+
+Press <Kbd>G</Kbd>, then a letter within about a second and a half, to go to an area:
+
+<Shortcuts />
+
+## ? for every shortcut
+
+<Kbd>?</Kbd> opens **All shortcuts**, grouped as **Anywhere**, **Lists**, **Review** and **Companies**.
+
+## Lists
+
+On every screen with a list:
+
+| Key | Does |
+| --- | --- |
+| <Kbd>J</Kbd> | Next |
+| <Kbd>K</Kbd> | Previous |
+| <Kbd>↵</Kbd> | Open |
+| <Kbd>Esc</Kbd> | Close the item |
+
+### Selecting several
+
+In Pursuits, Companies, Skills, Tools, Certifications and a Review group's list, you can act on several rows at once. Checkboxes show only once you start selecting, never when you just point at a row:
+
+- **Select** in the list's ⋯ menu (or **Select all**), or **Select** in a row's right-click menu.
+- <Kbd>X</Kbd> or <Kbd>Space</Kbd> on the row with focus.
+- <Kbd>⇧</Kbd>-click or <Kbd>⌘</Kbd>-click (<Kbd>Ctrl</Kbd>-click on Windows and Linux) on a row.
+
+While you're selecting, a click checks or unchecks a row instead of opening it, and a bar at the bottom shows how many are checked and what you can do to all of them, each with its key. **Done** or <Kbd>Esc</Kbd> stops selecting and unchecks everything; so does acting on what's checked.
+
+## Deciding: Review and elsewhere
+
+On a decision card, in Review and wherever a proposed item opens (Record, Goals), the same letters decide it:
+
+| Key | Does |
+| --- | --- |
+| <Kbd>A</Kbd> | **Approve** |
+| <Kbd>E</Kbd> | **Edit** |
+| <Kbd>R</Kbd> | **Reject** |
+| <Kbd>U</Kbd> | **Undo** |
+| <Kbd>J</Kbd> / <Kbd>K</Kbd> | **Next** / **Previous** card |
+
+A card's other actions show their own letter on the button (for example <Kbd>M</Kbd> **Maybe** on a company to rate). Where a card asks you to write (an edit, an answer), <Kbd>⌘↵</Kbd> saves and <Kbd>Esc</Kbd> cancels.
+
+## Screen keys
+
+Each screen's page lists its own keys. The main ones:
+
+| Screen | Keys |
+| --- | --- |
+| [Pursuits](/docs/using/pursuits) | <Kbd>S</Kbd> Start, <Kbd>I</Kbd> Interested, <Kbd>R</Kbd> Not for me, <Kbd>O</Kbd> open the posting, <Kbd>L</Kbd> write a letter, <Kbd>/</Kbd> Ask about this role, <Kbd>X</Kbd> select the row |
+| [Companies](/docs/using/companies) | <Kbd>T</Kbd> Target, <Kbd>M</Kbd> Maybe, <Kbd>R</Kbd> Not for me, <Kbd>E</Kbd> edit the website or job board, <Kbd>N</Kbd> add a note, <Kbd>X</Kbd> select the row |
+| [Resumes](/docs/using/resumes) | <Kbd>L</Kbd> Layout, <Kbd>H</Kbd> History, <Kbd>U</Kbd> undo a line change |
+| [Record](/docs/using/record) | <Kbd>N</Kbd> new story, <Kbd>⇧N</Kbd> quick note, <Kbd>⇧T</Kbd> Talk, <Kbd>⇧V</Kbd> Versions, <Kbd>⌘S</Kbd> save, <Kbd>F</Kbd> add a fact, <Kbd>B</Kbd> add a break |
+| [Goals](/docs/using/goals) | <Kbd>E</Kbd> edit, <Kbd>⌘↵</Kbd> save, <Kbd>.</Kbd> show a direction's resume |
+
+## Tours
+
+Today (with the frame), Review, Pursuits, Companies, Resumes, Record, Goals and Settings' Google Drive section each have a short tour. **Take the tour** is in <Kbd>⌘K</Kbd> and in the screen's ⋯ menu, and your first visit offers it once. Tours never click, spend or change anything.

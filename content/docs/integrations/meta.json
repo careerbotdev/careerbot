@@ -1,0 +1,10 @@
+{
+  "title": "Integrations",
+  "pages": [
+    "google-drive",
+    "github",
+    "job-boards",
+    "apollo",
+    "brave"
+  ]
+}

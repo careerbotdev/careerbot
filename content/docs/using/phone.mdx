@@ -1,0 +1,65 @@
+---
+title: On a phone
+description: The bottom bar, More, sheets, press and hold for explanations, swiping cards, and Talk.
+nav: On a phone
+sources:
+  - src/components/BottomBar.tsx
+  - src/components/Sidebar.tsx
+  - src/components/Sheet.tsx
+  - src/components/Tooltip.tsx
+  - src/components/Menu.tsx
+  - src/components/Panes.tsx
+  - src/components/ReviewCard.tsx
+  - src/components/Talk.tsx
+  - src/components/useSelection.ts
+  - src/app/shell/Shell.tsx
+---
+
+CareerBot works on a phone as fully as on a computer. The layout changes below 768 pixels wide; between 768 and 1279 the sidebar is a narrow rail; from 1280 up you get the full sidebar.
+
+## The bottom bar
+
+Instead of the sidebar, a bar sits at the bottom in thumb reach with **Today**, **Review** (with how many decisions wait), **Pursuits** (with how many reminders are due) and **More**.
+
+The bar changes with what you're doing:
+
+- With an item open, it holds that item's actions, the main one filling the rest of the bar.
+- While you're selecting rows, it shows how many are checked, what you can do to all of them, and **Done**.
+- Before something is deleted, it asks first, with the safe choice focused.
+- After a no, it holds the **Why?** field above the keyboard.
+
+It turns back into the areas when you're done.
+
+## More
+
+**More** opens a sheet with the rest: **Companies**, **Resumes**, **Record** with its pages, **Goals** with its pages, **Reports**, the **Activity** row, **Settings** and your account (**Sign out**).
+
+## Lists and items
+
+A screen shows its list alone. Opening a row shows the item full screen, with a way back at the top. What would open beside it on a large screen (a fact's sources, a tailored resume, **Ask about this role**) opens as a sheet.
+
+To act on several rows at once (in Pursuits, Companies, Skills, Tools, Certifications and a Review group's list), press and hold one, or tap **Select** in the list's ⋯ menu. Checkboxes show, a tap checks or unchecks a row, and the bottom bar holds what you can do to the checked ones. **Done** stops selecting.
+
+## Sheets
+
+Menus, pickers, the ⋯ menu, a long-press menu, explanations and ⌘K all open as a sheet that rises from the bottom. Swipe it down, tap outside it, or press <Kbd>Esc</Kbd> to close.
+
+## Press and hold
+
+There's no hover on a phone, so:
+
+- Press and hold a button to read what it does and what it costs, in a sheet titled with its name.
+- Press and hold a row for its menu, the same as its ⋯ menu. On a row you can select (see above), pressing and holding checks it and starts selecting instead.
+- Press and hold a number or a bar in Reports for what it counts.
+
+## Swiping in Review
+
+A review card swipes: right approves, left rejects. Its other actions sit in the bottom bar.
+
+## Talk
+
+When writing a story or a quick note in Record, or your first story in Getting started, **Talk** types as you speak, using the browser's own speech recognition. Words still being heard show greyed; finished ones go into the text and save when you stop. Nothing is recorded or kept. A phone stops listening when the screen locks or the app goes to the background; what was heard is already in the text. Where the browser can't listen, the screen points to your phone keyboard's own dictation instead.
+
+## Tours
+
+Tours work on a phone too, as a card at the bottom of the screen.

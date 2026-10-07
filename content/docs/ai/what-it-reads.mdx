@@ -1,0 +1,96 @@
+---
+title: What each step reads
+description: Five labels say how each input to an AI step is filtered, and why some steps see more than what you approved.
+sources:
+  - docs/architecture/model.c4
+  - convex/recordContext.ts
+  - convex/extract.ts
+  - convex/skills.ts
+  - convex/duplicates.ts
+  - convex/projects.ts
+  - convex/repoReader.ts
+  - convex/ask.ts
+  - convex/factChanges.ts
+---
+
+Every AI step in CareerBot gets a fixed set of inputs. Each input carries one of five labels, and the label decides what
+gets through. The labels are the reason a resume can't cite a fact you never approved, and the reason a step doesn't
+keep proposing what you already turned down.
+
+<FilterLabels />
+
+## Approved only
+
+Only what you approved, and only while it still stands. A fact counts while at least one of its sources stands: if you
+reject or delete the story a fact came from, and it has no other source, it stops counting everywhere at once. A
+project's facts count only while the project itself is approved.
+
+This is the only input that writing ever builds on. Resumes, cover letters, answers, outreach and follow-ups read your
+approved roles, facts, projects, context, insights, skills and directions, and nothing proposed or rejected. When a
+reply cites anything else, the citation is dropped before it's saved.
+
+## Your words
+
+Your stories, exactly as you wrote them. Reading steps need them as written, because a fact has to quote the story it
+came from. When <AiStep id="extract" /> proposes a fact whose quote can't be found in the story being read, the fact is
+flagged for you to look at.
+
+Most steps also get your other stories, but for background only: they help the AI understand a passage, never as a
+source. Your goals story is never passed as background, and neither is a story you rejected.
+
+<AiStepCard step="extract" />
+
+Two other inputs count as your words:
+
+- A GitHub repository. <AiStep id="readProject" /> reads the repository as it is, the way a story is read: it's
+  the evidence, so each fact must cite the files it rests on, and a fact citing no file that was read is flagged.
+  Secret-looking files, dependencies, build output, lockfiles and binaries are never fetched, and anything that looks
+  like a password, key or token inside what is read is replaced with [redacted] before it goes to the AI.
+- What you write when you ask about a role. <AiStep id="ask" /> reads your messages as the question and its context,
+  never as a claim about you. If you tell it something new about yourself, that message becomes a note in your own
+  words, read like any story, and what it holds arrives in <Screen id="review" /> as proposals.
+
+## Not yet reviewed
+
+Includes proposals you haven't reviewed yet. Steps that get them are told they're waiting for review: not true, and not
+to build on. They're passed for three reasons, each a deliberate choice:
+
+- So nothing is proposed twice. <AiStep id="extract" /> and <AiStep id="readProject" /> get what is already
+  waiting, so reading a second story doesn't fill Review with the same fact again.
+- Because duplicates are usually new. <AiStep id="duplicatesStep" /> reads facts waiting for review alongside
+  approved ones, since a duplicate is most often a new proposal repeating an approved fact. Its only output is a flag
+  you resolve.
+- So waiting items can be tidied. <AiStep id="gatherSkills" /> reads skills, tools and certifications waiting for
+  review, so it can rename, regroup or offer them as merges instead of proposing a second copy.
+
+<AiStep id="revision" /> gets every fact the story is a source of, approved and waiting, because those are the facts a
+change to the story can affect. It may suggest updates only to those facts.
+
+Set-aside items are never sent.
+
+## Rejected, to skip
+
+Things you rejected, with the reasons you gave, passed only so they aren't proposed again. Reading steps also skip, in
+code, a proposal that repeats a rejected fact in the same words. <AiStep id="gatherSkills" /> never brings back a
+rejected skill in any spelling.
+
+You can look past your rejections once: **Read again** on a story or project has **Including what I rejected**, which
+leaves out that source's own rejections for that read only.
+
+One step reads a rejected fact for a different reason. When you reject a fact that a resume or letter line cites,
+<AiStep id="lineUpdate" /> reads its words as what to take out of the line, never as a source.
+
+## Public
+
+Public information about a company or a role: a company's name and website, its public pages and job board, a job
+posting. <AiStep id="screening" /> reads only a company's name and website. <AiStep id="enrich" /> reads its site and
+public job board. <AiStep id="rankRoles" /> reads the full posting.
+
+## Inputs with no label
+
+A few steps read your own settings or a single thing you wrote, which aren't filtered because they're not record
+content:
+
+- <AiStep id="limitRule" /> reads one limit's wording and nothing else, never your goals story.
+- Writing steps read the length you set for a resume, and your name from your profile to sign letters and messages.
+- <AiStep id="lineCheck" /> reads the line you put in your own words, beside the approved facts it rests on.

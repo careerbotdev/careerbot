@@ -1,0 +1,68 @@
+{
+  "facts": [
+    { "id": "f1", "story": "stories/01-mojave-valley.md", "statement": "Teaches 7th and 8th grade science at Harmon Ridge Middle School in the Mojave Valley School District in Las Vegas, since August 2017.", "match": [["harmon ridge", "mojave valley"], ["science"]] },
+    { "id": "f2", "story": "stories/01-mojave-valley.md", "statement": "Science department lead at Harmon Ridge since fall 2021, leading a department of seven science teachers (herself and six others).", "match": [["department (lead|head|chair)", "lead(s|ing)? (the|a) (science )?department"], ["\\b(six|6|seven|7)\\b"]] },
+    { "id": "f3", "story": "stories/01-mojave-valley.md", "statement": "Manages the science department budget of about $9,000 a year, including ordering all lab supplies.", "match": [["budget"], ["9,000", "\\$9k", "\\b9k\\b", "nine thousand"]] },
+    { "id": "f4", "story": "stories/01-mojave-valley.md", "statement": "Wrote about 60 items for the district's common 8th grade science end-of-unit assessments in 2022, including constructed-response items with rubrics, and took part in item review.", "match": [["assessment", "\\bitems?\\b"], ["\\b60\\b", "sixty"]] },
+    { "id": "f5", "story": "stories/01-mojave-valley.md", "statement": "Earned a Master of Education in Curriculum and Instruction online in 2021 while teaching.", "match": [["master", "m\\.?\\s?ed\\b"], ["curriculum (and|&) instruction"]] },
+    { "id": "f6", "story": "stories/01-mojave-valley.md", "statement": "Took about five months of maternity leave from February to July 2023 and returned to teaching in August 2023.", "match": [["maternity", "parental", "\\bleave\\b"], ["2023"]] },
+    { "id": "f7", "story": "stories/02-canvas-unit-library.md", "statement": "Led the build of a library of 36 blended-learning science units for grades 6-8 on Canvas in 2020, with two other teachers, setting the shared module template.", "match": [["\\b36\\b", "thirty[- ]six"], ["\\bunits?\\b"]] },
+    { "id": "f8", "story": "stories/02-canvas-unit-library.md", "statement": "The unit library was piloted in 3 middle schools in the 2021-22 school year, reaching about 1,100 students and 14 teachers.", "match": [["\\b(3|three)\\b"], ["1,100", "\\b1100\\b", "1\\.1k"]] },
+    { "id": "f9", "story": "stories/02-canvas-unit-library.md", "statement": "Module completion in Canvas was about 87% across the pilot classes, and pilot classes averaged about 6 points higher on the common unit test than the prior year.", "match": [["87 ?(%|percent)"]] },
+    { "id": "f10", "story": "stories/02-canvas-unit-library.md", "statement": "Ran nine workshops on blended learning and Canvas course design between 2021 and 2023, for about 120 teachers in total.", "match": [["workshop", "professional development", "\\bPD\\b", "training"], ["\\b120\\b"]] },
+    { "id": "f11", "story": "stories/02-canvas-unit-library.md", "statement": "Made the units accessible (captions, alt text, checked reading level) and included Spanish versions of many student pages.", "match": [["caption", "alt text", "accessib"], ["spanish"]] },
+    { "id": "f12", "story": "stories/03-robotics-club.md", "statement": "Founded and coaches the Harmon Ridge VEX IQ robotics club since fall 2018, growing it from 8 students to 3 teams and 28 students.", "match": [["robotics", "vex"], ["\\b28\\b", "twenty[- ]eight"]] },
+    { "id": "f13", "story": "stories/03-robotics-club.md", "statement": "Won a $12,000 grant from the Desert Sky Community Foundation in 2022 to fund kits, a field, fees and travel for the robotics club.", "match": [["grant"], ["12,000", "\\$12k", "\\b12k\\b", "twelve thousand"]] },
+    { "id": "f14", "story": "stories/03-robotics-club.md", "statement": "In 2024 one of her teams qualified for the Nevada state championship for the first time in school history, after winning the Judges Award at a regional qualifier, and finished 11th of about 40 teams.", "match": [["state"], ["qualif", "11th", "judges award"]] },
+    { "id": "f15", "story": "stories/03-robotics-club.md", "statement": "Designed a six-week onboarding sequence for new robotics members, so new students are competition-ready by October instead of January.", "match": [["onboarding"], ["six[- ]week", "6[- ]week"]] },
+    { "id": "f16", "story": "stories/04-santa-lucia-cebu.md", "statement": "Taught Grade 7 and 8 science at Colegio de Santa Lucia, a private school in Cebu City, Philippines, five sections of about 45 students each.", "match": [["santa lucia", "cebu"], ["\\b45\\b", "forty[- ]five", "\\b200\\b"]] },
+    { "id": "f17", "story": "stories/04-santa-lucia-cebu.md", "statement": "Built about 20 low-cost lab kits from recycled and market materials and wrote an instruction binder that other science teachers used.", "match": [["\\bkits?\\b"], ["\\b20\\b", "twenty"]] },
+    { "id": "f18", "story": "stories/04-santa-lucia-cebu.md", "statement": "Redesigned the school science fair around real investigations with a judging rubric, about 60 projects, with one student placing at the division fair.", "match": [["science fair"], ["\\b60\\b", "sixty", "rubric", "division"]] },
+    { "id": "f19", "story": "stories/05-quillfern-summer.md", "statement": "In summer 2022 (10 weeks), wrote 14 interactive lessons for Quillfern Learning's forces and motion module, including storyboards, narration scripts, hints and misconception-based feedback.", "match": [["quillfern"], ["\\b14\\b", "fourteen"]] },
+    { "id": "f20", "story": "stories/05-quillfern-summer.md", "statement": "Ran two rounds of playtests with 12 students and revised lessons based on where they got stuck.", "match": [["playtest", "play[- ]test", "user test", "usability", "learner test"], ["\\b12\\b", "twelve"]] }
+  ],
+  "contradictions": [
+    {
+      "id": "c1",
+      "about": "The year she left Cebu and arrived in the US to start at the Mojave Valley district",
+      "stories": ["stories/01-mojave-valley.md", "stories/03-robotics-club.md", "stories/04-santa-lucia-cebu.md"],
+      "values": ["arrived July 2017, first day with students August 2017 (first year 2017-18)", "taught at Santa Lucia 2016 to 2018 and flew to the US in July 2018"],
+      "match": [["2017"], ["2018"]]
+    }
+  ],
+  "noInflation": [
+    { "id": "n1", "story": "stories/02-canvas-unit-library.md", "claim": "The unit library got adopted district-wide and became the science curriculum on Canvas for the whole district.", "truth": "It was an official pilot in 3 middle schools in 2021-22 (about 1,100 students, 14 teachers); some other teachers got copies informally. It never rolled out to the whole district.", "forbidden": ["district[- ]?wide", "(across|throughout|for) (the )?(entire|whole) district", "(all|every) (of the )?(middle )?schools in the district"] },
+    { "id": "n2", "story": "stories/02-canvas-unit-library.md", "claim": "Trained basically every science teacher in the district.", "truth": "About 120 teachers across nine workshops, not all of them science teachers.", "forbidden": ["(trained|coached|upskilled) (all|every|each|virtually all|nearly all|almost all)\\b", "(all|every) (science )?teachers? (in|across) the district"] },
+    { "id": "n3", "story": "stories/03-robotics-club.md", "claim": "We won state.", "truth": "One team qualified for the Nevada state championship in 2024 and finished 11th of about 40; the team won the Judges Award at a regional qualifier, not at state.", "forbidden": ["won (the )?(nevada )?state", "state champions?\\b", "state (title|crown)", "(won|winning) (a |the )?(nevada )?state championship", "first place at state"] },
+    { "id": "n4", "story": "stories/05-quillfern-summer.md", "claim": "Basically designed Quillfern's whole middle school product that summer.", "truth": "Over a 10-week summer stipend she wrote 14 lessons for one module (forces and motion) of their physical science course; a designer and two engineers built them.", "forbidden": ["designed (quillfern'?s? |the |their |its )?(whole|entire)", "(whole|entire) (middle[- ]school )?(product|platform|curriculum|course catalog)", "led (the )?(product|curriculum) (design|development)", "head of (curriculum|learning|content)"] }
+  ],
+  "directions": {
+    "fit": [
+      { "id": "d1", "name": "Instructional designer at an ed-tech company (online courses, assessments, LMS course design)", "match": [["instructional design"]] },
+      { "id": "d2", "name": "Learning experience designer (storyboards, interactive lessons, testing with learners)", "match": [["learning experience", "\\bLXD\\b", "learning design"]] },
+      { "id": "d3", "name": "Curriculum designer / developer, especially K-12 or middle school science", "match": [["curriculum (design|develop|writ)"]] },
+      { "id": "d4", "name": "Learning designer on a corporate L&D team (employee training and onboarding)", "match": [["corporate (learning|training|l&d)", "learning (and|&) development", "\\bL&D\\b", "workplace learning"]] }
+    ],
+    "avoid": [
+      { "id": "x1", "name": "School administration / principal track: she says plainly she doesn't want it", "match": [["principal", "school (administration|administrator|leadership)"]] },
+      { "id": "x2", "name": "Software engineering or data science: she says she isn't one and the record can't support it", "match": [["software (engineer|developer|development)", "full[- ]stack", "data scien", "machine learning engineer"]] },
+      { "id": "x3", "name": "Ed-tech sales or account management: she says she'd hate it", "match": [["\\bsales\\b", "account (executive|manager|management)", "business development"]] }
+    ]
+  },
+  "limits": [
+    { "id": "l1", "kind": "visa", "statement": "Needs H-1B transfer sponsorship; roles that can't sponsor or are for US citizens only are out.", "match": [["h-?1b", "sponsor", "visa"]], "filters": ["postings/03-northbeam-curriculum-designer.md"] },
+    { "id": "l2", "kind": "pay", "statement": "Base pay of at least $80,000.", "match": [["80,000", "\\$80k", "\\b80k\\b", "\\$80\\b"]], "filters": [] },
+    { "id": "l3", "kind": "location", "statement": "Remote anywhere in the US, or onsite/hybrid in Las Vegas; won't relocate.", "match": [["remote"], ["las vegas"]], "filters": [] },
+    { "id": "l4", "kind": "travel", "statement": "Little travel: a couple of trips a year, 10% at most.", "match": [["travel"], ["10 ?(%|percent)", "minimal", "little", "couple", "limited"]], "filters": [] },
+    { "id": "l5", "kind": "clearance", "statement": "Can't take roles that require a security clearance.", "match": [["clearance"]], "filters": [] }
+  ],
+  "humanReview": [
+    "The arrival-year conflict (2017 vs 2018) is raised as a question to her, not silently resolved; the 2017 side has more support (district start date and robotics club timeline).",
+    "The 5-month maternity leave in 2023 is shown as a leave within the district job, not as a gap in employment or a separate role.",
+    "The robotics club, the Canvas unit library and the Quillfern work are recorded as projects inside the district job, not as separate employers; Quillfern was paid through a district summer stipend because of her visa.",
+    "Resumes translate teaching into instructional design language (backward design, assessment design, storyboards, learner testing, facilitation) without inventing tools she didn't name (e.g. claiming Articulate Storyline or advanced Figma).",
+    "No resume or cover letter presents her as a programmer; robotics coding help stays at block coding and reading basic VEX Python.",
+    "Cover letters for Lanternwise and Skillharbor lean on the unit library pilot, the item writing and the Quillfern playtests, and the 120-teacher workshops as adult-learning facilitation.",
+    "The Northbeam posting is flagged for the sponsorship line even though the content fit is excellent."
+  ]
+}

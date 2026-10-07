@@ -1,0 +1,49 @@
+---
+title: Reviewing facts
+description: After a story is read, you approve, edit or reject what CareerBot understood. Only what you approve is used.
+nav: Review
+sources:
+  - src/app/today/steps.ts
+  - src/app/review/decisions.ts
+  - src/app/review/Review.tsx
+  - src/app/record/facts/actions.ts
+  - convex/today.ts
+---
+
+When you choose **Done, read it** on your first story (or **Read** on any story), CareerBot reads it into roles, facts and context. Nothing it proposes is used until you say so. This step is where you do that, and it's what unlocks your record: resumes, letters and ranking are built only from what you approve.
+
+The step is done once you've approved at least one fact. It's free.
+
+## What you do
+
+The step's button, **Review**, opens <Screen id="review" /> with what CareerBot understood from your story, one item at a time. For each one:
+
+<Shot id="review-fact" alt="A New fact card in Review for Wren’s Network Operations Manager role at Ironbridge Logistics, with the sentence from her story it was built on, and the buttons Approve, Edit and Reject with their keys." />
+
+| Choose | Key | What happens |
+| --- | --- | --- |
+| **Approve** | <Kbd>A</Kbd> | It goes into your record, where resumes, letters and ranking can use it. |
+| **Edit** | <Kbd>E</Kbd> | Write it your way. **Save and approve** approves your wording as you write it. |
+| **Reject** | <Kbd>R</Kbd> | It's left out of your record. You can say why; what you say steers later reads. |
+
+Every decision can be undone with <Kbd>U</Kbd> right after.
+
+Roles come first: approve a role (title, employer, dates) so the facts under it can count. If a role's details are wrong, **Edit** opens it in Record to fix them.
+
+## When a fact is close but not right
+
+Open the card's ⋯ menu and choose **Ask for a rewrite**. Say what to change or add, for example "It was a team of three and I led it". The rewrite comes back under Rewrites, where you choose **Use this**, **Edit**, or **Keep current**. A rewrite costs about $0.01 of your AI budget.
+
+The same thing is on a fact in Record, as **Add context or rewrite**.
+
+## Other things you'll see in Review
+
+- **Questions**: when CareerBot thinks an answer would sharpen a line, it asks. **Answer** or **Not now**. You can ask for some yourself with **Suggest questions** (about $0.02).
+- When your story and your record disagree (a start date, say), you choose **Story is right**, **Record is right** or **Neither**.
+- Insights across jobs, skills that look like the same skill, and facts that say the same thing twice come later, as you add more stories.
+
+See [The record and approval](/docs/how-it-works/record-and-approval) and [Review](/docs/using/review).
+
+## Next
+
+[Goals, directions and limits](/docs/start/goals).

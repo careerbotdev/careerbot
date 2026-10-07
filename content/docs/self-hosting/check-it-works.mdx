@@ -1,0 +1,79 @@
+---
+title: Check it works
+description: What a healthy copy looks like, and a first run through it from sign-in to a first story.
+nav: Check it works
+sources:
+  - compose.yaml
+  - docker/convex-setup.sh
+  - src/app/settings/Ai.tsx
+  - src/app/settings/Keys.tsx
+  - src/app/SelfHostedSignIn.tsx
+---
+
+## The containers
+
+```bash title="Terminal"
+docker compose ps -a
+```
+
+A healthy copy with self-hosted Convex:
+
+| Service | State |
+| --- | --- |
+| `web` | Up (healthy) |
+| `convex-backend` | Up (healthy) |
+| `convex-dashboard` | Up |
+| `convex-setup` | Exited (0) |
+| `convex-admin-key` | Exited (0) |
+
+With Convex's cloud, only `web` and `convex-setup`. The two one-shot services are meant to exit; `0` means they
+worked. On Coolify and Dokploy, the same services show in their logs and container lists.
+
+The setup step's log ends with "Convex is set up." and, until the owner account exists, the setup code:
+
+```bash title="Terminal"
+docker compose logs convex-setup
+```
+
+If `convex-setup` exited with an error, `web` doesn't start. Its log says why; the usual causes are a wrong
+`CONVEX_DEPLOY_KEY` (Convex answers "401 Invalid Convex deploy key") or neither Convex setting set.
+
+## A first run
+
+<Checklist>
+<Check title="The site opens">
+Open `SITE_URL`. You see the sign-in screen, with **Create your account** while there's no owner yet. Nothing else: a
+copy you run yourself has no public website at `/`.
+</Check>
+<Check title="You can create the owner account">
+The setup code, a username and a password twice. You land on <Screen id="today" />.
+</Check>
+<Check title="You can sign out and in again">
+Account menu (bottom left, your username) > **Sign out**, then sign in with the username and password. This proves
+sign-in reaches Convex and back (on a server: that `NEXT_PUBLIC_CONVEX_URL` and its websockets pass through your proxy).
+</Check>
+<Check title="Your OpenRouter key is accepted">
+<Screen id="settings" /> > **Keys** > OpenRouter > **Add key**. CareerBot checks the key before saving it.
+</Check>
+<Check title="The AI answers">
+Settings > **AI** > **Try it**: "Ask the model one question to check your key and see how it answers." The answer shows
+with the model, how long it took and what it cost. It's the <AiStep id="firstCall" />, paid from your AI budget.
+</Check>
+<Check title="A first story is read">
+Tell the story of one job, the way Getting started on <Screen id="today" /> leads you. CareerBot reads it in the
+background (<AiStep id="extract" />), and the facts it finds come to <Screen id="review" />. Give it time: telling a
+story well takes 20 minutes or more a job, and reading it isn't instant.
+</Check>
+<Check title="Background work shows in Activity">
+<Screen id="activity" /> lists the background work as it runs and how it went. A step that failed says so there.
+</Check>
+</Checklist>
+
+## If something's off
+
+- The site doesn't open on a server: check the DNS records and the proxy's domain for `web` (port 3000 in the container).
+- The sign-in screen says "This copy’s Convex isn’t set up for username and password sign-in: set CAREERBOT_MODE=self-hosted in its environment.": the Convex deployment lacks `CAREERBOT_MODE`. Compose sets it; on the Cloudflare way, set it with `npx convex env set CAREERBOT_MODE self-hosted`.
+- "That setup code doesn’t work. Check it in the install’s output, or make a new one.": a newer code was made (each deploy makes one). Use the newest, or `docker compose run --rm convex-setup new-setup-code`.
+- Google or GitHub sends people back to an error: the callback URL in the OAuth app must be `CONVEX_SITE_ORIGIN` (or `https://your-deployment.convex.site`) plus `/api/auth/callback/google` or `/github`, and `SITE_URL` must be the address people opened.
+
+More: [Troubleshooting](/docs/troubleshooting). Next: [First steps](/docs/start).

@@ -1,0 +1,95 @@
+---
+title: How the AI works
+description: CareerBot uses AI in a set order, and each step reads only what it needs.
+nav: The order
+sources:
+  - docs/architecture/model.c4
+  - convex/aiTasks.ts
+  - convex/recordContext.ts
+  - convex/letters.ts
+  - convex/resume.ts
+  - convex/ask.ts
+  - convex/people.ts
+  - convex/followUpEmails.ts
+  - convex/budgets.ts
+  - convex/metering.ts
+  - convex/compare.ts
+  - src/app/settings/Ai.tsx
+---
+
+Here is every step you'll meet, in the order you'll meet it: what starts it, what it reads, and what it may and may not
+do.
+
+## Three rules
+
+<Terms>
+  <Term title="It proposes, you decide">
+    What the AI reads from your stories, goals and projects comes back as proposals in <Screen id="review" />. Nothing
+    enters your record until you approve it. A rewrite of a fact comes back as a suggestion beside the fact, never as a
+    silent change. CareerBot never sends anything for you: you send letters and messages yourself, from your own email.
+  </Term>
+  <Term title="Writing rests on what you approved">
+    Resumes, cover letters, answers and messages are written from your approved record only. Each line cites the
+    approved facts it rests on; a citation of anything else is dropped before you see it. A resume line left with no
+    approved fact behind it is marked **No approved basis**.
+  </Term>
+  <Term title="What you rejected stays rejected">
+    Rejected items are shown to the AI only so it won't propose them again, never as something true about you.
+  </Term>
+</Terms>
+
+## What the labels mean
+
+Each step lists what it reads. The label beside an input says how it's filtered. [What each step reads](/docs/ai/what-it-reads)
+explains why each input is filtered the way it is.
+
+<FilterLabels />
+
+## The order
+
+Six stages, from your first story to the messages you send. Most steps run only when you ask; the rest say when they
+run. Each stage has its own page: [Reading your stories](/docs/ai/stories), [Keeping the record clean](/docs/ai/record),
+[Your goals](/docs/ai/goals), [Companies](/docs/ai/companies), [Roles](/docs/ai/roles) and [Writing](/docs/ai/writing).
+
+<AiStageList />
+
+## Your stories
+
+<AiStage stage="stories" />
+
+## Your record
+
+<AiStage stage="record" />
+
+## Your goals
+
+<AiStage stage="goals" />
+
+## Companies
+
+<AiStage stage="companies" />
+
+## Roles
+
+<AiStage stage="roles" />
+
+## Writing
+
+<AiStage stage="writing" />
+
+## What it costs
+
+Every step runs on your own OpenRouter key and is paid from your monthly AI budget. Before each call CareerBot sets
+aside the most that call could cost, so it can't spend past your budget. When the budget is used up, work pauses. It
+picks up where it left off when you raise the budget, or when the budget resets on the 1st of the month (UTC). Most
+buttons that start AI work show what it has cost you lately beside them. See [Budgets and costs](/docs/ai/budgets).
+
+Which model each step uses is your choice, in <Screen id="settings" />. See [Models and AI tasks](/docs/ai/models).
+
+## Outside the order
+
+Two tools in <Screen id="settings" /> never touch your record:
+
+- **Try it** sends one question to the model you chose, to check your key and see how it answers, with what it cost.
+- **Compare models** runs one task with up to four models side by side: reading a story, writing the base resume or
+  finding insights. You judge the results; your record and resumes don't change.

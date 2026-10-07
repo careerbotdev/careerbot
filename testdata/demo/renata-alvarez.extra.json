@@ -1,0 +1,27 @@
+{
+  "persona": "renata-alvarez",
+  "personaRun": { "run": "2026-10-02T00-27-24-886Z", "deployment": "test-deployment", "workspaceId": "r17d0qhkfez07gp6ebm4j8jccx8fhwrh" },
+  "name": "Renata Alvarez",
+  "writer": "anthropic/claude-sonnet-5.5",
+  "aiCapUsd": 1,
+  "budgetUsd": 10,
+  "apply": {
+    "company": "Quillfield Health",
+    "contacts": [
+      { "name": "Dana Whitfield", "title": "Director of Clinical Implementation", "email": "dana.whitfield@example.com", "group": "hiringManager" },
+      { "name": "Marcus Oyelaran", "title": "Senior Talent Acquisition Partner", "email": "marcus.oyelaran@example.com", "group": "recruiting" }
+    ],
+    "note": "Jolene from my old ICU is on Quillfield's implementation team now; she said Dana's group is hiring two specialists this quarter.",
+    "followUpTo": "Dana Whitfield"
+  },
+  "outreach": {
+    "company": "Fennel & Finch",
+    "direction": "Clinical Implementation",
+    "contacts": [
+      { "name": "Priya Raman", "title": "Director of Clinical Operations", "email": "priya.raman@example.com", "group": "hiringManager" },
+      { "name": "Tom Kessler", "title": "Clinical Implementation Manager", "email": "tom.kessler@example.com", "group": "team" }
+    ],
+    "draftFor": "Priya Raman",
+    "nextStep": "If Priya hasn't answered by next Friday, write to Tom."
+  }
+}

@@ -1,0 +1,54 @@
+// The kinds of things in CareerBot's system map. See docs/architecture/README.md.
+specification {
+  element actor {
+    style {
+      shape person
+    }
+  }
+  element external {
+    style {
+      color muted
+    }
+  }
+  element system
+  element area
+  element screen {
+    style {
+      shape browser
+    }
+  }
+  // A step that calls a model. Its inputs are the relationships pointing into it.
+  element aiStep {
+    style {
+      color amber
+    }
+  }
+  // A Convex module or background process that isn't an AI step.
+  element service
+  element table {
+    style {
+      shape storage
+      color secondary
+    }
+  }
+
+  relationship reads {
+    line dashed
+  }
+  relationship writes
+  relationship calls
+  relationship uses {
+    line dotted
+  }
+
+  // Input filters, the thing that decides downstream quality.
+  tag approvedOnly {
+    color green
+  }
+  tag unreviewedInput {
+    color red
+  }
+  tag rawNarrative
+  tag rejectedAsGuard
+  tag operatorOnly
+}

@@ -1,0 +1,56 @@
+---
+title: Google Drive
+description: CareerBot keeps Google Docs of your resumes, letters and answers in a CareerBot folder in your Drive, and can see only the files it makes.
+sources:
+  - src/app/settings/Drive.tsx
+  - src/app/settings/drivePicker.ts
+  - src/app/resumes/Drive.tsx
+  - src/app/today/GettingStarted.tsx
+  - convex/drive.ts
+  - convex/drivePaths.ts
+  - convex/crons.ts
+---
+
+Connect Google Drive and CareerBot keeps a Google Doc of each resume in a CareerBot folder in your Drive, updated when you keep a new version. It's optional and free: syncing uses no AI and no credits.
+
+## What it keeps
+
+```text
+CareerBot/
+  Base resume
+  Directions/<direction>/Resume
+  Tailored/<company>/<role>/Resume, Cover letter, Answers
+```
+
+- Your base resume, and the resume for each approved direction, kept in step with the version you keep.
+- For each role you've tailored for: its resume, cover letter and answers, whichever it has.
+- A renamed direction or company renames its folder. A new version of a resume updates the same Doc.
+- Once a pursuit is marked Applied (or later), its files are written once as sent, then left alone, like the app keeps what you sent.
+
+CareerBot syncs after each change and checks every ten minutes. If you delete one of its files in Drive, the next sync makes it again.
+
+## What it can see
+
+Only the files it makes, and the folder you choose for them. Google calls this access "the files it creates"; CareerBot asks for nothing else, so it can't read anything else in your Drive. Connecting Drive is separate from signing in, even with the same Google account.
+
+## Connect it
+
+1. In Settings, **Google Drive**, choose **Connect Google Drive** (or from the step on Today).
+2. On Google's screen, keep the box that lets CareerBot see the files it makes. If you untick it, CareerBot isn't connected: "Google Drive isn’t connected: CareerBot needs access to the files it makes."
+3. You come back to CareerBot, and the first sync starts.
+
+## Settings, Google Drive
+
+<Terms>
+<Term title="Account">Which Google account it's connected as. **Disconnect** stops syncing and ends CareerBot's access to your Drive. Your CareerBot folder and its Docs stay in Drive. **Connect again** any time.</Term>
+<Term title="CareerBot folder">Where it is. **Open folder** opens it in Drive. **Choose a folder** opens Google's own folder picker to choose where the CareerBot folder lives; it moves there with everything in it, and you can undo with U.</Term>
+<Term title="Sync">How many Docs, and when it last synced. **Sync now** syncs straight away. If files didn't sync, it says how many and why, with **Try again**. If Google's access has lapsed, it offers **Connect again**.</Term>
+</Terms>
+
+Each resume in <Screen id="resumes" /> also shows where its Doc stands.
+
+## On careerbot.dev and on your own copy
+
+On careerbot.dev, Google Drive is set up for you: connect it and go.
+
+On a copy you run yourself, Drive uses the same Google sign-in keys you'd set up for **Continue with Google**. Until they're set, **Connect Google Drive** says "Not available yet". **Choose a folder** appears only once the Google Picker key is also set. Setting those keys up also lets people sign in with Google, if you want that. See [Keys and accounts](/docs/self-hosting/keys).

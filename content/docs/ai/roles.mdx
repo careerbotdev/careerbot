@@ -1,0 +1,95 @@
+---
+title: Roles
+description: How CareerBot sorts each open role to your directions, then ranks it, and what the level and score mean.
+nav: Roles
+sources:
+  - docs/architecture/model.c4
+  - convex/roles.ts
+  - convex/roleSort.ts
+  - convex/roleRubric.ts
+  - convex/crons.ts
+  - src/app/pursuits/Pursuits.tsx
+  - src/app/pursuits/PursuitsList.tsx
+  - src/components/ScoreBadge.tsx
+  - src/app/settings/Ai.tsx
+---
+
+CareerBot reads every open role at your Target and Maybe companies from their own job boards: each morning, and when
+you choose **Check roles again** in <Screen id="pursuits" />. A role gone from a complete read of its board is closed.
+Then each new role goes through two AI steps: a quick sort, then a full ranking. The point is to tell you which roles
+deserve your time, not to predict whether you'll be hired.
+
+## The steps
+
+<AiStage stage="roles" />
+
+## Sort, then rank
+
+Ranking reads a role in full against a direction, so it costs more than a glance. Sorting comes first to keep that
+cost down.
+
+<AiStep id="sortRoles" /> decides which of your approved directions each role could plausibly be for, or none. It leans
+toward including: a role wrongly left out is never read again, while an extra one only costs a ranking. Only the
+directions a role is sorted to are ranked, and a role sorted to none isn't ranked at all. Those roles stay in the list,
+under **Other roles**.
+
+Sorting waits until every new role's description is in. It reads each description without the text a company repeats
+across its postings (the same benefits and company blurb on every role), so the role's own work stands out.
+
+You choose how roles are sorted in <Screen id="settings" />, AI, under **Advanced**: with a chat model (the main one,
+or one you give the Sorting roles task), or with Jev, a decision model made for this, which answers for each direction
+whether the role's main work is that direction's work. See [Models and AI tasks](/docs/ai/models).
+
+<AiStep id="rankRoles" /> then reads each role against the directions it was sorted to, from the whole description,
+with what its board states and your approved directions, limits, roles, facts and projects. For each direction it gives
+a level, a score and one plain sentence of reason. When a posting is too thin to judge, the reason starts with "Read
+this one yourself:" and says what's missing.
+
+## Levels
+
+| Level | What it means | Score band |
+| --- | --- | --- |
+| strong | The work this direction is about, not beneath your level | 75 to 100 |
+| some | Plausible and worth a look | 50 to 74 |
+| weak | Only partly this direction's work | 25 to 49 |
+| none | Different work, or against a firm limit | 0 to 24 |
+
+## What the score means
+
+The score, from 0 to 100, says how worth your time a role is. A role is listed under its best direction, best score
+first.
+
+With **Count how big a stretch a role is** on (it is unless you turn it off, in the menu in Pursuits), the level still
+says only how well the work fits. The score starts inside its level's band, then drops for each gap between the role
+and you: more years asked than you've worked (counted from your approved roles' dates, career breaks left out),
+seniority well above yours, core requirements your record lacks, and preferences it misses. A big stretch can take a
+score below its band. Each role lists its stretch in short plain words. A stretch lowers a score; it never hides a
+role.
+
+With it off, the score only places the role inside its level's band, and gaps in your background never lower it.
+
+A firm limit makes a role none. Roles that state something against a firm eligibility limit, like a security clearance
+above the one you hold or no visa sponsorship when you need it, are set apart under **Against your limits**. So are roles
+outside a firm location limit: on-site or hybrid somewhere you won't work, or remote when you don't work remotely, with
+the reason ("On-site in San Francisco; you work hybrid from Denver or remote"). A role that doesn't say how or where
+it's done is kept.
+
+## What else it reads from a role
+
+Ranking also writes, for each role:
+
+- Its details as the description states them: pay, setup, locations, seniority, years asked, employment type, travel,
+  clearance and visa. Never guessed. What the job board states in its own fields wins over what ranking read.
+- A brief: the job in two or three neutral sentences from the posting, and why it fits you and what's thin, from your
+  approved record only.
+
+These are what the role filters in Pursuits work on.
+
+## Ranking again
+
+Nothing is ranked again by itself. When you change an approved direction's title or summary, roles ranked before the
+change are marked, and **Rank again** ranks them for your directions as they are now. It reads no job boards, and shows
+what it costs before you start.
+
+A role whose own input fails three times in a pass is set aside until the next pass. If this month's AI budget runs out,
+the pass pauses and picks up where it left off. See [Budgets and costs](/docs/ai/budgets).

@@ -1,0 +1,162 @@
+---
+title: Troubleshooting
+description: What a message means, and what to do about it. Most problems come down to a key, a budget or a sign-in setting.
+sources:
+  - convex/account.ts
+  - convex/passwordRules.ts
+  - convex/allowlist.ts
+  - src/app/SignIn.tsx
+  - src/app/SelfHostedSignIn.tsx
+  - convex/budgets.ts
+  - convex/metering.ts
+  - convex/aiSettings.ts
+  - convex/openrouterKey.ts
+  - convex/apolloKey.ts
+  - convex/activity.ts
+  - convex/jobs.ts
+  - convex/discovery.ts
+  - convex/enrich.ts
+  - convex/roles.ts
+  - convex/drive.ts
+  - convex/github.ts
+  - convex/githubApp.ts
+  - convex/secretBox.ts
+  - src/app/useModelCatalog.ts
+  - src/app/settings/Keys.tsx
+  - src/app/settings/Drive.tsx
+  - src/app/settings/drivePicker.ts
+  - src/app/companies/Company.tsx
+  - src/app/companies/Tools.tsx
+  - src/app/record/projects/GitHub.tsx
+  - compose.yaml
+  - docker/convex-setup.sh
+  - docker/web-start.sh
+  - .env.example
+---
+
+What a message means, and what to do about it. Most problems come down to a key, a budget or a sign-in setting. Where a
+message names something specific (a story, a company, a date), only its fixed words are shown here.
+
+## Signing in
+
+<Messages>
+  <Message text="This account isn't allowed to sign in." where="Sign-in page">The email you signed in with isn't on the list of who can join. Try another account. On your own copy, add the email to `SIGNUP_ALLOWLIST` in `.env` and run `docker compose up -d` again.</Message>
+  <Message text="This account can’t sign in to this copy. Ask its owner to add you." where="Sign-in page, a copy someone runs">This copy only lets in the people its owner adds, or emails on its list for Google and GitHub sign-in. Ask the owner.</Message>
+  <Message text="No way to sign in is set up. Add Google or GitHub sign-in keys to this copy’s Convex settings." where="Sign-in page">This copy has no Google or GitHub sign-in yet. Add `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`, or `AUTH_GITHUB_ID` and `AUTH_GITHUB_SECRET`, then run `docker compose up -d` again. See [Keys and accounts](/docs/self-hosting/keys).</Message>
+  <Message text="Sign-in didn’t work. Try again." where="Sign-in page">Google or GitHub didn't finish signing you in. Try again; if it keeps happening on your own copy, check the OAuth app's callback URL against `.env.example`.</Message>
+  <Message text="That username and password don’t match. Try again, or reset your password." where="Sign-in page, a copy you run">Check the username (it's lower case) and password. **Forgot password?** shows the command that sets a new one.</Message>
+  <Message text="Too many wrong passwords for this username. Wait a few minutes and try again, or reset your password." where="Sign-in page, a copy you run">Each account allows 10 wrong tries an hour. Wait, or reset the password with the command under **Forgot password?**.</Message>
+  <Message text="You signed in with a temporary password. Choose your own to carry on." where="Sign-in page, a copy you run">The owner added you, or reset your password. Choose a new password; the temporary one stops working.</Message>
+  <Message text="Choose a password that isn’t the one you have now." where="Choosing a new password">Pick a different password.</Message>
+  <Message text="The passwords don’t match." where="Choosing a password">Type the same password in both fields.</Message>
+  <Message text="At least 8 characters." where="Choosing a password">Passwords need 8 characters or more.</Message>
+  <Message text="2 to 32 letters, digits, dots, dashes or underscores, starting with a letter or digit." where="Choosing a username">Usernames are lower case, 2 to 32 characters, with no spaces.</Message>
+</Messages>
+
+### Setting up your own copy
+
+<Messages>
+  <Message text="That setup code doesn’t work. Check it in the install’s output, or make a new one." where="Creating the owner account">Copy the setup code again from the convex-setup service's output, or make a new one with `docker compose run --rm convex-setup new-setup-code`. Only the newest code works.</Message>
+  <Message text="That setup code was tried wrongly too many times and no longer works. Make a new one with the command below." where="Creating the owner account">Run `docker compose run --rm convex-setup new-setup-code` and use the new code.</Message>
+  <Message text="This copy already has its owner. Sign in instead." where="Creating the owner account">The owner account exists. Sign in with it; if the password is lost, run `docker compose run --rm convex-setup reset-password <username>`.</Message>
+  <Message text="Username and password sign-in is off on this copy." where="Sign-in page">This Convex deployment isn't running as a self-hosted copy. Set `CAREERBOT_MODE=self-hosted` in its environment.</Message>
+  <Message text="This copy’s Convex isn’t set up for username and password sign-in: set CAREERBOT_MODE=self-hosted in its environment." where="Sign-in page">The same fix: set `CAREERBOT_MODE=self-hosted` in the Convex deployment's environment variables.</Message>
+</Messages>
+
+See [Sign-in and who can join](/docs/self-hosting/sign-in) for setup codes, password resets and adding people.
+
+## AI and budgets
+
+<Messages>
+  <Message text="Add your OpenRouter key in settings first." where="Anywhere AI runs">Open <Screen id="settings" />, then **Keys**, and add your OpenRouter key. A new key is checked before it replaces the old one.</Message>
+  <Message text="OpenRouter didn't accept that key." where="Settings, Keys">Copy the key again from OpenRouter, whole, and check it hasn't been revoked.</Message>
+  <Message text="Set a monthly AI budget to continue." where="Anywhere AI runs">Open Settings, then **Budgets and spending**, and set an AI budget. No AI work runs without one.</Message>
+  <Message text="This month's AI budget is used up." where="Anywhere AI runs">Work pauses. It picks up where it left off when you raise the budget, or on the 1st of the month (UTC).</Message>
+  <Message text="This call could cost more than what's left of this month's AI budget." where="Anywhere AI runs">CareerBot reserves what a call could cost before it runs. Raise the budget, or wait for the new month.</Message>
+  <Message text="Waiting on AI work already running, which could use the rest of this month's AI budget." where="Activity">Other work has reserved the rest of the budget. This continues on its own once that work finishes and leaves room.</Message>
+  <Message text="Paused until your AI budget allows" where="Activity">Not a failure. It continues on its own once the budget allows.</Message>
+  <Message text="Choose a model for" where="Anywhere AI runs">The message names a task with no model. In Settings, under **AI**, choose the model every task uses, or one for that task.</Message>
+  <Message text="Couldn’t load models from OpenRouter." where="Settings, AI">OpenRouter didn't answer. Try again in a minute. The models you've already chosen stay chosen.</Message>
+  <Message text="Couldn't load the model list from OpenRouter." where="Settings, AI">The same: OpenRouter didn't answer. Try again in a minute.</Message>
+  <Message text="Couldn’t reach OpenRouter" where="Activity">The test call failed. Check your key under **Keys**, then ask a question under **Try it** in Settings, AI, again.</Message>
+</Messages>
+
+<Callout title="Check it first">After adding a key, use **Try it** in Settings, under **AI**. It sends one short question to the model and shows the answer and what it cost.</Callout>
+
+## Companies and roles
+
+<Messages>
+  <Message text="Paused until your Apollo budget allows" where="Activity">Apollo work stopped at the credits you set aside. In **Budgets and spending**, raise them, or set **Automated Apollo work** to **Only when I ask**.</Message>
+  <Message text="You've used the Apollo credits you set aside this cycle." where="Companies">Raise the credits set aside in Budgets and spending, or wait for the next cycle.</Message>
+  <Message text="Your Apollo account doesn't have enough credits left this cycle." where="Companies">Your Apollo account itself is nearly empty. CareerBot never spends past its balance. Add credits at Apollo, or wait for its next cycle.</Message>
+  <Message text="Apollo work is paused. Turn it on in Budgets." where="Companies">**Automated Apollo work** is set to **Paused**. Set it to **On** or **Only when I ask**.</Message>
+  <Message text="Automated Apollo work is off." where="Activity">Automated Apollo work is set to **Only when I ask**, so work that would start on its own doesn't use Apollo. Start it yourself, or set it to **On**.</Message>
+  <Message text="Couldn't read your Apollo credit balance, so nothing was spent." where="Companies">Apollo didn't answer. Try again in a few minutes.</Message>
+  <Message text="Couldn’t read your Apollo credits, so none will be spent." where="Settings, Keys">The same: Apollo's balance couldn't be read just now. Apollo work waits until it can be.</Message>
+  <Message text="Apollo didn't accept that key, or it can't read your credit usage." where="Settings, Keys">Use a master key, or a key with access to credit usage stats, company search and organization enrichment.</Message>
+  <Message text="Approve a direction’s search criteria first." where="Companies">Company search runs per direction. In Goals, open a direction and approve its criteria.</Message>
+  <Message text="The last search stopped." where="Companies">A company search ended early. The reason shows instead when there is one. Run the search again; what it already finished isn't paid for twice.</Message>
+  <Message text="Couldn’t read its board" where="A company's details">CareerBot couldn't read that company's job board on the date shown. Check the board link with **Edit website and job board**, or choose **Check again**.</Message>
+  <Message text="CareerBot can't read that kind of job board yet." where="Editing a job board">Paste the board's own page, such as a Lever or Workday address, rather than a careers page.</Message>
+  <Message text="Use the company's website, like nvidia.com." where="Editing a website">Enter the company's own domain, not a link to a job site or profile.</Message>
+  <Message text="Roles are read for Targets and Maybe companies. Rate it first." where="Companies">Rate the company **Target** or **Maybe**, then check its roles.</Message>
+  <Message text="Couldn’t check roles" where="Activity">The roles pass stopped. The reason is under it. Choose **Check roles again** in Pursuits once it's fixed.</Message>
+</Messages>
+
+## Google Drive
+
+<Messages>
+  <Message text="Not available yet" where="Settings, Google Drive">**Connect** stays off until this copy has Google sign-in set up (`AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`).</Message>
+  <Message text="Google Drive didn’t connect. Try again." where="Settings, Google Drive">Connect again, and allow access when Google asks.</Message>
+  <Message text="Google Drive isn’t connected: CareerBot needs access to the files it makes." where="Settings, Google Drive">Access wasn't allowed. Connect again and allow it; CareerBot sees only the files it makes and the folder you choose.</Message>
+  <Message text="Google Drive stopped accepting CareerBot. Connect it again." where="Settings, Google Drive">Access was removed in your Google account. Connect again.</Message>
+  <Message text="Google’s folder picker didn’t load. Try again." where="Settings, Google Drive">Try again. On your own copy, the folder picker also needs `GOOGLE_PICKER_KEY`.</Message>
+  <Message text="That’s your CareerBot folder or one inside it. Choose a folder outside it." where="Choosing a Drive folder">Pick the folder the CareerBot folder should go in, not the CareerBot folder itself.</Message>
+  <Message text="Your Google Drive is full." where="A document's Drive status">Free up space in Drive, then try again.</Message>
+  <Message text="Google Drive asked CareerBot to slow down. Try again in a minute." where="A document's Drive status">Wait a minute; syncing also runs again on its own every ten minutes.</Message>
+  <Message text="CareerBot can’t reach this in your Drive anymore." where="A document's Drive status">The Doc was deleted or moved out of reach. Syncing again makes it again.</Message>
+</Messages>
+
+## GitHub
+
+<Messages>
+  <Message text="Not available yet" where="Record, Projects">**Connect GitHub** stays off until this copy has its GitHub App set up.</Message>
+  <Message text="GitHub isn’t connected any more. Connect it again in Projects." where="Record, Projects">The app was uninstalled in GitHub. Connect GitHub again.</Message>
+  <Message text="CareerBot can’t see that repository. Choose it on GitHub, then read it again." where="A project">The repository isn't among the ones you allowed. Choose it with **Choose repositories**, then **Read again**.</Message>
+  <Message text="GitHub refused access. Try again." where="A project">Try again in a minute; if it keeps happening, connect GitHub again.</Message>
+  <Message text="GitHub didn’t list your repositories. Try again." where="Record, Projects">Try again in a minute.</Message>
+</Messages>
+
+## Background work
+
+Work running in the background is listed in **Activity**. When something fails, it says what failed and the reason under
+it. **Try again** starts it again where Activity offers it.
+
+<Messages>
+  <Message text="Waiting to start" where="Activity">It's queued behind other work and starts on its own.</Message>
+  <Message text="This kept getting interrupted. Try again." where="Activity">The work was cut off three times, by an update or a crash. Choose **Try again**.</Message>
+</Messages>
+
+<Callout title="Paused isn’t failed">Work paused for a budget isn't a failure. It continues on its own once the budget allows: when you raise it, or on the 1st of the month (UTC).</Callout>
+
+## Running your own copy
+
+<Messages>
+  <Message text="Set NEXT_PUBLIC_CONVEX_URL in .env" where="docker compose up">Copy `.env.example` to `.env` and fill it in; `NEXT_PUBLIC_CONVEX_URL` is your Convex address (`http://localhost:3210` on your own computer).</Message>
+  <Message text="Set NEXT_PUBLIC_CONVEX_URL to your Convex deployment URL (see .env.example)." where="The web container's log">The web container started without a Convex address. Set it in `.env` and run `docker compose up -d` again.</Message>
+  <Message text="Set CONVEX_DEPLOY_KEY (Convex's cloud) or CONVEX_SELF_HOSTED_URL (self-hosted Convex); see .env.example." where="The convex-setup service's log">Setup doesn't know which Convex to use. Set one of the two in `.env`.</Message>
+  <Message text="Set CONVEX_SELF_HOSTED_ADMIN_KEY" where="The convex-setup service's log">Make the admin key with `docker compose exec convex-backend ./generate_admin_key.sh` and put it in `.env`.</Message>
+  <Message text="NEXT_PUBLIC_CONVEX_URL and SITE_URL can't contain" where="The web container's log">Those two addresses can't contain the characters it lists. Use a plain address.</Message>
+  <Message text="This container already serves" where="The web container's log">The web container keeps the addresses it first started with. Recreate it to change them: `docker compose up -d` does.</Message>
+  <Message text="MASTER_KEY_V1 is missing or malformed." where="Saving a key in Settings">The key that encrypts saved API keys isn't set in the Convex deployment. Run the convex-setup service again (`docker compose up`), which makes it. If you bring one from another copy, it's 64 hexadecimal characters.</Message>
+</Messages>
+
+### A port is already in use
+
+If `docker compose up` stops with Docker's own error that a port "is already allocated", something else on the computer
+already uses that port (3000 for the app, 3210 and 3211 for Convex, 6791 for the Convex dashboard). Stop the other
+program, or set `WEB_PORT`, `CONVEX_PORT`, `CONVEX_SITE_PORT` or `CONVEX_DASHBOARD_PORT` in `.env` to a free port,
+then change `SITE_URL`, `NEXT_PUBLIC_CONVEX_URL` or `CONVEX_SITE_ORIGIN` to match when they're `localhost` addresses.
+On Dokploy, whose own dashboard uses 3000, set `WEB_PORT=3001` or another free port.
+
+See [Check it works](/docs/self-hosting/check-it-works) for a full check of a new copy.

@@ -1,0 +1,47 @@
+---
+title: CareerBot docs
+description: How to use CareerBot, how to run your own copy, and how to help build it.
+nav: Introduction
+sources:
+  - docs/PRD.md
+  - src/app/today/steps.ts
+  - src/app/site/words.ts
+---
+
+<HomeGroups>
+  <HomeGroup title="Using CareerBot" description="You tell it your story, approve the record it builds, and it finds the companies and roles worth your time. Then you apply, write to the people who hire, or both.">
+    <Card href="/docs/start" title="First steps">From signing in to your first pursuit</Card>
+    <Card href="/docs/best-practices/your-story" title="How to tell your story">What to cover for each job</Card>
+    <Card href="/docs/ai" title="How the AI works">Every step in order, and what it reads</Card>
+  </HomeGroup>
+  <HomeGroup title="Running your own copy" description="CareerBot is open source. Run it on your own computer or a server, with your own keys and your own data.">
+    <Card href="/docs/self-hosting" title="Choose a way">Docker, Coolify, Dokploy, a VPS or Cloudflare</Card>
+    <Card href="/docs/self-hosting/docker" title="Run it with Docker">One compose file, with Convex in its cloud or yours</Card>
+    <Card href="/docs/self-hosting/keys" title="Keys and accounts">OpenRouter, Apollo, Brave, Google and GitHub</Card>
+  </HomeGroup>
+  <HomeGroup title="Contributing" description="Fix a bug, add a feature or make these pages better. The code is open source under the AGPL-3.0.">
+    <Card href="/docs/contributing" title="Local development">Run the app and Convex from a clone</Card>
+    <Card href="/docs/contributing/code" title="How the code is organised">The system map, and what reads what</Card>
+    <Card href="/docs/contributing/checks" title="Checks before a pull request">What CI runs, and how to run it first</Card>
+  </HomeGroup>
+</HomeGroups>
+
+## What CareerBot is
+
+CareerBot helps you aim a job search at the right roles and go after each one two ways, with equal weight: apply through the posting with a resume and cover letter written for it, or write straight to the people who hire, the hiring manager, someone on the team or a recruiter. You can do both for the same role. It starts from the record of your career, in your own words: you tell it about each job, it proposes facts, and you approve them. Everything it writes for you, resumes, cover letters, answers and messages, rests only on what you approved, and CareerBot never sends any of it: you do.
+
+It isn't fast and it isn't a resume rewriter. Expect to spend real time on your stories at the start, 20 minutes or more for a job. What you get back is a record you can stand behind, and a search aimed at work that fits it.
+
+CareerBot runs at careerbot.dev, by invitation while it's tested, or as your own copy on your own computer or server. Either way the AI runs on your own OpenRouter key, within a monthly budget you set, and company search runs on your own Apollo key.
+
+## First steps
+
+The same steps as Getting started on Today, each with its page.
+
+<FirstSteps />
+
+<HomeCards>
+  <HomeCard href="/docs/troubleshooting" title="Troubleshooting">What a message means, and what to do about it</HomeCard>
+  <HomeCard href="/docs/reference/screens" title="Reference">Screens, AI steps, actions, limits, settings and shortcuts</HomeCard>
+  <HomeCard href="/docs/reference/words" title="Words">What CareerBot means by a fact, an insight, a direction and a pursuit</HomeCard>
+</HomeCards>

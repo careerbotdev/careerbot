@@ -1,0 +1,88 @@
+---
+title: Words
+description: What CareerBot's words mean, from story and fact to direction, limit, pursuit and credit.
+sources:
+  - convex/review.ts
+  - convex/pursuitSteps.ts
+  - src/app/record
+  - src/app/goals
+  - src/app/companies
+  - src/app/resumes
+  - src/app/settings
+  - src/components/ScoreBadge.tsx
+  - src/components/Activity.tsx
+---
+
+The words CareerBot uses on its screens, in plain terms. Examples follow Wren Castellano, a fictional supply-planning lead.
+
+## Your record
+
+<Terms>
+<Term title="Story">Something you wrote about your career in your own words: one job, one project, what happened. Reading a story proposes roles, facts and context. Each save keeps a version. Lives in Record, Story.</Term>
+<Term title="Quick note">A short story for something smaller: one more thing about a role, a project or a result.</Term>
+<Term title="Goals story">The story where you say what you want next: the work, the pay, where, and what to avoid. It lives in Goals and is read into limits and directions.</Term>
+<Term title="Record">Everything true about your career that you've approved: roles, projects, facts, context, skills, tools, certifications, breaks and insights. Every resume, letter and ranking is built from it.</Term>
+<Term title="Role">A job you held: employer, official title, dates and place. Its facts sit under it. (On Pursuits, a "role" is an open job instead; see below.)</Term>
+<Term title="Fact">One true, specific thing about your work, read from a story or a repository, or added by you. Wren's: "Took finished-goods inventory from 41 to 29 days of supply without lowering service, freeing about $9 million in working capital."</Term>
+<Term title="Context">Something true about a role that its facts don't say, such as the size of the team. Rewrites of the role's facts use it.</Term>
+<Term title="Project">Work you built, read from a GitHub repository, with its own facts. It can be linked to the role it belonged to.</Term>
+<Term title="Same work">A project fact and a role fact that describe the same work. Connected, resumes write one line for the two.</Term>
+<Term title="Skill, tool, certification">Gathered once from your approved roles, projects and facts, and approved by you. Resumes list the approved ones you show.</Term>
+<Term title="Career break">Months away from work, with an optional reason, and how it shows on resumes: shown, shown with reason, folded into a role, or left out.</Term>
+<Term title="Insight">Something true of you across roles and projects, worked out from your approved facts. Wren's: "You move whole operations onto new systems, from a brewery's first MRP to a freight network's TMS."</Term>
+<Term title="Built on">What something rests on: the approved facts behind a resume line, or the story words a proposed fact was read from.</Term>
+</Terms>
+
+## Deciding
+
+<Terms>
+<Term title="Proposed">Read or worked out by CareerBot and waiting for your decision. Proposed things never reach resumes.</Term>
+<Term title="Approved">Accepted by you. Only approved things are used for resumes, letters and ranking. **Undo approval** takes something back to review.</Term>
+<Term title="Rejected">Turned down by you, with an optional reason that steers what's proposed next. Rejected things are kept, with the reason, and can be restored.</Term>
+<Term title="Review">The screen where every proposed thing waits, grouped by kind.</Term>
+<Term title="Rewrite">A new wording proposed for an existing fact, to use or not.</Term>
+</Terms>
+
+## Goals and search
+
+<Terms>
+<Term title="Direction">A kind of work you're going for, like Wren's "Logistics Operations". Roles are ranked for each approved direction, and each has its own resume.</Term>
+<Term title="Positioning">How your record is told for one direction: the summary, the titles to aim at and the words to use. A direction's resume is written from it once you approve it.</Term>
+<Term title="Criteria">What company search looks for in a direction: industries, company sizes, stages, keywords and seed companies.</Term>
+<Term title="Title map">How your titles translate into the titles a direction's market uses.</Term>
+<Term title="Limit">A rule from your goals or added by you, such as a minimum pay or a place. A **Firm** limit hides roles that fail it; a **Preference** ranks them lower. A limit can be switched off without deleting it.</Term>
+<Term title="Company rating">Your call on a company: **Target** (its roles are read and ranked first), **Maybe** (read too, ranked after targets) or **Not for me** (set aside with your reason).</Term>
+<Term title="Company fit">How a company fits each direction: **Fits**, **Partly**, **Doesn’t fit** or **Can’t tell**.</Term>
+<Term title="Seed companies">Companies you'd love to work at, so searches find ones like them.</Term>
+<Term title="Fit score and level">A role's score for a direction, coloured by its level: strong, some, weak or none. New strong roles show on Today.</Term>
+</Terms>
+
+## Applying
+
+<Terms>
+<Term title="Role (on Pursuits)">An open job found on a company's job board and ranked for your directions.</Term>
+<Term title="Pursuit">A role you decided to go for. It keeps the status, tailored resume, cover letter, answers, people, reminders and timeline of that one application. Statuses: **Preparing**, **Applied**, **Interviewing**, **Offer**, **Closed** (with **Rejected**, **Withdrawn**, **No response** or **Declined**).</Term>
+<Term title="Interested">A role you marked to keep in mind until you start it.</Term>
+<Term title="Reminder">A step due on a pursuit: follow up when it goes quiet, prepare before an interview, or check on one that hasn't moved. Snooze hides one until a day you pick.</Term>
+</Terms>
+
+## Resumes
+
+<Terms>
+<Term title="Base resume">A neutral account of your whole career, written from your approved record.</Term>
+<Term title="Direction resume">A resume for one direction, written from your record and the direction's positioning.</Term>
+<Term title="Tailored resume">A resume written for one posting from a direction resume. It's kept as written, and kept as sent once you apply.</Term>
+<Term title="Version">Each time a resume is written it's a new version. A new version waits for you to keep or discard; History keeps every one.</Term>
+<Term title="Edited">A line or summary you put in your own words on one resume. It stays built on the same facts.</Term>
+</Terms>
+
+## Account and money
+
+<Terms>
+<Term title="Workspace">Your own space in CareerBot: your stories, record, goals, search and resumes. Each person has one, and no one else sees it.</Term>
+<Term title="AI budget">The most CareerBot may spend on AI each month, through your own OpenRouter key. AI work pauses when it's reached and picks up again when you raise it.</Term>
+<Term title="Apollo credit">Apollo's unit of cost, spent from your own Apollo plan when finding companies, their details, job postings or an email. You set how many credits to set aside each month.</Term>
+<Term title="Cost estimate">What an action will cost, shown beside it before you start ("About $0.02 of your AI budget", "About 1 Apollo credit"). Free actions say **Free**.</Term>
+<Term title="Activity">The list of work running in the background, what finished or failed in the last day, and this month's spending.</Term>
+<Term title="Background work">Work that runs on its own after you start it, or on a schedule, such as reading job boards each day.</Term>
+</Terms>

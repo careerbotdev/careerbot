@@ -1,0 +1,92 @@
+---
+title: Writing your goals
+description: How to write a goals story CareerBot can turn into clear directions and limits, and how to approve and adjust them.
+nav: Your goals
+sources:
+  - src/app/goals/Goals.tsx
+  - src/app/goals/limits/LimitItem.tsx
+  - src/app/goals/limits/LimitForm.tsx
+  - src/app/goals/limits/words.ts
+  - src/app/goals/limits/fixtures.ts
+  - src/app/review/decisions.ts
+  - src/app/settings/Companies.tsx
+  - convex/goals.ts
+  - convex/limitBuckets.ts
+  - docs/BUILD.md
+---
+
+Your goals story is one piece of writing, kept on <Screen id="goals" />, that says where you want to go next. CareerBot reads it into directions (the kinds of work you're going for) and limits (what a role must or mustn't be), against your whole record. You approve each one before anything uses it.
+
+## What to write
+
+Write it the way you'd explain it to a friend who's helping you look. Cover:
+
+<Checklist>
+<Check title="Where you want to go">The work you want next, and why. Several directions are fine: name each.</Check>
+<Check title="What you want more or less of">Building versus running, people versus systems, scope, the size of the team.</Check>
+<Check title="Pay">The least you'd take, in what currency, per year or per hour, and whether that's base pay or total.</Check>
+<Check title="Where and how">Remote, hybrid or onsite; which cities or countries; how much travel.</Check>
+<Check title="Level">The seniority you're after, and anything you won't go back to.</Check>
+<Check title="What to avoid">Industries, kinds of work, employers you'd rule out.</Check>
+<Check title="What's firm and what's a preference">Say which limits are hard lines and which only matter a little.</Check>
+<Check title="Eligibility">Work authorization, visa sponsorship, a security clearance you hold.</Check>
+</Checklist>
+
+For example, from the goals of Wren Castellano (a fictional person):
+
+> I’ve worked in food and freight operations for fifteen years, from a dispatch desk to running S&OP. Next I’d like to help build the software planners use, not only use it.
+
+which, with more detail on pay and place, became limits like “You want at least $135,000 a year in base pay; a bonus is welcome but doesn’t count toward it.” and “You want hybrid work around Pittsburgh, Pennsylvania, or remote work anywhere in the US.”
+
+### Only what you say is excluded
+
+CareerBot excludes only what you say to avoid: an avoid list, a firm limit, your past employers. Nothing is excluded because you didn't mention it. If you'd hate a whole industry, say so.
+
+### What you want seeds the search, it doesn't cap it
+
+Wanted industries, company types and titles tell CareerBot where to look first and what to rank higher. It may add related ones of its own, so you're not boxed in if you aren't sure where you fit. If you want searches to stay inside the industries you named, set Settings, **Companies**, **Industries you want** to **Only these**. **Steer** (searches start with them and add related ones) and **Ignore** are the other choices.
+
+### Firm or preference
+
+A firm limit hides roles that fail it. A preference only ranks them lower. Say which you mean: “at least $135,000, no exceptions” reads as firm; “ideally under 25% travel” as a preference. You can change it on each limit after.
+
+## Read my goals
+
+Choose **Save**, then **Read my goals**. The cost shows first; it uses your AI budget. It reads this version for your limits and directions. Everything it proposes waits in <Screen id="review" />; what you already approved or rejected stays as it is.
+
+It can produce:
+
+- **Directions**, each with a name and what it includes. Approving one leads to its positioning and its search criteria (titles, industries, sizes and seeds), proposed next for you to approve too.
+- **Limits**, each with a kind (Pay, Location, Travel, Schedule, Seniority, Companies, Work, Eligibility), a sentence in your words, and the rule CareerBot checks roles against. A limit can apply to some directions only, or only under a condition (for example, only when changing industry).
+- **Companies** you named to want or avoid.
+
+The **Produced** tab shows all of it, and hovering a paragraph of your story shows what came from it.
+
+## Approving directions and limits
+
+In Review, each card offers:
+
+| | Direction | Limit |
+| --- | --- | --- |
+| **Approve** | Adds it to your goals | Roles and companies are checked against it from now on |
+| **Edit** | Opens it in Directions to change its name, summary or what it includes | Opens it in Limits to change its wording, how firm it is or what it applies to |
+| **Reject** | Leaves it out; it isn't proposed again | Leaves it out; nothing is filtered by it |
+
+A proposed direction that overlaps one you have may offer **Add to** that direction instead.
+
+## Editing a limit
+
+Open a limit in **Limits** and choose **Edit** (<Kbd>E</Kbd>). You can change the **Limit** sentence, **How firm** (**Firm** or **Preference**), **Applies to** (every direction, or some) and **Only when**. Saving approves it as you wrote it.
+
+If you change only the sentence, the rule it checks doesn't change on its own: the rule shows **Out of date**. Then:
+
+- **Update the rule** reads the rule again from your new sentence (a small AI cost), and roles are filtered by the new rule.
+- **Keep the rule** keeps filtering by the rule as it is, and stops asking.
+
+Each limit shows what it does to your listed roles, for example “Hides 14 roles” for a firm one or “Ranks 7 roles lower” for a preference. You can switch a limit off without deleting it, and add your own with **Add a limit**.
+
+## Changing your goals later
+
+Goals change. Edit the story (**Edit the story**), save, and choose **Read my goals again**. Every version is kept; you can restore an earlier one as the newest. After a big change, Settings, **Companies**, **Check all again** checks every company against your new goals.
+
+See [Goals, directions and limits](/docs/how-it-works/goals-directions-limits) and [Your goals](/docs/ai/goals).

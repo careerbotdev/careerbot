@@ -1,0 +1,125 @@
+---
+title: Writing docs
+description: Where the docs live, how a page is written, and what the docs check holds them to.
+sources:
+  - content/docs
+  - scripts/docs-gen.ts
+  - scripts/docs-check.ts
+  - scripts/docs-shots.ts
+  - scripts/docs-words.ts
+  - src/app/docs/reference.json
+  - docs/architecture/model.c4
+  - next.config.ts
+  - src/app/shell/Shortcuts.tsx
+  - .env.example
+  - src/app/today/steps.ts
+---
+
+The docs are part of the app, served at `/docs`, and are held to the same rule as the system map: a change to a screen updates its doc page in the same commit.
+
+## Where pages live
+
+Each page is one `.mdx` file under `content/docs/`. The URL is `/docs/` plus the path without `.mdx`; a folder's `index.mdx` is the folder's own page (`content/docs/ai/index.mdx` is `/docs/ai`).
+
+Every folder has a `meta.json` with its sidebar title and its pages in order (file names without `.mdx`):
+
+```json title="meta.json"
+{ "title": "Run your own copy", "pages": ["index", "docker", "coolify"] }
+```
+
+## Frontmatter
+
+```yaml title="docker.mdx"
+---
+title: Run it with Docker
+description: One compose file runs CareerBot on your own computer or a server.
+nav: Docker
+sources:
+  - compose.yaml
+  - .env.example
+---
+```
+
+<Terms>
+<Term title="title">The page's heading and its browser title. Don't add another top heading in the body.</Term>
+<Term title="description">One sentence, used in search results, link previews and cards.</Term>
+<Term title="nav">Optional. A shorter label for the sidebar.</Term>
+<Term title="sources">Required. The files or folders the page is true to. Whoever changes them knows to check the page.</Term>
+<Term title="screen">Using pages only: the screen the page is about (`today`, `review`, `pursuits`, `companies`, `resumes`, `record`, `goals`, `reports`, `activity`, `settings`).</Term>
+</Terms>
+
+Sections are `##` and sub-sections `###`; together they make the page's "On this page" list.
+
+## Components
+
+Every page can use these without importing them.
+
+### Written parts
+
+| Component | Use |
+|---|---|
+| `<Callout title="Careful" type="caution">…</Callout>` | A note set apart. `type` is `note` (the default) or `caution`; the title is optional. |
+| `<Steps>` with `<Step title="Get the code">…</Step>` | Numbered steps. Markdown works inside each step. |
+| `<Choices>` with `<Choice title="…" note="…">…</Choice>` | Two or three options side by side. |
+| `<Tabs labels={["Coolify", "Dokploy"]}>` with `<Tab label="Coolify">…</Tab>` | The same task done different ways. |
+| `<Checklist>` with `<Check title="…">detail</Check>` | Things to have or check. |
+| `<Terms>` with `<Term title="…">…</Term>` | Label-and-text rows. |
+| `<Messages>` with `<Message text="…" where="…">…</Message>` | Troubleshooting: `text` is the app's exact message, `where` where it shows, the body what it means and what to do. |
+| `<StoryToFact story="…" fact="…" />` | A passage of a story and the fact it becomes. |
+| `<Cards>` with `<Card href="/docs/ai" title="…">one line</Card>` | Links to other pages. |
+| `<Kbd>⌘K</Kbd>` | A key. |
+
+Fenced code blocks may take a label: ```` ```bash title="Terminal" ````. Use `Terminal`, `.env` or a file name. Tables, lists, links and inline code work as usual.
+
+### References the check verifies
+
+- `<Screen id="review" />` shows a screen's name, linked to its Using page. Ids: `today`, `review`, `pursuits`, `companies`, `resumes`, `record`, `goals`, `reports`, `activity`, `settings`, `shell`.
+- `<AiStep id="extract" />` shows an AI step's plain name, linked to its card on the AI page. Ids are the `aiStep` ids in `docs/architecture/model.c4`.
+
+### Generated parts
+
+These show data read from the code. Use them instead of retyping what they show.
+
+| Component | Shows | From |
+|---|---|---|
+| `<FirstSteps />` | Getting started's steps, each with its line and Learn more link | `src/app/today/steps.ts` |
+| `<ScreenFacts screen="review" />` | A screen's addresses, its tour and its actions table. Once, near the top of each Using page. | the system map, `src/app/tours`, the action explainers |
+| `<AiOrder />`, `<AiStage stage="stories" />`, `<AiStepCard step="extract" />` | AI steps in order (or one stage, or one step): what starts each, what it reads, what it may and may not do, its model setting | `docs/architecture/model.c4` |
+| `<FilterLabels />` | The five labels on what an AI step reads | `docs/architecture/model.c4` |
+| `<AiTasks />` | Model settings | `convex/aiTasks.ts` |
+| `<Limits />` | Limit kinds and their values | `convex/limitBuckets.ts` |
+| `<Shortcuts />` | The keyboard shortcuts | `src/app/shell/Shortcuts.tsx` |
+| `<ScreenList />` | Every screen | the system map |
+| `<OldAddresses />` | Old addresses and where they go now | `next.config.ts` redirects |
+| `<Actions screen="review" />` | One screen's actions table | the action explainers |
+| `<Configuration />` | Self-hosting settings | `.env.example` |
+
+`pnpm docs:gen` (`scripts/docs-gen.ts`) rebuilds `src/app/docs/reference.json`, the data these parts read, from the system map, the action explainers, the redirects in `next.config.ts`, the shortcuts and `.env.example`. Plain names for things that only have code names there live in `scripts/docs-words.ts`. Run it after changing any of those and commit the result.
+
+### Screenshots
+
+`<Shot id="review" alt="…" />` shows a screen of the app, light or dark as the reader's theme is. The pictures are never taken by hand: `pnpm docs:shots` (`scripts/docs-shots.ts`, after `pnpm storybook:build`) opens the stories it lists in the built Storybook, with Wren Castellano's fixture data, crops each to what its page explains, and writes `public/docs-shots/<id>-light.webp` and `<id>-dark.webp` and their sizes in `src/app/docs/shots.json`. To add one, add its story and crop to the list in `scripts/docs-shots.ts`, run `pnpm docs:shots <id>`, and put the `<Shot>` near the step it shows. `alt` says in a sentence what the screen shows, in the app's words. After a change to a screen a page shows, run `pnpm docs:shots` and commit the new pictures with the change.
+
+## Words
+
+- Plain words, "you", short sentences. Say what a thing is or what to do. No marketing, no filler, no "in this guide".
+- Bold is only for words the app shows: a button, menu item, tab, section or screen name, exactly as written in the code. Never bold for emphasis.
+- User pages never use code names: no function, table, file or variable names. Self-hosting and Contributing pages may name files, commands and environment variables, in code.
+- Examples use the fictional Wren Castellano or the test personas in `testdata/personas/`, never a real person.
+- Everything must be true of the code today. Quote the app's messages exactly.
+
+## The docs check
+
+`scripts/docs-check.ts` runs in `pnpm lint` and fails when:
+
+- a `sources` path doesn't exist,
+- a page isn't listed in its folder's `meta.json`, or `meta.json` lists a page that doesn't exist,
+- a `screen`, `<Screen>`, `<AiStep>` or generated part names an id that doesn't exist,
+- a bold phrase appears nowhere in the app's code,
+- a link to another docs page doesn't resolve,
+- a Getting started step's Learn more page doesn't exist,
+- a screen has no Using page, or more than one,
+- a `<Shot>` names a shot that isn't rendered or has no real alt text; a shot's story or picture is gone; `scripts/docs-shots.ts` lists a shot that isn't rendered as listed; or a shot or a file in `public/docs-shots` isn't shown on any page,
+- `src/app/docs/reference.json` is out of date with the code (run `pnpm docs:gen`).
+
+A change to a screen updates its Using page in the same commit.

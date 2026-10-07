@@ -1,0 +1,101 @@
+---
+title: Settings
+description: Your account, the AI model and budget, keys, company search, reminders, contact details, Google Drive and your data. Every change saves as you make it.
+sources:
+  - src/app/settings
+  - src/app/tours/drive.ts
+  - convex/pursuitSteps.ts
+screen: settings
+---
+
+<ScreenFacts screen="settings" />
+
+Settings is a list of sections, each with its current state under its name. The chosen section opens beside the list; on a phone the list comes first and a section opens full screen with a way back. Changes save as you make them, and most can be undone with <Kbd>U</Kbd>. Every section is also in <Kbd>⌘K</Kbd>.
+
+## Account
+
+Your name, how you signed in, and your workspace. **Sign out** signs you out on this device and clears anything you were writing here that isn't saved.
+
+On a copy you run yourself (self-hosted), Account also shows your **Username** and **Change password** (your other devices are signed out). The owner also sees **People**: everyone who can sign in to this copy, each with a workspace of their own.
+
+- **Add a person**: you choose their username (2 to 32 letters, digits, dots, dashes or underscores) and get a temporary password to give them. They choose their own password when they first sign in.
+- **Reset password**: makes a new temporary password and signs them out everywhere. Can't be undone.
+- **Remove**: removes their account and deletes their workspace: stories, record, resumes and pursuits. Asks first; can't be undone.
+
+<Shot id="account-self-hosted" alt="Settings, Account on a self-hosted copy, seen by its owner sam: username and workspace, Change password and Sign out, then People listing sam as owner and alex with Reset password, and Add a person." />
+
+People also says whether Google and GitHub sign-in are on, and that they let in only the emails on the copy's allowlist. See [Sign-in and who can join](/docs/self-hosting/sign-in).
+
+## AI
+
+- **Model**: every task uses this model, from reading your stories to writing letters. Choose from a few recommended ones, each with its estimated monthly cost.
+- **Try it**: ask the model one question to check your key and see how it answers, with what it cost.
+- **Advanced**: **Tasks with their own model** (**Choose a model for a task**, **Use the main model** to go back), **Sorting roles** (the model that sorts new roles into your directions), and **A model that isn’t listed** (**Choose from all models**).
+- **Compare models**: run one task (**Read a story**, **Base resume** or **Insights**) with up to four models side by side, each with its estimate before running, then **Use this model**. Your record and resumes don't change.
+
+See [Models and AI tasks](/docs/ai/models).
+
+## Budgets and spending
+
+- **AI budget**: what's spent this month of your **Monthly budget**. AI work pauses when it's reached and picks up again when you raise it. No AI work runs until you set one.
+- **Apollo credits**: credits used this cycle, and what's left in your Apollo plan. **Credits set aside each month**: 0 lets CareerBot use whatever is left in your plan, never more.
+- **Automated Apollo work**: **On**, **Only when I ask** or **Paused**. On lets CareerBot find companies, their details and job postings on its own, within the credits above.
+- **Open Reports** for spending by month, task and pursuit.
+
+## Keys
+
+**OpenRouter** (pays for every AI task), **Apollo** (finds companies, their details and job postings; shows the credits left this cycle) and **Brave Search** (optional: finds a company's job board when its website doesn't link one). Keys show masked. **Add key** or **Replace** checks the key first; the old one keeps working until the new one is checked. **Remove key** asks first and stops that work until you add a key again.
+
+## Companies
+
+- **Industries you want**: **Steer**, **Only these** or **Ignore**.
+- **Check companies against your goals**: **Off**, **Rank** or **Hide**. **Check all again** checks every company again after you change your goals or directions, at the cost shown.
+- **Learn from your ratings**: targets seed searches, and companies you said Not for me aren't found again.
+- **Job postings from Apollo**: when a company has no public job board, ask Apollo for its postings (about 1 Apollo credit per company, while automated Apollo work is on).
+
+## Reminders
+
+Switch each reminder on or off: **Follow up when an application or outreach goes quiet** (after 7 and 14 days without a reply to an application; for outreach, a follow-up after 7 days, then the next contact), **Prepare before an interview** (the day before), and **Check on a pursuit that hasn’t moved** (after 3 weeks with no change). Reminders show on Today and in Pursuits.
+
+## Contact and GitHub
+
+**Contact details** at the top of your base resume; every resume and letter uses them (**Edit in base resume**). GitHub shows whether it's connected; **Open Projects** to connect it and choose repositories.
+
+## Google Drive
+
+Keeps a Google Doc of each resume in a CareerBot folder in your Drive. CareerBot can only see the files it makes and the folder you choose.
+
+<Steps>
+<Step title="Connect">**Connect Google Drive** opens Google to give access. You come back here once it's done.</Step>
+<Step title="Check the folder">**CareerBot folder** shows where your Docs live. **Open folder** shows it in Drive; **Choose a folder** moves it, with everything in it.</Step>
+<Step title="Sync">**Sync now** writes what changed and makes again any file deleted in Drive. After a failure it reads **Try again**.</Step>
+</Steps>
+
+**Disconnect** asks first, stops syncing and ends access; your folder and its Docs stay in Drive.
+
+## Updates
+
+Only on a copy you run yourself, and only for its owner. Once a day the copy checks careerbot.dev for a newer version
+of CareerBot; when one is out, Updates says so (CareerBot 0.8.0 is out, say) with your version, each newer release's
+notes, and the steps to update for the way your copy runs (Docker Compose, Coolify, Dokploy or Cloudflare). When any
+release between yours and the newest has steps you have to do, it says **Read before updating**: do them as you update.
+A line on Today says the same and opens Updates.
+
+**Check for updates** turns the daily check off or on. Nothing about you or your copy is sent, but like any web request
+it shows careerbot.dev the IP address of the server your copy runs on; `UPDATE_CHECK=off` where the copy runs turns it
+off too. The [changelog](/changelog) has every release; after an update, a note says what version you're on with
+**What’s new**.
+
+## Your data
+
+**Export** makes one ZIP of everything in your workspace, to keep or to bring into another copy of CareerBot, and
+**Import** brings such a ZIP into an empty workspace. Keys, connections and your password stay behind. What's in it
+and how importing works: [Your data](/docs/using/your-data).
+
+## Related
+
+<Cards>
+<Card href="/docs/ai/budgets" title="Budgets and costs">How budgets stop work.</Card>
+<Card href="/docs/integrations/apollo" title="Apollo">Keys and credits.</Card>
+<Card href="/docs/integrations/google-drive" title="Google Drive">What CareerBot can see.</Card>
+</Cards>

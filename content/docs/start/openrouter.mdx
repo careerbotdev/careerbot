@@ -1,0 +1,63 @@
+---
+title: OpenRouter keys and your AI budget
+description: CareerBot's AI runs on your own OpenRouter account, inside a monthly budget you set.
+nav: OpenRouter and budget
+sources:
+  - src/app/today/steps.ts
+  - src/app/today/GettingStarted.tsx
+  - src/app/settings/Keys.tsx
+  - src/app/settings/Budgets.tsx
+  - convex/openrouterKey.ts
+  - convex/budgets.ts
+---
+
+Everything CareerBot reads or writes with AI (your stories, your goals, companies, roles, resumes, letters) runs on your own [OpenRouter](https://openrouter.ai) account. You see and control every cent, and CareerBot never spends past the monthly budget you set. Until this step is done, nothing that uses AI can run.
+
+## What you do
+
+On <Screen id="today" />, open the step **Add an OpenRouter key and a budget**. It asks for three things, saved together:
+
+<Shot id="openrouter-key" alt="The Getting started step Add an OpenRouter key and a budget: an empty OpenRouter key field with a link to create one, a monthly AI budget of $25, and the list of models to choose from with their prices." />
+
+<Steps>
+<Step title="Paste your OpenRouter key">
+No key yet? The link **Create one at openrouter.ai** opens OpenRouter's key page. Create a key there and paste it into **OpenRouter key**. It starts with `sk-or-`.
+</Step>
+<Step title="Set a monthly AI budget">
+Type an amount under **Monthly AI budget**. It starts at $25. AI work pauses when it's reached.
+</Step>
+<Step title="Choose a model">
+Under **Model**, pick the model every task uses. You can change it any time in Settings, and later give different tasks different models.
+</Step>
+<Step title="Save and continue">
+**Save and continue** checks the key with OpenRouter first, then saves it with your budget and model. It's free.
+</Step>
+</Steps>
+
+If OpenRouter doesn't take the key, you see "OpenRouter didn't accept that key." Check you copied all of it, and that the key is active at OpenRouter.
+
+Set a monthly limit on the key at OpenRouter too. It's a second cap on AI spending, in case you ever want one outside CareerBot.
+
+## What it costs
+
+Adding the key is free. After that, each AI task costs what OpenRouter charges for the model you chose. CareerBot shows an estimate beside anything that spends, before you start it, such as "About $0.02". Reading a story is usually one of the larger costs, and grows with how long the story is.
+
+## How the budget works
+
+The budget is per calendar month (UTC) and starts again on the 1st.
+
+- Before each AI call, CareerBot holds the most the call could cost and checks that against what's left. A call that might go over doesn't start.
+- When the budget is used up, AI work pauses and says "This month's AI budget is used up." Raise the budget and paused work picks up again. Otherwise it picks up on the 1st.
+- With no budget at all, nothing runs: "Set a monthly AI budget to continue."
+
+## Changing it later
+
+- Settings, **Keys**: your OpenRouter key, shown by its last four characters. **Replace** checks a new key before it takes the old one's place; **Remove** stops all AI work until you add a key again.
+- Settings, **Budgets and spending**: what you've spent this month against the **Monthly budget**, and when it resets. **Open Reports** shows every call and what it was for.
+- Settings, **AI**: which model each task uses.
+
+See [Budgets and costs](/docs/ai/budgets) and [Models and AI tasks](/docs/ai/models).
+
+## Next
+
+The next step is your first story. See [How to tell your story](/docs/best-practices/your-story).

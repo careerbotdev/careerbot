@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // The web app. Top level: dev.careerbot.dev. env.production: careerbot.dev (`--env production`), its own Worker.
+  // env.demo: the demo at demo.careerbot.dev (`--env demo`), its own Worker, built with CAREERBOT_MODE=demo against the
+  // demo's own Convex deployment (scripts/as-demo.sh). A custom domain makes its own proxied DNS record.
+  "name": "careerbot-dev",
+  "account_id": "your-cloudflare-account-id",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "careerbot-dev"
+    }
+  ],
+  "routes": [{ "pattern": "dev.careerbot.dev", "custom_domain": true }],
+  "workers_dev": false,
+  "observability": { "enabled": true },
+  "env": {
+    "production": {
+      "name": "careerbot",
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "careerbot" }],
+      "routes": [{ "pattern": "careerbot.dev", "custom_domain": true }],
+      "workers_dev": false,
+      "observability": { "enabled": true }
+    },
+    "demo": {
+      "name": "careerbot-demo",
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "careerbot-demo" }],
+      "routes": [{ "pattern": "demo.careerbot.dev", "custom_domain": true }],
+      "workers_dev": false,
+      "observability": { "enabled": true }
+    }
+  }
+}

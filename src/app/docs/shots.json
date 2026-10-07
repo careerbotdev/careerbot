@@ -1,0 +1,149 @@
+{
+  "sign-in": {
+    "story": "screens-sign-in--sign-in",
+    "source": "src/app/SignIn.stories.tsx",
+    "export": "SignIn",
+    "width": 480,
+    "height": 720
+  },
+  "create-account": {
+    "story": "screens-sign-in-self-hosted--create-account",
+    "source": "src/app/SelfHostedSignIn.stories.tsx",
+    "export": "CreateAccount",
+    "width": 480,
+    "height": 860
+  },
+  "getting-started": {
+    "story": "screens-getting-started--setup-in-progress",
+    "source": "src/app/today/GettingStarted.stories.tsx",
+    "export": "SetupInProgress",
+    "width": 820,
+    "height": 720
+  },
+  "openrouter-key": {
+    "story": "screens-getting-started--key-and-budget",
+    "source": "src/app/today/GettingStarted.stories.tsx",
+    "export": "KeyAndBudget",
+    "width": 679,
+    "height": 640
+  },
+  "today": {
+    "story": "screens-today--lines",
+    "source": "src/app/today/Today.stories.tsx",
+    "export": "Lines",
+    "width": 820,
+    "height": 600
+  },
+  "review": {
+    "story": "screens-review--waiting",
+    "source": "src/app/review/Review.stories.tsx",
+    "export": "Waiting",
+    "width": 820,
+    "height": 440
+  },
+  "review-fact": {
+    "story": "screens-review--waiting",
+    "source": "src/app/review/Review.stories.tsx",
+    "export": "Waiting",
+    "width": 679,
+    "height": 420
+  },
+  "story-talk": {
+    "story": "screens-story--talk-stopped",
+    "source": "src/app/record/story/Story.stories.tsx",
+    "export": "TalkStopped",
+    "width": 679,
+    "height": 660
+  },
+  "story-read": {
+    "story": "screens-story--read-results",
+    "source": "src/app/record/story/Story.stories.tsx",
+    "export": "ReadResults",
+    "width": 679,
+    "height": 520
+  },
+  "goals": {
+    "story": "screens-goals--produced",
+    "source": "src/app/goals/Goals.stories.tsx",
+    "export": "Produced",
+    "width": 679,
+    "height": 720
+  },
+  "direction": {
+    "story": "screens-directions--direction",
+    "source": "src/app/goals/directions/Directions.stories.tsx",
+    "export": "Direction",
+    "width": 679,
+    "height": 640
+  },
+  "role": {
+    "story": "screens-pursuits--role",
+    "source": "src/app/pursuits/Pursuits.stories.tsx",
+    "export": "Role",
+    "width": 820,
+    "height": 680
+  },
+  "role-tab": {
+    "story": "screens-pursuits--pursuit-role",
+    "source": "src/app/pursuits/Pursuits.stories.tsx",
+    "export": "PursuitRole",
+    "width": 679,
+    "height": 700
+  },
+  "choose-path": {
+    "story": "screens-pursuits--choose-path",
+    "source": "src/app/pursuits/Pursuits.stories.tsx",
+    "export": "ChoosePath",
+    "width": 679,
+    "height": 540
+  },
+  "people": {
+    "story": "screens-pursuits--people",
+    "source": "src/app/pursuits/Pursuits.stories.tsx",
+    "export": "People",
+    "width": 679,
+    "height": 640
+  },
+  "outreach-message": {
+    "story": "screens-pursuits--people",
+    "source": "src/app/pursuits/Pursuits.stories.tsx",
+    "export": "People",
+    "width": 380,
+    "height": 660
+  },
+  "resume": {
+    "story": "screens-resumes--tailored",
+    "source": "src/app/resumes/Resumes.stories.tsx",
+    "export": "Tailored",
+    "width": 679,
+    "height": 640
+  },
+  "requirements": {
+    "story": "screens-resumes--tailored",
+    "source": "src/app/resumes/Resumes.stories.tsx",
+    "export": "Tailored",
+    "width": 380,
+    "height": 500
+  },
+  "companies": {
+    "story": "screens-companies--target",
+    "source": "src/app/companies/Companies.stories.tsx",
+    "export": "Target",
+    "width": 820,
+    "height": 640
+  },
+  "reports": {
+    "story": "screens-reports--overview",
+    "source": "src/app/reports/Reports.stories.tsx",
+    "export": "Overview",
+    "width": 820,
+    "height": 600
+  },
+  "account-self-hosted": {
+    "story": "screens-settings--account-self-hosted",
+    "source": "src/app/settings/Settings.stories.tsx",
+    "export": "AccountSelfHosted",
+    "width": 679,
+    "height": 540
+  }
+}

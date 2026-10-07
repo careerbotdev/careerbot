@@ -1,0 +1,94 @@
+---
+title: The big picture
+description: How your stories become an approved record, and how that record drives companies, roles and everything CareerBot writes.
+nav: The big picture
+sources:
+  - docs/BUILD.md
+  - docs/architecture/model.c4
+  - src/app/today
+  - convex/today.ts
+  - convex/pursuitSteps.ts
+  - convex/crons.ts
+  - src/app/settings/Keys.tsx
+  - src/app/settings/Budgets.tsx
+---
+
+CareerBot rebuilds your professional profile from the record of your career, then uses that record to aim your search,
+write your applications and draft the messages you send to the people who hire. Nothing it writes says more than what
+you approved.
+
+## From your stories to a record
+
+You tell the story of each job in your own words, the way you'd tell a friend: what the place was, what you did, what
+changed because of you. CareerBot reads each story and proposes what it found: roles, facts, context and, later, insights
+across your career. Each proposal waits in <Screen id="review" /> until you **Approve** it, **Edit** it or **Reject** it.
+
+Only what you approve becomes your record. Every later step reads the approved record, never the raw proposals.
+
+<StoryToFact
+  story="Brightwater has to ship full cases or the grocery chains charge us for every short one. I kept the fill rate above 98% for eight quarters in a row, even after the product line grew by a third."
+  fact="Kept the case fill rate above 98% for eight straight quarters while the product line grew by a third, the longest run in Brightwater’s history."
+/>
+
+[The record and approval](/docs/how-it-works/record-and-approval) explains what the record holds and how review works.
+
+## From your goals to directions and limits
+
+You write your goals as a story too: what you want next, what you won't do, where and how you want to work. Reading it
+proposes:
+
+- **Directions**: the kinds of work you're going for, each with its positioning, target titles and the criteria search
+  uses to find companies.
+- **Limits**: pay, location, seniority, the companies you'd rule out and other lines you draw. A firm limit sets roles
+  apart; a preference ranks them lower.
+
+Both wait for your review like everything else. [Goals, directions and limits](/docs/how-it-works/goals-directions-limits)
+covers every setting that filters or ranks.
+
+## From directions to companies and roles
+
+For each direction with approved criteria, CareerBot searches Apollo for companies, screens out the ones that don't hire
+for themselves (staffing agencies, job boards and the like), and fills in free details from each company's own website.
+You rate them **Target**, **Maybe** or **Not for me**.
+
+Roles come from the job boards of your Targets and Maybe companies, read directly every morning. Each role is sorted into
+the directions it could be, then ranked for each one: strong, some, weak or none, with a score from 0 to 100 and a
+sentence on why. [Companies and roles](/docs/how-it-works/companies-and-roles) has the details.
+
+## From the record to what you send
+
+Resumes (a base one, one per direction, and one tailored to each role), cover letters, answers to application
+questions, first messages to people and follow-up emails are all written from approved facts. Each line shows the facts
+it rests on, and when a fact changes, the lines resting on it are marked. See
+[Resumes, letters and outreach](/docs/how-it-works/writing).
+
+## Two paths into a role
+
+Each pursuit can take two paths, with equal weight: **Apply** through the posting with your tailored resume, cover
+letter and answers, or **Outreach** to the people who hire, the hiring manager, someone on the team or a recruiter, with
+a short message drafted from your record. A pursuit can take both. Too many people apply and wait; CareerBot would
+rather you also get in front of a person. Either way it never sends anything: you apply, and you send every message
+from your own inbox. [Two paths](/docs/start/paths) has the details.
+
+## Today
+
+<Screen id="today" /> is the daily list: what's waiting in Review, reminders for your pursuits, and **New strong roles**:
+strong fits ranked in the last week that you haven't rated or started yet. Until you've set things up, it also shows the
+Getting started steps.
+
+<FirstSteps />
+
+## Your keys, your budgets
+
+Every paid call runs on your own accounts: AI through your OpenRouter key, company search through your Apollo key, and
+an optional Brave Search key for finding job boards. You set a monthly AI budget and the Apollo credits you set aside in
+<Screen id="settings" />, under **Budgets and spending**. No AI work runs until you set an AI budget, and work pauses
+when a budget is reached. See [Background work and Activity](/docs/how-it-works/background-work).
+
+## What to expect
+
+CareerBot isn't fast, and it isn't a resume rewriter. It doesn't start from an old resume or a profile you paste in; it
+starts from your own words. Telling the story of one job well takes real time: 20 minutes or more a job is normal.
+Reading stories, ranking hundreds of roles and writing a tailored resume each take minutes, not seconds, and run in the
+background while you do something else. What you get for that is a record you trust, and applications and messages that
+say only what's true of you.

@@ -1,0 +1,21 @@
+# What the Docker build doesn't need. Env files and the Cloudflare build's output hold secrets: never in an image.
+.env*
+!.env.example
+.git
+.beads
+.dolt
+.agents
+.claude
+.codex
+.storybook
+.wrangler
+.open-next
+.next
+node_modules
+storybook-static
+architecture-static
+openwiki
+coverage
+tests/rendered/test-results
+*.tsbuildinfo
+.DS_Store

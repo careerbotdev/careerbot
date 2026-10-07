@@ -1,0 +1,46 @@
+---
+title: Job boards
+description: CareerBot reads open roles from each company's own public job board. Which boards it reads, how it finds them, and what happens when it can't.
+sources:
+  - convex/boardProviders.ts
+  - convex/enrich.ts
+  - convex/roles.ts
+  - convex/crons.ts
+  - src/app/companies/Company.tsx
+  - src/app/companies/Companies.tsx
+  - src/app/settings/Companies.tsx
+---
+
+CareerBot reads roles straight from each company's own public job board, the same page you'd apply on. It needs no login and no account with the board.
+
+## Which boards it reads
+
+Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Breezy, Personio, Rippling, Gem, Workable, Recruitee, BambooHR, Pinpoint, Teamtailor, Jobvite, iCIMS, Oracle Recruiting Cloud, JazzHR and Dover.
+
+Each was checked against a real company's board. Reading a board is free.
+
+## How a company's board is found
+
+When CareerBot fills in a company's details, it looks for the board in this order:
+
+1. A board you gave it. Yours always wins.
+2. A link on the company's website, or on its careers or jobs page. Some sites turn away automated visits; then the public page is read through a reader service, which is sent only the company's public address.
+3. Brave Search, if you've added a Brave Search key: a search for the company's careers page, counting only results that name the company or its website. See [Brave Search](/docs/integrations/brave).
+4. The usual board names, tried on Greenhouse, Ashby and Lever. A guessed board is kept only if it links back to the company's own website, so it can't be another company's.
+5. Apollo's job postings, as a last resort, only if you turned on **Job postings from Apollo** in Settings, **Companies** and automated Apollo work is on. About 1 Apollo credit per company. See [Apollo](/docs/integrations/apollo).
+
+## When roles are read
+
+Every day, CareerBot reads the boards of your **Targets** and **Maybe** companies, fetches the full descriptions of new roles, and sorts and ranks them against your directions. Only roles in the places your approved Location limit allows count as a match. You can also choose **Check again** on a company to read its website and board afresh.
+
+## When a board can't be read
+
+A company shows **No board found** in the list when none was found, and "No roles yet: CareerBot hasn’t found a job board it can read." when you open it. If a board was found but reading it failed, it says when: "Couldn’t read its board".
+
+What you can do:
+
+- Find the company's jobs page yourself and paste it into the company's **Job board** detail (or **Edit website and job board**, <Kbd>E</Kbd>). Paste the board's own page, not a page that embeds it. CareerBot reads the company again from it.
+- If the board is on a provider not in the list above, CareerBot can't read it. Turning on **Job postings from Apollo** may still bring in its roles.
+- Add a Brave Search key, so boards a website doesn't link can be found.
+
+See [Companies](/docs/using/companies) and [Companies and roles](/docs/how-it-works/companies-and-roles).

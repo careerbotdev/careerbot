@@ -1,0 +1,2144 @@
+{
+  "screens": [
+    {
+      "key": "today",
+      "name": "Today",
+      "paths": [
+        "/",
+        "/sign-in"
+      ],
+      "page": "/docs/using/today"
+    },
+    {
+      "key": "review",
+      "name": "Review",
+      "paths": [
+        "/review"
+      ],
+      "page": "/docs/using/review"
+    },
+    {
+      "key": "pursuits",
+      "name": "Pursuits",
+      "paths": [
+        "/pursuits"
+      ],
+      "page": "/docs/using/pursuits"
+    },
+    {
+      "key": "companies",
+      "name": "Companies",
+      "paths": [
+        "/companies"
+      ],
+      "page": "/docs/using/companies"
+    },
+    {
+      "key": "resumes",
+      "name": "Resumes",
+      "paths": [
+        "/resumes"
+      ],
+      "page": "/docs/using/resumes"
+    },
+    {
+      "key": "record",
+      "name": "Record",
+      "paths": [
+        "/record/story",
+        "/record/roles",
+        "/record/projects",
+        "/record/skills",
+        "/record/tools",
+        "/record/certifications",
+        "/record/breaks",
+        "/record/insights"
+      ],
+      "page": "/docs/using/record"
+    },
+    {
+      "key": "goals",
+      "name": "Goals",
+      "paths": [
+        "/goals",
+        "/goals/directions",
+        "/goals/limits"
+      ],
+      "page": "/docs/using/goals"
+    },
+    {
+      "key": "reports",
+      "name": "Reports",
+      "paths": [
+        "/reports"
+      ],
+      "page": "/docs/using/reports"
+    },
+    {
+      "key": "activity",
+      "name": "Activity",
+      "paths": [],
+      "page": "/docs/using/activity"
+    },
+    {
+      "key": "settings",
+      "name": "Settings",
+      "paths": [
+        "/settings"
+      ],
+      "page": "/docs/using/settings"
+    },
+    {
+      "key": "shell",
+      "name": "The frame",
+      "paths": [],
+      "page": "/docs/using/shell"
+    }
+  ],
+  "stages": [
+    {
+      "id": "stories",
+      "name": "Your stories",
+      "line": "Turning what you wrote into facts you can approve."
+    },
+    {
+      "id": "record",
+      "name": "Your record",
+      "line": "Reading across what you approved."
+    },
+    {
+      "id": "goals",
+      "name": "Your goals",
+      "line": "Turning what you want into directions and limits."
+    },
+    {
+      "id": "companies",
+      "name": "Companies",
+      "line": "Sorting and filling in the companies a search finds."
+    },
+    {
+      "id": "roles",
+      "name": "Roles",
+      "line": "Deciding which roles deserve your time."
+    },
+    {
+      "id": "writing",
+      "name": "Writing",
+      "line": "Everything written under your name."
+    }
+  ],
+  "aiSteps": [
+    {
+      "id": "extract",
+      "name": "Read a story",
+      "stage": "stories",
+      "starts": "You choose Read on a story.",
+      "reads": [
+        {
+          "text": "The story being read",
+          "filter": "yours"
+        },
+        {
+          "text": "Your roles and facts",
+          "filter": "approved"
+        },
+        {
+          "text": "Roles and facts already waiting in Review, so it doesn’t repeat them",
+          "filter": "unreviewed"
+        },
+        {
+          "text": "Your other stories, for background only",
+          "filter": "yours"
+        },
+        {
+          "text": "Your directions and limits",
+          "filter": "approved"
+        },
+        {
+          "text": "Facts you rejected, with your reasons",
+          "filter": "rejected"
+        }
+      ],
+      "may": "Propose roles, facts and context, each with the words it came from.",
+      "mayNot": "Take a fact from any story but this one, or invent a customer, number, result or skill.",
+      "tasks": [
+        "Reading narratives"
+      ],
+      "screens": [
+        "today",
+        "record"
+      ]
+    },
+    {
+      "id": "revision",
+      "name": "Read the changes",
+      "stage": "stories",
+      "starts": "You choose Read on a story that was read before.",
+      "reads": [
+        {
+          "text": "The version it read before, and the new one",
+          "filter": "yours"
+        },
+        {
+          "text": "Your other stories, for background only",
+          "filter": "yours"
+        },
+        {
+          "text": "Your roles and facts",
+          "filter": "approved"
+        },
+        {
+          "text": "This story’s facts, approved or waiting",
+          "filter": "unreviewed"
+        },
+        {
+          "text": "Facts you rejected, with your reasons",
+          "filter": "rejected"
+        }
+      ],
+      "may": "Propose new facts and updates to facts the change affects, and flag facts the story no longer says.",
+      "mayNot": "Touch facts from other stories, or change an approved fact without your okay.",
+      "tasks": [
+        "Reading narratives"
+      ],
+      "screens": [
+        "record"
+      ]
+    },
+    {
+      "id": "rework",
+      "name": "Rewrite a fact",
+      "stage": "stories",
+      "starts": "You choose Add context or rewrite on a fact.",
+      "reads": [
+        {
+          "text": "The fact, its history and its role’s context",
+          "filter": "approved"
+        },
+        {
+          "text": "The story the fact came from",
+          "filter": "yours"
+        }
+      ],
+      "may": "Suggest new wording, with your note as the final word.",
+      "mayNot": "Replace the fact. The new wording waits for you to accept it.",
+      "tasks": [
+        "Rewriting facts"
+      ],
+      "screens": [
+        "record"
+      ]
+    },
+    {
+      "id": "followups",
+      "name": "Follow-up questions",
+      "stage": "stories",
+      "starts": "You choose Suggest questions on Review.",
+      "reads": [
+        {
+          "text": "Your record",
+          "filter": "approved"
+        },
+        {
+          "text": "Your stories, for background only",
+          "filter": "yours"
+        },
+        {
+          "text": "Questions already asked, answered or set aside",
+          "filter": "rejected"
+        },
+        {
+          "text": "Your projects and their facts",
+          "filter": "approved"
+        }
+      ],
+      "may": "Ask a few short questions where an answer would add or change a resume line.",
+      "mayNot": "Ask again what you set aside.",
+      "tasks": [
+        "Follow-up questions"
+      ],
+      "screens": [
+        "review"
+      ]
+    },
+    {
+      "id": "check",
+      "name": "Check for disagreements",
+      "stage": "stories",
+      "starts": "You choose Check for disagreements on Record, or Look for conflicts on Review.",
+      "reads": [
+        {
+          "text": "Your roles and facts, and answers you’ve given",
+          "filter": "approved"
+        },
+        {
+          "text": "Every story",
+          "filter": "yours"
+        }
+      ],
+      "may": "Ask which version is right when a story and your record disagree.",
+      "mayNot": "Pick one for you.",
+      "tasks": [
+        "Reading narratives"
+      ],
+      "screens": [
+        "record"
+      ]
+    },
+    {
+      "id": "insights",
+      "name": "Insights",
+      "stage": "record",
+      "starts": "After a story or project is fully reviewed, and when you choose Find new insights.",
+      "reads": [
+        {
+          "text": "Your roles, facts, context and directions",
+          "filter": "approved"
+        },
+        {
+          "text": "Your stories, for background only",
+          "filter": "yours"
+        },
+        {
+          "text": "Insights you approved, still to review or rejected, so it doesn’t repeat them",
+          "filter": "rejected"
+        },
+        {
+          "text": "Your projects and their facts",
+          "filter": "approved"
+        }
+      ],
+      "may": "Propose what’s true of you across roles and projects, each citing approved facts.",
+      "mayNot": "Bring back an insight you rejected, or cite a fact you haven’t approved.",
+      "tasks": [
+        "Insights"
+      ],
+      "screens": [
+        "record"
+      ]
+    },
+    {
+      "id": "gatherSkills",
+      "name": "Gather skills",
+      "stage": "record",
+      "starts": "You choose Gather on Skills.",
+      "reads": [
+        {
+          "text": "The skills and tools of your roles",
+          "filter": "approved"
+        },
+        {
+          "text": "The stack and languages of your projects",
+          "filter": "approved"
+        },
+        {
+          "text": "Your facts",
+          "filter": "approved"
+        },
+        {
+          "text": "Skills, tools and certifications you approved or that are waiting in Review",
+          "filter": "unreviewed"
+        },
+        {
+          "text": "Skills you rejected, with your reasons",
+          "filter": "rejected"
+        }
+      ],
+      "may": "Propose each skill, tool and certification once, with where your record shows it, and offer near-duplicates as merges.",
+      "mayNot": "Bring back a skill you rejected, in any spelling, or change one you approved beyond adding where it shows.",
+      "tasks": [
+        "Gathering skills"
+      ],
+      "screens": [
+        "record"
+      ]
+    },
+    {
+      "id": "duplicatesStep",
+      "name": "Find duplicates",
+      "stage": "record",
+      "starts": "You choose Find duplicates on Record, or Find facts said twice on Review.",
+      "reads": [
+        {
+          "text": "Facts you approved or that are waiting in Review, by role, and the pairs you kept apart",
+          "filter": "unreviewed"
+        }
+      ],
+      "may": "Flag facts in the same role that say the same thing, for you to merge or keep both.",
+      "mayNot": "Merge anything itself, or flag a pair you kept apart.",
+      "tasks": [
+        "Finding duplicates"
+      ],
+      "screens": [
+        "record"
+      ]
+    },
+    {
+      "id": "sameWorkStep",
+      "name": "Find same work",
+      "stage": "record",
+      "starts": "You choose Find same work on Record, or you link a project to a role.",
+      "reads": [
+        {
+          "text": "The project: its name, summary and stack, and the role it’s linked to",
+          "filter": "approved"
+        },
+        {
+          "text": "That role’s title, employer and dates",
+          "filter": "approved"
+        },
+        {
+          "text": "The facts of the project and of its role not yet connected, and the pairs you kept apart",
+          "filter": "approved"
+        }
+      ],
+      "may": "Suggest pairs of a project’s facts and its role’s facts that describe the same work.",
+      "mayNot": "Connect facts without you, or pair facts you kept separate.",
+      "tasks": [
+        "Finding same work"
+      ],
+      "screens": [
+        "record"
+      ]
+    },
+    {
+      "id": "readProject",
+      "name": "Read a project",
+      "stage": "record",
+      "starts": "You choose GitHub repositories to read on Projects, or Read again on a project.",
+      "reads": [
+        {
+          "text": "The repository: its files, history and languages",
+          "filter": "yours"
+        },
+        {
+          "text": "This project’s facts, approved or waiting, so it doesn’t repeat them",
+          "filter": "unreviewed"
+        },
+        {
+          "text": "This project’s facts you rejected, with your reasons",
+          "filter": "rejected"
+        },
+        {
+          "text": "Your directions, for what matters to you",
+          "filter": "approved"
+        }
+      ],
+      "may": "Propose the project and facts about it, each citing the files it came from.",
+      "mayNot": "Fetch anything that looks secret, like .env files, keys or certificates. It can open that one repository and nothing else.",
+      "tasks": [
+        "Reading projects"
+      ],
+      "screens": [
+        "record"
+      ]
+    },
+    {
+      "id": "goalsRead",
+      "name": "Read my goals",
+      "stage": "goals",
+      "starts": "You choose Read my goals.",
+      "reads": [
+        {
+          "text": "Your goals story",
+          "filter": "yours"
+        },
+        {
+          "text": "Your roles and facts",
+          "filter": "approved"
+        },
+        {
+          "text": "Your directions and limits, kept as they are",
+          "filter": "approved"
+        },
+        {
+          "text": "Directions and limits you rejected",
+          "filter": "rejected"
+        }
+      ],
+      "may": "Propose directions, and limits as clear values you can check and correct.",
+      "mayNot": "Assume a limit you didn’t state. It leaves out anything it would have to guess.",
+      "tasks": [
+        "Reading narratives"
+      ],
+      "screens": [
+        "record"
+      ]
+    },
+    {
+      "id": "limitRule",
+      "name": "Filters from wording",
+      "stage": "goals",
+      "starts": "You edit a limit’s wording.",
+      "reads": [
+        {
+          "text": "That limit’s wording, and nothing else",
+          "filter": null
+        }
+      ],
+      "may": "Set the limit’s filters to match what it now says.",
+      "mayNot": "Read your goals story for it.",
+      "tasks": [
+        "Reading narratives"
+      ],
+      "screens": []
+    },
+    {
+      "id": "directionsStep",
+      "name": "Directions and search criteria",
+      "stage": "goals",
+      "starts": "You choose Fill in or Suggest more on Goals.",
+      "reads": [
+        {
+          "text": "Your record, insights, limits and directions",
+          "filter": "approved"
+        },
+        {
+          "text": "Your stories, for background only",
+          "filter": "yours"
+        },
+        {
+          "text": "Directions you rejected or haven’t reviewed yet, so it doesn’t repeat them",
+          "filter": "rejected"
+        },
+        {
+          "text": "Your projects and their facts",
+          "filter": "approved"
+        }
+      ],
+      "may": "Fill in each direction’s positioning, target titles, the market’s words for the work, which stories carry over, and its search criteria. Suggest new directions.",
+      "mayNot": "Overwrite anything you approved.",
+      "tasks": [
+        "Directions and search criteria"
+      ],
+      "screens": [
+        "goals"
+      ]
+    },
+    {
+      "id": "screening",
+      "name": "Screen companies",
+      "stage": "companies",
+      "starts": "After each company search.",
+      "reads": [
+        {
+          "text": "Each company’s name and website",
+          "filter": "public"
+        }
+      ],
+      "may": "Sort companies into places to work and non-employers: recruiters, job boards, associations, government, schools, media and investors.",
+      "mayNot": "Delete anything. You can restore a company it set aside.",
+      "tasks": [
+        "Screening companies"
+      ],
+      "screens": []
+    },
+    {
+      "id": "enrich",
+      "name": "Fill in companies",
+      "stage": "companies",
+      "starts": "After a company search, or when you choose Fill in details, Check again or Check all again.",
+      "reads": [
+        {
+          "text": "The company’s website",
+          "filter": "public"
+        },
+        {
+          "text": "Your directions and limits",
+          "filter": "approved"
+        },
+        {
+          "text": "Companies you turned down, and why, as preferences",
+          "filter": "rejected"
+        }
+      ],
+      "may": "Add what each company builds, its size and its fit, and find its job board.",
+      "mayNot": "Spend Apollo credits past the credits you set aside each month.",
+      "tasks": [
+        "Screening companies"
+      ],
+      "screens": [
+        "review",
+        "companies",
+        "settings"
+      ]
+    },
+    {
+      "id": "sortRoles",
+      "name": "Sort roles",
+      "stage": "roles",
+      "starts": "Once the descriptions of newly found roles are all in.",
+      "reads": [
+        {
+          "text": "Your directions: their names, positioning and titles",
+          "filter": "approved"
+        },
+        {
+          "text": "Each role’s title",
+          "filter": "public"
+        },
+        {
+          "text": "Each role’s description, without what its company repeats in every posting",
+          "filter": "public"
+        },
+        {
+          "text": "The company’s name",
+          "filter": "public"
+        }
+      ],
+      "may": "Decide which of your directions a role could be for, leaning toward including it.",
+      "mayNot": "Judge how well it fits. That’s the next step.",
+      "tasks": [
+        "Sorting roles",
+        "Sorting roles with Jev"
+      ],
+      "screens": []
+    },
+    {
+      "id": "rankRoles",
+      "name": "Rank roles",
+      "stage": "roles",
+      "starts": "Right after sorting.",
+      "reads": [
+        {
+          "text": "Your projects and their facts",
+          "filter": "approved"
+        },
+        {
+          "text": "Your directions and limits",
+          "filter": "approved"
+        },
+        {
+          "text": "Each role, and the directions the sort passed it to",
+          "filter": "public"
+        },
+        {
+          "text": "Each role’s whole description, without what its company repeats in every posting",
+          "filter": "public"
+        },
+        {
+          "text": "The company’s name and one-line summary",
+          "filter": "public"
+        },
+        {
+          "text": "Your roles and their facts, and your years of work",
+          "filter": "approved"
+        },
+        {
+          "text": "Whether to count how big a stretch a role is",
+          "filter": null
+        },
+        {
+          "text": "Roles you turned down, and why, as preferences, never as limits",
+          "filter": "rejected"
+        }
+      ],
+      "may": "Rate the role for each direction as strong, some, weak or none, with a score from 0 to 100 and a reason in plain words.",
+      "mayNot": "Predict whether you’ll be hired. The score says how much of your time the role deserves.",
+      "tasks": [
+        "Screening companies"
+      ],
+      "screens": []
+    },
+    {
+      "id": "resume",
+      "name": "Resume",
+      "stage": "writing",
+      "starts": "You choose Write, Write again, Add what’s new or Update all on Resumes, Write the resume or Rewrite on Goals, or Tailor a resume on a direction or a role.",
+      "reads": [
+        {
+          "text": "Your skills, tools and certifications",
+          "filter": "approved"
+        },
+        {
+          "text": "Your roles, facts, insights and context",
+          "filter": "approved"
+        },
+        {
+          "text": "Your career breaks, with the reason in your words",
+          "filter": "approved"
+        },
+        {
+          "text": "The length to write to",
+          "filter": "approved"
+        },
+        {
+          "text": "The direction’s positioning, for a direction or tailored resume",
+          "filter": "approved"
+        },
+        {
+          "text": "For a tailored resume, the direction resume it starts from",
+          "filter": null
+        },
+        {
+          "text": "Your projects and their facts",
+          "filter": "approved"
+        },
+        {
+          "text": "Facts that describe the same work, as one",
+          "filter": "approved"
+        },
+        {
+          "text": "For a tailored resume, the role’s title and place",
+          "filter": "public"
+        },
+        {
+          "text": "For a tailored resume, the role’s company",
+          "filter": "public"
+        },
+        {
+          "text": "For a tailored resume, the role’s description",
+          "filter": "public"
+        }
+      ],
+      "may": "Write a base resume, one for each direction and one tailored to a role, each line citing approved facts, with how well you cover each requirement: strong, partial or thin.",
+      "mayNot": "Cite anything you haven’t approved. A line with no approved fact behind it is marked No approved basis.",
+      "tasks": [
+        "Writing resumes"
+      ],
+      "screens": [
+        "pursuits",
+        "resumes",
+        "goals"
+      ]
+    },
+    {
+      "id": "letter",
+      "name": "Cover letter",
+      "stage": "writing",
+      "starts": "You choose Write a cover letter in a pursuit.",
+      "reads": [
+        {
+          "text": "Your record: roles, facts, projects, context, insights, skills and directions",
+          "filter": "approved"
+        },
+        {
+          "text": "The resume tailored to the role, or the one you sent",
+          "filter": null
+        },
+        {
+          "text": "The pursuit: its role, company, direction and what you sent",
+          "filter": null
+        },
+        {
+          "text": "The role’s place",
+          "filter": "public"
+        },
+        {
+          "text": "The role’s description",
+          "filter": "public"
+        },
+        {
+          "text": "The company’s summary",
+          "filter": "public"
+        },
+        {
+          "text": "Your name, to sign it",
+          "filter": null
+        }
+      ],
+      "may": "Write a first-person letter whose paragraphs cite approved facts. Your edits become a new version.",
+      "mayNot": "Write one before a resume is tailored to the role, or once the pursuit was sent.",
+      "tasks": [
+        "Writing cover letters"
+      ],
+      "screens": [
+        "pursuits"
+      ]
+    },
+    {
+      "id": "ask",
+      "name": "Ask about this role",
+      "stage": "writing",
+      "starts": "You ask a question in a pursuit.",
+      "reads": [
+        {
+          "text": "Your record: roles, facts, projects, context, insights, skills and directions",
+          "filter": "approved"
+        },
+        {
+          "text": "The conversation so far and your latest message",
+          "filter": "yours"
+        },
+        {
+          "text": "The resume tailored to the role, or the one you sent",
+          "filter": null
+        },
+        {
+          "text": "The pursuit: its role, company and what you sent",
+          "filter": null
+        },
+        {
+          "text": "The role’s place",
+          "filter": "public"
+        },
+        {
+          "text": "The role’s description",
+          "filter": "public"
+        },
+        {
+          "text": "The company’s summary",
+          "filter": "public"
+        }
+      ],
+      "may": "Answer application questions in the first person, ready to paste, and say when your record doesn’t support something.",
+      "mayNot": "Claim what your record doesn’t support. Anything new you tell it comes back as proposals to review.",
+      "tasks": [
+        "Ask about this role"
+      ],
+      "screens": [
+        "pursuits"
+      ]
+    },
+    {
+      "id": "outreach",
+      "name": "Outreach",
+      "stage": "writing",
+      "starts": "You choose Draft a message for a person in a pursuit.",
+      "reads": [
+        {
+          "text": "Your record: roles, facts, projects, context, insights, skills and directions",
+          "filter": "approved"
+        },
+        {
+          "text": "Who it’s to: their name, title, group and whether they’re likely the hiring manager; who else you already wrote to there",
+          "filter": null
+        },
+        {
+          "text": "The pursuit: its role, company and when you applied",
+          "filter": null
+        },
+        {
+          "text": "The role’s description",
+          "filter": "public"
+        },
+        {
+          "text": "The company’s summary",
+          "filter": "public"
+        },
+        {
+          "text": "Your name, to sign it",
+          "filter": null
+        }
+      ],
+      "may": "Draft a short outreach message signed with your name: who you are, why this role, why you fit, and one small ask, for you to send from your own email.",
+      "mayNot": "Send anything. You send it, then mark it sent.",
+      "tasks": [
+        "Writing outreach"
+      ],
+      "screens": [
+        "pursuits"
+      ]
+    },
+    {
+      "id": "followUpWriter",
+      "name": "Follow-ups",
+      "stage": "writing",
+      "starts": "A follow-up is due after a quiet application or an interview, and you choose Write the follow-up in its pursuit or Write follow-up on Today.",
+      "reads": [
+        {
+          "text": "Your record: roles, facts, projects, context, insights, skills and directions",
+          "filter": "approved"
+        },
+        {
+          "text": "Where your application stands: its status, dates and timeline",
+          "filter": null
+        },
+        {
+          "text": "Follow-ups you already sent",
+          "filter": null
+        },
+        {
+          "text": "Who it’s to, and what you already sent them",
+          "filter": null
+        },
+        {
+          "text": "The role’s description",
+          "filter": "public"
+        },
+        {
+          "text": "Your name, to sign it",
+          "filter": null
+        }
+      ],
+      "may": "Draft a short follow-up email signed with your name, for you to send from your own email.",
+      "mayNot": "Send anything. You send it, then mark it sent.",
+      "tasks": [
+        "Writing follow-ups"
+      ],
+      "screens": [
+        "today",
+        "pursuits"
+      ]
+    },
+    {
+      "id": "lineCheck",
+      "name": "Check against facts",
+      "stage": "writing",
+      "starts": "You choose Check against facts on a resume line you put in your own words.",
+      "reads": [
+        {
+          "text": "The facts the line rests on (for the summary, the facts the whole resume rests on)",
+          "filter": "approved"
+        },
+        {
+          "text": "Your words, and where the line sits",
+          "filter": null
+        }
+      ],
+      "may": "Say whether your words say only what their facts support, and which words go beyond them.",
+      "mayNot": "Change your words. It only answers.",
+      "tasks": [
+        "Checking edited lines"
+      ],
+      "screens": [
+        "resumes"
+      ]
+    },
+    {
+      "id": "lineUpdate",
+      "name": "Update lines",
+      "stage": "writing",
+      "starts": "You choose Update lines on a document whose facts changed since it was written.",
+      "reads": [
+        {
+          "text": "The facts the lines cite, as they read now and as they read when the lines were written",
+          "filter": "approved"
+        },
+        {
+          "text": "A rejected fact a line cites, as what to take out",
+          "filter": "rejected"
+        },
+        {
+          "text": "The resume in use: its lines, your own words and what it was written from",
+          "filter": null
+        },
+        {
+          "text": "The newest version of a letter not yet sent",
+          "filter": null
+        },
+        {
+          "text": "A pursuit’s answers, and whether it was sent (a sent one is left alone)",
+          "filter": null
+        }
+      ],
+      "may": "Rewrite just the lines that cite a changed fact.",
+      "mayNot": "Change a document until you choose Apply.",
+      "tasks": [
+        "Writing resumes",
+        "Writing cover letters"
+      ],
+      "screens": [
+        "today",
+        "pursuits",
+        "resumes"
+      ]
+    },
+    {
+      "id": "compare",
+      "name": "Compare models",
+      "stage": null,
+      "starts": "You choose Compare in Settings, AI.",
+      "reads": [
+        {
+          "text": "One story, without your record",
+          "filter": "yours"
+        }
+      ],
+      "may": "Run one of three tasks (reading a story, the base resume or insights) on up to four models, for you to judge.",
+      "mayNot": "Add anything to your record.",
+      "tasks": [],
+      "screens": [
+        "settings"
+      ]
+    },
+    {
+      "id": "firstCall",
+      "name": "Test call",
+      "stage": null,
+      "starts": "You choose Try it in Settings, AI.",
+      "reads": [],
+      "may": "Send one test prompt to check your key and model work.",
+      "mayNot": "Read or change your record.",
+      "tasks": [
+        "Test calls"
+      ],
+      "screens": [
+        "settings"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "screen": "today",
+      "label": "Bring your data from another copy",
+      "detail": "Opens Settings, Your data, to import an export from another CareerBot copy.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "Start",
+      "detail": "Starts a pursuit of this role: its status, resume, letter, answers and people in one place.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "Connect Google Drive",
+      "detail": "Opens Google to let CareerBot keep a Google Doc of each resume in a CareerBot folder in your Drive. You come back here once it’s done.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "Skip",
+      "detail": "Leaves Google Drive out of Getting started. Connect it any time in Settings, Google Drive.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "today",
+      "label": "Save and continue",
+      "detail": "Checks the key with OpenRouter, then saves it with your budget and model. You can change any of them in Settings.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "Save and continue",
+      "detail": "Checks the key with Apollo and reads the credits left in your plan, then saves it with your credit budget and how Apollo work runs. You can change any of them in Settings.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "Open",
+      "detail": "Opens the pursuit, with what’s next.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "Open",
+      "detail": "Opens the pursuit, to answer the offer.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "Open",
+      "detail": "Opens the new version, to keep or discard it.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "Open",
+      "detail": "Opens it with the lines resting on changed facts, to update them.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "Open",
+      "detail": "Opens the follow-up, to read and send it.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "Review",
+      "detail": "Opens Review, where each decision waits in the order it unlocks your other work.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "People",
+      "detail": "Opens the pursuit’s contacts, to write to the next one.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "Close · No response",
+      "detail": "Closes the pursuit as No response.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "Open in Pursuits",
+      "detail": "Opens the pursuit, with its resume, letter, answers and people.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "Discard",
+      "detail": "Deletes the new version; the current one stays.",
+      "note": "Free · Asks first · can’t be undone"
+    },
+    {
+      "screen": "today",
+      "label": "Keep",
+      "detail": "Makes the new version the one you use.",
+      "note": "Free"
+    },
+    {
+      "screen": "today",
+      "label": "Rewrite",
+      "detail": "Writes a new version from your approved record, for you to keep or discard.",
+      "note": "Uses your AI budget"
+    },
+    {
+      "screen": "review",
+      "label": "Suggest questions",
+      "detail": "Looks for questions whose answers would sharpen your record. They wait here for your answers.",
+      "note": "About $0.02 of your AI budget"
+    },
+    {
+      "screen": "review",
+      "label": "Look for conflicts",
+      "detail": "Checks your record against your stories for anything they disagree on. What it finds waits here.",
+      "note": "Uses your AI budget"
+    },
+    {
+      "screen": "review",
+      "label": "Find facts said twice",
+      "detail": "Looks for facts your record says twice. Pairs it finds wait here, to merge or keep both.",
+      "note": "Uses your AI budget"
+    },
+    {
+      "screen": "review",
+      "label": "Open Today",
+      "detail": "Opens Today: what needs you now.",
+      "note": "Free"
+    },
+    {
+      "screen": "review",
+      "label": "Skip for now",
+      "detail": "Moves on to the next one; this one keeps waiting.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Copy",
+      "detail": "Copies the answer, to paste into the application.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Edit",
+      "detail": "Change the question or the answer.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Remove",
+      "detail": "Removes this answer from the pursuit.",
+      "note": "Free · Asks first · can’t be undone"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Keep",
+      "detail": "Saves this answer to the pursuit's Answers.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Copy",
+      "detail": "Copies the answer.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Copy and open Mail",
+      "detail": "Copies the follow-up and opens it in your email, addressed and ready to send.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Keep the new one",
+      "detail": "Keeps the new version as your draft.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Keep the one I had",
+      "detail": "Drops the new version; your draft stays as it was.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Edit",
+      "detail": "Change the words yourself.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Copy",
+      "detail": "Copies the letter as it was sent.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Copy",
+      "detail": "Copies the letter.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Edit",
+      "detail": "Change the words yourself; it's kept as a new version.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "People",
+      "detail": "Shows your contacts, to write to the next one.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Close · No response",
+      "detail": "Closes the pursuit as No response.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Change",
+      "detail": "Write your own next step; clear it to go back to the suggested one.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Add",
+      "detail": "Adds them to this pursuit’s contacts.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Mark a reply",
+      "detail": "Records that this person answered. Moves the pursuit to In conversation if it’s behind.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Clear the reply",
+      "detail": "Takes back that this person answered.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Copy and open Mail",
+      "detail": "Copies the message and opens it in your email, addressed and ready to send.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Download resume",
+      "detail": "Downloads this pursuit’s tailored resume as a PDF to attach to your email.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Mark as sent",
+      "detail": "Keeps the message as sent, on the pursuit's timeline.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "By direction",
+      "detail": "Shows how your pursuits went for each direction, and where roles come from.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Copy link",
+      "detail": "Copies a link that opens this role in Pursuits.",
+      "note": "Free"
+    },
+    {
+      "screen": "pursuits",
+      "label": "Start",
+      "detail": "Starts a pursuit of this role: its status, resume, letter, answers and people in one place.",
+      "note": "Free"
+    },
+    {
+      "screen": "companies",
+      "label": "Companies you’d name",
+      "detail": "Lists companies you already want, added to every search.",
+      "note": "Free"
+    },
+    {
+      "screen": "companies",
+      "label": "Seed companies",
+      "detail": "Lists companies you’d love to work at, so searches find ones like them.",
+      "note": "Free"
+    },
+    {
+      "screen": "companies",
+      "label": "Lens settings",
+      "detail": "Sets how your goals shape searches and what Found shows.",
+      "note": "Free"
+    },
+    {
+      "screen": "companies",
+      "label": "Let it be set aside",
+      "detail": "Moves it back to Doesn’t fit your goals.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "companies",
+      "label": "Edit website and job board",
+      "detail": "Opens its website or job board for editing.",
+      "note": "Free"
+    },
+    {
+      "screen": "companies",
+      "label": "Open its website",
+      "detail": "Opens the company’s site in a new tab.",
+      "note": "Free"
+    },
+    {
+      "screen": "companies",
+      "label": "Open its roles in Pursuits",
+      "detail": "Shows its open roles in Pursuits.",
+      "note": "Free"
+    },
+    {
+      "screen": "companies",
+      "label": "Open Found",
+      "detail": "Shows the companies found for you.",
+      "note": "Free"
+    },
+    {
+      "screen": "companies",
+      "label": "Start outreach",
+      "detail": "Starts a pursuit at this company without an open role, to write to the people who hire there.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Connect Google Drive again",
+      "detail": "Google stopped accepting CareerBot, so this resume isn’t kept in Drive now. Opens Settings to connect it again.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Edit",
+      "detail": "Puts this line in your own words on this resume. It stays built on the same facts, marked Edited.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "resumes",
+      "label": "Hide",
+      "detail": "Leaves it out of this resume. It stays here, struck, to bring back.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "resumes",
+      "label": "Edit",
+      "detail": "Puts the summary in your own words on this resume. A new version is written with its own summary.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "resumes",
+      "label": "Use CareerBot’s",
+      "detail": "Puts CareerBot’s summary back.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "resumes",
+      "label": "Show",
+      "detail": "Shows it on this resume again.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Undo",
+      "detail": "Brings the line back, to add or skip.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Add",
+      "detail": "Adds this line to the resume. The rest stays as it is.",
+      "note": "Free · Undo from the line"
+    },
+    {
+      "screen": "resumes",
+      "label": "Skip",
+      "detail": "Leaves it off. What it’s built on isn’t proposed again for this resume unless you change it.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Save",
+      "detail": "Saves your words on this resume. Its PDF, Word and Google Doc follow.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "resumes",
+      "label": "Download PDF",
+      "detail": "Saves this resume as shown, as a PDF.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Download Word",
+      "detail": "Saves this resume as shown, as a Word file.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Copy for Google Docs",
+      "detail": "Copies the resume with its headings and bullets, to paste into Google Docs or Word.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Copy plain text",
+      "detail": "Copies the resume as plain text.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Download plain text",
+      "detail": "Saves the resume to a file, as plain text.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Restore",
+      "detail": "Makes a copy of this version the current one.",
+      "note": "Free · Undo from the message"
+    },
+    {
+      "screen": "resumes",
+      "label": "Compare with current",
+      "detail": "Shows this version beside the current one, with what changed.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Don’t fold",
+      "detail": "Shows this role on its own again.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Leave this role out",
+      "detail": "Takes this role off. It stays listed here, to show again.",
+      "note": "Free · Undo from this menu"
+    },
+    {
+      "screen": "resumes",
+      "label": "Show this role",
+      "detail": "Puts this role back on.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Type a title",
+      "detail": "Opens a field to write the title yourself.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Save",
+      "detail": "Shows the role under the title you typed.",
+      "note": "Free · Change it from the same menu"
+    },
+    {
+      "screen": "resumes",
+      "label": "Compare versions",
+      "detail": "Shows two versions side by side, with what changed.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Compare",
+      "detail": "Shows the new version beside this one, with what changed.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Open the pursuit",
+      "detail": "Opens the pursuit for this posting.",
+      "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Resumes to update",
+      "detail": "Shows the resumes your record has changed under, or with a new version waiting.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Save",
+      "detail": "Saves the break to your record, approved as you gave it.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Edit",
+      "detail": "Changes its months or its reason.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Add a fact",
+      "detail": "Adds a fact about this break to your record.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Add a note",
+      "detail": "Adds a dated note to this break.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Undo approval",
+      "detail": "Takes the break back to review, so resumes stop using it.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "record",
+      "label": "Approve",
+      "detail": "Puts the break back in your record, so resumes use it.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "record",
+      "label": "Restore",
+      "detail": "Puts the break back in your record, approved.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "record",
+      "label": "Remove",
+      "detail": "Takes the break out of your record and every resume, with why if you like.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "record",
+      "label": "Copy link",
+      "detail": "Copies a link to this break.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Open",
+      "detail": "Opens the break.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Add as a career break",
+      "detail": "Starts a break with these months filled in.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Copy the insight",
+      "detail": "Copies the insight’s words.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Save",
+      "detail": "Keeps the insight in your wording, approved.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "record",
+      "label": "Open Review",
+      "detail": "Opens the insights waiting for you to approve or reject.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Keep",
+      "detail": "Leaves GitHub connected.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Change the reason",
+      "detail": "Changes why you rejected it.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Add a fact",
+      "detail": "Adds a fact about this project to your record.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Undo approval",
+      "detail": "Takes the project out of your record and back to review.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "record",
+      "label": "Save and approve",
+      "detail": "Saves your corrections and approves the project.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Add a fact",
+      "detail": "Adds a fact to this role in your words, approved as you write it.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Add context",
+      "detail": "Adds your own context to this role, to sharpen its facts.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Add a break before this role",
+      "detail": "Starts a break with the months between this role and the one before.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Copy link",
+      "detail": "Copies a link to this role.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Undo approval",
+      "detail": "Takes the role back to review; resumes stop using it.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "record",
+      "label": "Delete role…",
+      "detail": "Deletes the role with its facts, context and notes.",
+      "note": "Free · Asks first · can’t be undone"
+    },
+    {
+      "screen": "record",
+      "label": "Both are right",
+      "detail": "You held both jobs at once. Neither changes, and this isn’t asked again.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "record",
+      "label": "Record is right",
+      "detail": "Keeps your record as it is. This question isn’t asked again.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "record",
+      "label": "Story is right",
+      "detail": "Changes your record to what the story says.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "record",
+      "label": "Neither",
+      "detail": "Type what’s right; your record takes it.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "record",
+      "label": "Open story",
+      "detail": "Opens the story this was read from.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Save",
+      "detail": "Changes your record to what you typed.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "record",
+      "label": "Save",
+      "detail": "Keeps this with the role; rewrites of its facts use it.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Add context",
+      "detail": "Adds something true about this role in your words; rewrites of its facts use it.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Change why",
+      "detail": "Changes why you rejected it.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "record",
+      "label": "Edit",
+      "detail": "Your wording, approved as you write it.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Offer again",
+      "detail": "Offers the two as the same thing again, to merge or keep both.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Goals story",
+      "detail": "Opens your goals story, which lives in Goals.",
+      "note": "Free"
+    },
+    {
+      "screen": "record",
+      "label": "Save",
+      "detail": "Saves what you wrote as a new version.",
+      "note": "Free · Earlier versions stay in Versions"
+    },
+    {
+      "screen": "goals",
+      "label": "Edit direction",
+      "detail": "Change its title, what it includes, its fit and what it is.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Edit positioning",
+      "detail": "Change the positioning, the titles to aim at and the words to use. Saving approves it.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Undo approval",
+      "detail": "Moves it back to Proposed; roles aren’t ranked for it until you approve it again.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "goals",
+      "label": "Undo positioning approval",
+      "detail": "Puts the positioning back up for review; resumes aren’t written from it until you approve it again.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "goals",
+      "label": "Undo criteria approval",
+      "detail": "Puts the criteria back up for review; search doesn’t look for them until you approve them again.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "goals",
+      "label": "Add criteria",
+      "detail": "Write what search looks for in this direction. Saving approves them.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Edit positioning",
+      "detail": "Change the positioning, target titles and vocabulary. Saving approves them.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Restore",
+      "detail": "Puts it back among the proposed directions.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Write your goals",
+      "detail": "Opens your goals story to write in. Reading it later proposes your limits and directions.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Edit the story",
+      "detail": "Change your goals story. Saving keeps it as a new version.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Limits",
+      "detail": "Opens the limits read from your goals and the ones you added.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Directions",
+      "detail": "Opens the kinds of work you’re going for.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Back to the current version",
+      "detail": "Shows the story as it reads now.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Undo approval",
+      "detail": "Puts it back with the proposed limits; nothing filters by it until you approve it again.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "goals",
+      "label": "Open in Review",
+      "detail": "Opens Review, where it waits with what else is proposed.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Delete",
+      "detail": "Deletes this limit you added; nothing filters by it after.",
+      "note": "Free · Asks first · can’t be undone"
+    },
+    {
+      "screen": "goals",
+      "label": "Edit",
+      "detail": "Change it before approving; saving approves it.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Keep the rule",
+      "detail": "Keeps filtering by the rule as it is, and stops asking.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Your goals story",
+      "detail": "Opens your goals story, where proposed limits are read from.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Proposed limits in Review",
+      "detail": "Opens Review, where proposed limits wait for you to approve or reject them.",
+      "note": "Free"
+    },
+    {
+      "screen": "goals",
+      "label": "Roles in Pursuits",
+      "detail": "Opens every role in Pursuits, to see what your limits hide and rank lower.",
+      "note": "Free"
+    },
+    {
+      "screen": "settings",
+      "label": "Sign out",
+      "detail": "Signs you out on this device and clears anything you were writing here that isn’t saved.",
+      "note": "Free · Sign in again to come back"
+    },
+    {
+      "screen": "settings",
+      "label": "Change password",
+      "detail": "Asks for your current password, then a new one. Your other devices are signed out.",
+      "note": "Free"
+    },
+    {
+      "screen": "settings",
+      "label": "Change password",
+      "detail": "Saves your new password. Your other devices are signed out.",
+      "note": "Free"
+    },
+    {
+      "screen": "settings",
+      "label": "Add a person",
+      "detail": "Adds an account to this copy, with a workspace of its own. You choose the username; you get a temporary password to give them.",
+      "note": "Free"
+    },
+    {
+      "screen": "settings",
+      "label": "Copy",
+      "detail": "Copies the temporary password.",
+      "note": "Free"
+    },
+    {
+      "screen": "settings",
+      "label": "Add a person",
+      "detail": "Adds an account to this copy, with a workspace of its own. You get a temporary password to give them.",
+      "note": "Free"
+    },
+    {
+      "screen": "settings",
+      "label": "Use the main model",
+      "detail": "Goes back to the model every other task uses.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "settings",
+      "label": "What the model sent back",
+      "detail": "Shows the start of the reply the model sent back.",
+      "note": "Free"
+    },
+    {
+      "screen": "settings",
+      "label": "Disconnect",
+      "detail": "Stops syncing and ends CareerBot’s access to your Drive. Your CareerBot folder and its Docs stay in Drive.",
+      "note": "Free · Asks first · Connect again any time"
+    },
+    {
+      "screen": "settings",
+      "label": "Choose a folder",
+      "detail": "Opens Google’s folder picker to choose where the CareerBot folder lives. It moves there with everything in it.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "settings",
+      "label": "Export",
+      "detail": "Makes one .zip of everything in this workspace, ready to download. Nothing here changes.",
+      "note": "Free"
+    },
+    {
+      "screen": "settings",
+      "label": "Download",
+      "detail": "Saves the .zip to this device.",
+      "note": "Free"
+    },
+    {
+      "screen": "settings",
+      "label": "Export again",
+      "detail": "Makes a new .zip of everything as it is now.",
+      "note": "Free"
+    },
+    {
+      "screen": "settings",
+      "label": "Choose another file",
+      "detail": "Puts this file aside, to choose a different export.",
+      "note": "Free"
+    },
+    {
+      "screen": "settings",
+      "label": "Continue",
+      "detail": "Picks the import up where it stopped.",
+      "note": "Free"
+    }
+  ],
+  "oldAddresses": [
+    {
+      "from": "/followups",
+      "to": "/review?kind=questions"
+    },
+    {
+      "from": "/directions",
+      "to": "/goals/directions"
+    },
+    {
+      "from": "/directions/:id",
+      "to": "/goals/directions?direction=:id"
+    },
+    {
+      "from": "/record",
+      "to": "/record/roles"
+    },
+    {
+      "from": "/narratives",
+      "to": "/record/story"
+    },
+    {
+      "from": "/narratives/:id",
+      "to": "/record/story?story=:id"
+    },
+    {
+      "from": "/insights",
+      "to": "/record/insights"
+    },
+    {
+      "from": "/resume",
+      "to": "/resumes?resume=base"
+    },
+    {
+      "from": "/profile",
+      "to": "/settings"
+    },
+    {
+      "from": "/compare",
+      "to": "/settings?section=ai&compare=1"
+    }
+  ],
+  "shortcuts": [
+    {
+      "keys": "G then T",
+      "label": "Today",
+      "href": "/"
+    },
+    {
+      "keys": "G then R",
+      "label": "Review",
+      "href": "/review"
+    },
+    {
+      "keys": "G then P",
+      "label": "Pursuits",
+      "href": "/pursuits"
+    },
+    {
+      "keys": "G then C",
+      "label": "Companies",
+      "href": "/companies"
+    },
+    {
+      "keys": "G then E",
+      "label": "Resumes",
+      "href": "/resumes"
+    },
+    {
+      "keys": "G then D",
+      "label": "Record",
+      "href": "/record/roles"
+    },
+    {
+      "keys": "G then G",
+      "label": "Goals",
+      "href": "/goals"
+    },
+    {
+      "keys": "G then O",
+      "label": "Reports",
+      "href": "/reports"
+    },
+    {
+      "keys": "G then S",
+      "label": "Settings",
+      "href": "/settings"
+    }
+  ],
+  "configuration": [
+    {
+      "name": "CAREERBOT_VERSION",
+      "group": "Version",
+      "text": "Which CareerBot release to run. Unset: the release this compose.yaml came with. A version such as 0.8.0 stays on it until you change it here; `latest` moves to the newest release on each `docker compose pull`. Before changing it, back up and read the release notes: https://careerbot.dev/changelog",
+      "example": ""
+    },
+    {
+      "name": "SITE_URL",
+      "group": "Your site",
+      "text": "Where people open CareerBot, as the browser sees it. On your own computer: http://localhost:3000. On a server with a domain: its https address (https://careerbot.example.com), with your proxy or tunnel sending it to WEB_PORT.",
+      "example": "http://localhost:3000"
+    },
+    {
+      "name": "NEXT_PUBLIC_CONVEX_URL",
+      "group": "Convex: pick one",
+      "text": "A) Convex's cloud (free plan). Create a project at https://dashboard.convex.dev, then: NEXT_PUBLIC_CONVEX_URL: Settings > URL & Deploy Key, the deployment URL (https://….convex.cloud) CONVEX_DEPLOY_KEY: Settings > URL & Deploy Key, Generate Production Deploy Key CONVEX_SITE_ORIGIN isn't needed: Google and GitHub send people back to https://….convex.site. Uncomment the two lines below and comment out or delete B's four lines.",
+      "example": "https://your-deployment.convex.cloud"
+    },
+    {
+      "name": "CONVEX_DEPLOY_KEY",
+      "group": "Convex: pick one",
+      "text": "A) Convex's cloud (free plan). Create a project at https://dashboard.convex.dev, then: NEXT_PUBLIC_CONVEX_URL: Settings > URL & Deploy Key, the deployment URL (https://….convex.cloud) CONVEX_DEPLOY_KEY: Settings > URL & Deploy Key, Generate Production Deploy Key CONVEX_SITE_ORIGIN isn't needed: Google and GitHub send people back to https://….convex.site. Uncomment the two lines below and comment out or delete B's four lines.",
+      "example": "prod:your-deployment|…"
+    },
+    {
+      "name": "COMPOSE_PROFILES",
+      "group": "Convex: pick one",
+      "text": "B) Self-hosted Convex, run by this compose file on this computer. Its data stays in the convex-data Docker volume. On a server with a domain, NEXT_PUBLIC_CONVEX_URL and CONVEX_SITE_ORIGIN are two https addresses of their own (https://convex.example.com, https://convex-site.example.com) that your proxy sends to CONVEX_PORT and CONVEX_SITE_PORT. CONVEX_SELF_HOSTED_URL stays as it is: the setup step reaches Convex inside compose.",
+      "example": "self-hosted"
+    },
+    {
+      "name": "NEXT_PUBLIC_CONVEX_URL",
+      "group": "Convex: pick one",
+      "text": "B) Self-hosted Convex, run by this compose file on this computer. Its data stays in the convex-data Docker volume. On a server with a domain, NEXT_PUBLIC_CONVEX_URL and CONVEX_SITE_ORIGIN are two https addresses of their own (https://convex.example.com, https://convex-site.example.com) that your proxy sends to CONVEX_PORT and CONVEX_SITE_PORT. CONVEX_SELF_HOSTED_URL stays as it is: the setup step reaches Convex inside compose.",
+      "example": "http://localhost:3210"
+    },
+    {
+      "name": "CONVEX_SITE_ORIGIN",
+      "group": "Convex: pick one",
+      "text": "B) Self-hosted Convex, run by this compose file on this computer. Its data stays in the convex-data Docker volume. On a server with a domain, NEXT_PUBLIC_CONVEX_URL and CONVEX_SITE_ORIGIN are two https addresses of their own (https://convex.example.com, https://convex-site.example.com) that your proxy sends to CONVEX_PORT and CONVEX_SITE_PORT. CONVEX_SELF_HOSTED_URL stays as it is: the setup step reaches Convex inside compose.",
+      "example": "http://localhost:3211"
+    },
+    {
+      "name": "CONVEX_SELF_HOSTED_URL",
+      "group": "Convex: pick one",
+      "text": "B) Self-hosted Convex, run by this compose file on this computer. Its data stays in the convex-data Docker volume. On a server with a domain, NEXT_PUBLIC_CONVEX_URL and CONVEX_SITE_ORIGIN are two https addresses of their own (https://convex.example.com, https://convex-site.example.com) that your proxy sends to CONVEX_PORT and CONVEX_SITE_PORT. CONVEX_SELF_HOSTED_URL stays as it is: the setup step reaches Convex inside compose.",
+      "example": "http://convex-backend:3210"
+    },
+    {
+      "name": "SIGNUP_ALLOWLIST",
+      "group": "Signing in",
+      "text": "People sign in with a username and password: the owner's account is made with the setup code, and the owner adds everyone else in Settings, Account. Google and GitHub are optional; the sign-in screen offers them once they're set. Who may sign in with Google or GitHub: their emails, comma-separated. Empty: nobody (password accounts don't need it). Changing the list takes effect after `docker compose up -d`; to empty it again, delete SIGNUP_ALLOWLIST in the Convex dashboard's environment variables (an empty value here leaves the one there as it is).",
+      "example": ""
+    },
+    {
+      "name": "AUTH_GOOGLE_ID",
+      "group": "Signing in",
+      "text": "Each of Google and GitHub needs an OAuth app whose callback URL is your Convex HTTP actions URL plus /api/auth/callback/google (or /github): self-hosted on this computer: http://localhost:3211/api/auth/callback/google self-hosted on a server: CONVEX_SITE_ORIGIN/api/auth/callback/google (https://convex-site.example.com/…) Convex's cloud: https://your-deployment.convex.site/api/auth/callback/google Google: https://console.cloud.google.com/apis/credentials (OAuth client ID, Web application) GitHub: https://github.com/settings/developers (New OAuth App; its homepage URL is SITE_URL)",
+      "example": ""
+    },
+    {
+      "name": "AUTH_GOOGLE_SECRET",
+      "group": "Signing in",
+      "text": "Each of Google and GitHub needs an OAuth app whose callback URL is your Convex HTTP actions URL plus /api/auth/callback/google (or /github): self-hosted on this computer: http://localhost:3211/api/auth/callback/google self-hosted on a server: CONVEX_SITE_ORIGIN/api/auth/callback/google (https://convex-site.example.com/…) Convex's cloud: https://your-deployment.convex.site/api/auth/callback/google Google: https://console.cloud.google.com/apis/credentials (OAuth client ID, Web application) GitHub: https://github.com/settings/developers (New OAuth App; its homepage URL is SITE_URL)",
+      "example": ""
+    },
+    {
+      "name": "AUTH_GITHUB_ID",
+      "group": "Signing in",
+      "text": "Each of Google and GitHub needs an OAuth app whose callback URL is your Convex HTTP actions URL plus /api/auth/callback/google (or /github): self-hosted on this computer: http://localhost:3211/api/auth/callback/google self-hosted on a server: CONVEX_SITE_ORIGIN/api/auth/callback/google (https://convex-site.example.com/…) Convex's cloud: https://your-deployment.convex.site/api/auth/callback/google Google: https://console.cloud.google.com/apis/credentials (OAuth client ID, Web application) GitHub: https://github.com/settings/developers (New OAuth App; its homepage URL is SITE_URL)",
+      "example": ""
+    },
+    {
+      "name": "AUTH_GITHUB_SECRET",
+      "group": "Signing in",
+      "text": "Each of Google and GitHub needs an OAuth app whose callback URL is your Convex HTTP actions URL plus /api/auth/callback/google (or /github): self-hosted on this computer: http://localhost:3211/api/auth/callback/google self-hosted on a server: CONVEX_SITE_ORIGIN/api/auth/callback/google (https://convex-site.example.com/…) Convex's cloud: https://your-deployment.convex.site/api/auth/callback/google Google: https://console.cloud.google.com/apis/credentials (OAuth client ID, Web application) GitHub: https://github.com/settings/developers (New OAuth App; its homepage URL is SITE_URL)",
+      "example": ""
+    },
+    {
+      "name": "JWT_PRIVATE_KEY",
+      "group": "Made for you the first time",
+      "text": "Left empty, the first `docker compose up` makes these and keeps them in your Convex deployment's settings. Set them only to bring keys from another copy. MASTER_KEY_V1 encrypts the API keys people save in CareerBot; losing it means entering those again.",
+      "example": ""
+    },
+    {
+      "name": "JWKS",
+      "group": "Made for you the first time",
+      "text": "Left empty, the first `docker compose up` makes these and keeps them in your Convex deployment's settings. Set them only to bring keys from another copy. MASTER_KEY_V1 encrypts the API keys people save in CareerBot; losing it means entering those again.",
+      "example": ""
+    },
+    {
+      "name": "MASTER_KEY_V1",
+      "group": "Made for you the first time",
+      "text": "Left empty, the first `docker compose up` makes these and keeps them in your Convex deployment's settings. Set them only to bring keys from another copy. MASTER_KEY_V1 encrypts the API keys people save in CareerBot; losing it means entering those again.",
+      "example": ""
+    },
+    {
+      "name": "GOOGLE_PICKER_KEY",
+      "group": "Optional",
+      "text": "Choosing a Google Drive folder in Settings (a browser API key for Google's Picker).",
+      "example": ""
+    },
+    {
+      "name": "LIQUIDAI_API_KEY",
+      "group": "Optional",
+      "text": "Liquid AI's model, for an experiment in sorting roles.",
+      "example": ""
+    },
+    {
+      "name": "UPDATE_CHECK",
+      "group": "Optional",
+      "text": "Once a day this copy asks https://careerbot.dev/releases.json whether there's a newer version, and its owner sees it in Settings, Updates. Nothing about you or this copy is sent, but like any web request it shows careerbot.dev this server's IP address. off: never ask (the owner can also turn it off there).",
+      "example": "off"
+    },
+    {
+      "name": "WEB_PORT",
+      "group": "Optional",
+      "text": "Ports on this computer, if the defaults are taken. Change SITE_URL, NEXT_PUBLIC_CONVEX_URL and CONVEX_SITE_ORIGIN to match when they're localhost addresses (behind a domain they stay as they are). Dokploy's own dashboard is on 3000: there, set WEB_PORT=3001 or another free port.",
+      "example": "3000"
+    },
+    {
+      "name": "CONVEX_PORT",
+      "group": "Optional",
+      "text": "Ports on this computer, if the defaults are taken. Change SITE_URL, NEXT_PUBLIC_CONVEX_URL and CONVEX_SITE_ORIGIN to match when they're localhost addresses (behind a domain they stay as they are). Dokploy's own dashboard is on 3000: there, set WEB_PORT=3001 or another free port.",
+      "example": "3210"
+    },
+    {
+      "name": "CONVEX_SITE_PORT",
+      "group": "Optional",
+      "text": "Ports on this computer, if the defaults are taken. Change SITE_URL, NEXT_PUBLIC_CONVEX_URL and CONVEX_SITE_ORIGIN to match when they're localhost addresses (behind a domain they stay as they are). Dokploy's own dashboard is on 3000: there, set WEB_PORT=3001 or another free port.",
+      "example": "3211"
+    },
+    {
+      "name": "CONVEX_DASHBOARD_PORT",
+      "group": "Optional",
+      "text": "Ports on this computer, if the defaults are taken. Change SITE_URL, NEXT_PUBLIC_CONVEX_URL and CONVEX_SITE_ORIGIN to match when they're localhost addresses (behind a domain they stay as they are). Dokploy's own dashboard is on 3000: there, set WEB_PORT=3001 or another free port.",
+      "example": "6791"
+    },
+    {
+      "name": "BIND_ADDRESS",
+      "group": "Optional",
+      "text": "The address those ports are published on. 127.0.0.1 (the default): this machine only; Coolify's and Dokploy's proxies don't need them, and on a server they'd skip the proxy and its HTTPS (Docker's ports also go around ufw). Set 0.0.0.0 only to reach the ports from other machines without a proxy, never on a server facing the internet.",
+      "example": "127.0.0.1"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+---
+title: How this repository is updated
+description: Where CareerBot's code is worked on, how it reaches the public repository, and how a pull request gets in.
+nav: Updates
+sources:
+  - CONTRIBUTING.md
+  - .github/workflows/ci.yml
+  - scripts/release.ts
+---
+
+CareerBot is built in the maintainer's own repository and published here one way. The public repository is a copy of it, not a mirror: what's here is every file meant to be public, and nothing else.
+
+## What an update is
+
+Each update to `master` is one commit holding the whole public tree as it is at that moment, titled with the version it carries. There's no commit-by-commit history of the work in between; the changelog says what each release changed.
+
+Before an update is published it has to pass three checks, and a person reads its full difference from the previous update:
+
+- Secrets: a secret scanner (gitleaks) over every file.
+- Personal data: a scan for anything about a real person or the maintainer's own accounts and services. The fixtures, stories and screenshots use fictional people and `example.com` addresses.
+- It builds on its own: a fresh copy of exactly these files installs, type-checks, passes the linters and the tests, and matches the system map, with no keys of any kind.
+
+Some files exist only in the maintainer's repository: the maintainer's task tracker and deployment settings, and the tooling for launch material. Where a file here says something about those, it describes what the maintainer does, not something you need.
+
+## Getting a change in
+
+<Steps>
+<Step title="Open an issue or a pull request">
+
+Bugs, ideas and questions go in [GitHub issues](https://github.com/careerbotdev/careerbot/issues). A change comes as a pull request against `master`, with the checks in [Checks before a pull request](/docs/contributing/checks) passing and a [change file](/docs/contributing/changes) when someone would notice it.
+
+</Step>
+<Step title="CI runs after a maintainer approves it">
+
+CI runs on a pull request from a fork once a maintainer approves the run. It can only read the repository: it holds no secrets and deploys nothing.
+
+</Step>
+<Step title="Review here, then the next update">
+
+Review happens on the pull request. Once it's accepted, the maintainer applies your change to the maintainer's repository with you as its author, and it reaches `master` in the next update, which names your pull request and lists you as a co-author; then the pull request is closed with a link to it. Your change keeps your name, but it arrives as part of that update rather than as a merge of your branch. You're credited by your GitHub noreply address, never your own email.
+
+</Step>
+</Steps>
+
+## Releases
+
+A release is a version tag on the update that carries it. The images self-hosted copies run, the release notes and the changelog are made from the same version (see [Change files](/docs/contributing/changes)), and CI checks that a tag names the version package.json, compose.yaml and the newest release notes all carry.

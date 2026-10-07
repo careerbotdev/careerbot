@@ -1,0 +1,102 @@
+---
+title: Writing
+description: How CareerBot writes resumes, cover letters, answers and messages from your approved record, and keeps them in step when a fact changes.
+nav: Writing
+sources:
+  - docs/architecture/model.c4
+  - convex/resume.ts
+  - convex/letters.ts
+  - convex/ask.ts
+  - convex/people.ts
+  - convex/followUpEmails.ts
+  - convex/lineCheck.ts
+  - convex/factChanges.ts
+  - src/app/resumes/ResumeItem.tsx
+  - src/app/resumes/EditSheet.tsx
+  - src/app/pursuits/People.tsx
+  - src/app/pursuits/FollowUp.tsx
+---
+
+Everything CareerBot writes under your name is written from your approved record, and nothing else. Each line cites the
+approved facts it rests on; a citation of anything else is dropped. CareerBot never sends anything: you send letters
+and messages yourself, from your own email.
+
+## The steps
+
+<AiStage stage="writing" />
+
+## Resumes
+
+<AiStep id="resume" /> writes resumes at three levels:
+
+- The base resume, neutral: **Write** (then **Write again**) in <Screen id="resumes" />.
+- One for each direction, from that direction's approved positioning: **Write the resume** (then **Rewrite**) on a
+  direction in <Screen id="goals" />.
+- One tailored to a role: **Tailor a resume** on a role or a pursuit in <Screen id="pursuits" />. If the direction has
+  no resume yet, it's written first, in the same run.
+
+Each has a summary, experience with bullets, and skills. Bullets cite approved facts; a line left with no approved fact
+behind it is marked **No approved basis**. Skills come only from the skills you approved. Approved career breaks get an
+entry of their own. A resume is written to the length you set.
+
+A tailored resume also maps the posting's requirements to your record, each graded strong, partial or thin. A
+requirement called strong with no approved fact behind it is at most partial. It may suggest, for a past role, a title
+your facts support in the posting's words; it's only a suggestion.
+
+Every version is kept. When your record changes after a resume was written, **Add what’s new** writes lines for what's
+new, and **Update all** writes new versions for you to keep or discard.
+
+## Cover letters
+
+<AiStep id="letter" /> runs when you choose **Write a cover letter** in a pursuit. It writes in the first person, from
+your approved record, the resume tailored to the role (the one you sent, once sent) and the posting, and signs with
+your name from your profile. Paragraphs cite approved facts.
+
+It won't write one before you've tailored a resume to the role: "Tailor your resume to this role first." Once the
+pursuit is sent, the letter stays as it was sent. Your own edit is kept as a new version; a paragraph you kept word for
+word keeps its facts.
+
+## Ask about this role
+
+<AiStep id="ask" /> answers in a conversation kept with each pursuit. Paste an application question and you get an
+answer to paste back, in the first person; you can also ask about the role, the company, or how to present yourself.
+It rests on your approved record, the resume tailored to the role and the posting, and says when your record doesn't
+support something. One question at a time: "Wait for the answer to the last one."
+
+If your message tells it something new about you, it doesn't treat that as true. Your message becomes a note in your own
+words, read like a story, and what it holds arrives in <Screen id="review" /> as proposals. **Keep** saves an answer to
+the pursuit under the question it answered.
+
+## Outreach and follow-ups
+
+<AiStep id="outreach" /> runs when you choose **Draft a message** for a contact at the pursuit's company. It writes a
+short outreach message, subject and text, from your approved record and the role, signed with your name: who you are,
+why this role, why you fit, and one small ask that suits the contact's group. It knows whether you applied and who else
+you already wrote to there, so a second contact gets a new message, never a copy.
+
+<AiStep id="followUpWriter" /> writes a short follow-up when an application goes quiet or after an interview: from a
+reminder in <Screen id="today" />, or **Write follow-up** in the pursuit. It goes to the person you last wrote to, else
+the likely hiring manager, and reads where your application stands: status, dates and what was already sent. A rewrite
+waits beside the draft until you keep it.
+
+Both need approved facts first: "Approve some facts first; messages are written only from your approved record." Neither
+sends anything. Choose **Copy and open Mail** to send it from your own email, then **Mark as sent**. A follow-up marked
+sent goes on the pursuit's timeline and the next reminder counts from that day.
+
+## Checking your own words
+
+When you put a resume line or the summary in your own words, <AiStep id="lineCheck" /> runs only when you choose
+**Check against facts**, with its cost beside the button. It reads your words beside the approved facts the line rests
+on and answers **Supported**, or **Goes beyond** with the words that go further than the facts. It changes nothing.
+Edit the words again and the answer is cleared.
+
+## When a fact changes
+
+When you edit or reject an approved fact after a document was written, the lines citing it are found on every document
+in use: the base resume, each direction's current resume, and a tailored resume, cover letter and answers of a pursuit
+not yet sent. **Update lines** shows its cost; <AiStep id="lineUpdate" /> then rewrites just those lines from the facts
+as they read now. A line left resting on no fact that counts is dropped.
+
+The new lines wait for you to **Apply** or **Discard**. A line you put in your own words stays yours unless you tick
+**Use the new line**. If a fact changed again since the new lines were written, Apply changes nothing: "A fact changed
+since these lines were written. Update them again." A document sent with a pursuit is never changed.

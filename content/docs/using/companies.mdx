@@ -1,0 +1,75 @@
+---
+title: Companies
+description: The companies you might work for, found for your directions and rated by you; their open roles feed Pursuits.
+sources:
+  - src/app/companies
+  - src/app/tours/companies.ts
+  - src/app/shell/Shortcuts.tsx
+screen: companies
+---
+
+<ScreenFacts screen="companies" />
+
+Companies holds every company CareerBot found for your directions, and your rating of each. The open roles of the companies you rate **Target** or **Maybe** are read and ranked into <Screen id="pursuits" />.
+
+## Layout
+
+The list is on the left, the open company beside it. On a phone the list shows alone and a company opens full screen.
+
+The list has four tabs:
+
+- **Targets**: companies you rated Target. Their roles are read and ranked first.
+- **Maybe**: companies you rated Maybe. Their roles are read too, ranked after your targets'.
+- **Found**: new companies, best fit first, waiting for your rating.
+- **Set aside**: ones you passed on (**Not for me**, with your reason), ones under **Doesn’t fit your goals**, and ones that are **Not a place to work** (staffing agencies, job boards and others that don't hire for themselves). Each says why. Nothing is deleted: **Keep anyway** and **Restore** bring a company back.
+
+**Show filters** opens the filter bar: by direction, or on Set aside by reason.
+
+## Rate companies
+
+<Steps>
+<Step title="Go through Found">Move with <Kbd>J</Kbd> and <Kbd>K</Kbd>. Each company shows **About** (what it does, read from its website), how it fits each of your directions, its **Open roles**, **People** you know there, and **Details**.</Step>
+<Step title="Rate it">**Target** (<Kbd>T</Kbd>), **Maybe** (<Kbd>M</Kbd>) or **Not for me** (<Kbd>R</Kbd>). Not for me asks why (Industry, Size, Reputation, Place, Not my work, or your own words), so later searches can use the reason. Ratings save as you make them; <Kbd>U</Kbd> undoes.</Step>
+<Step title="See its roles">**Open its roles in Pursuits** shows them there.</Step>
+<Step title="Write to them without an open role">**Start outreach** starts a pursuit at the company with no open role, for the direction it fits best, and opens its People to write to the people who hire there. It's free. It has no tailored resume or cover letter; your direction's resume goes with the message.</Step>
+</Steps>
+
+<Shot id="companies" alt="Companies on its Targets tab with Loadstar Systems open: rated Target, with Start outreach, what it does, how it fits Wren’s goals, and a Strong fit for two of her directions." />
+
+## Details and coverage
+
+Under **Details** are the company's **Website** and **Job board**. <Kbd>E</Kbd> edits them; saving reads the company again from the new address. **Coverage** says how much of the board has been read. **Check again** reads its board afresh and says what it costs first (Apollo credits or AI budget). **Notes** keeps your own notes (<Kbd>N</Kbd>).
+
+## Find more companies
+
+The list's ⋯ menu (**More for Companies**):
+
+- **Find companies**: searches Apollo for each direction with approved criteria, and for ones like your seed companies. It shows each search and its Apollo credits before you start. Your past employers never come back.
+- **Fill in details**: reads the website and job board of each company not filled in yet, then how it fits your directions.
+- **Select** (or **Select all**): shows a checkbox on each row so you can **Check again** several together. <Kbd>X</Kbd> on a row, or <Kbd>⇧</Kbd>- or <Kbd>⌘</Kbd>-click, starts selecting with that row checked; **Done** or <Kbd>Esc</Kbd> stops (see [Selecting several](/docs/using/keyboard#selecting-several)).
+- **Companies you’d name**: companies you already want, added to every search.
+- **Seed companies**: companies you'd love to work at, so searches find ones like them.
+- **Lens settings**: how your goals shape searches (**Industries you want**: **Steer**, **Only these** or **Ignore**) and what Found shows (**Judge companies against your goals**: **Off**, **Rank** or **Hide**).
+
+Company search needs a direction with approved criteria (see [Goals](/docs/using/goals)) and an Apollo key (see [Settings](/docs/using/settings)).
+
+## Keys
+
+| Key | Does |
+| --- | --- |
+| <Kbd>T</Kbd> | **Target** |
+| <Kbd>M</Kbd> | **Maybe** |
+| <Kbd>R</Kbd> | **Not for me** |
+| <Kbd>E</Kbd> | Edit the website or job board |
+| <Kbd>N</Kbd> | Add a note |
+| <Kbd>X</Kbd> | Select the row (starts selecting) |
+| <Kbd>J</Kbd> / <Kbd>K</Kbd> | Next / previous |
+
+## Related
+
+<Cards>
+<Card href="/docs/start/companies" title="Finding companies">Your first search.</Card>
+<Card href="/docs/how-it-works/companies-and-roles" title="Companies and roles">How finding and screening work.</Card>
+<Card href="/docs/ai/companies" title="How companies are checked">The AI steps behind fit.</Card>
+<Card href="/docs/integrations/apollo" title="Apollo">Keys and credits.</Card>
+</Cards>

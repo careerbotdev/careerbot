@@ -1,0 +1,58 @@
+---
+title: Models and AI tasks
+description: One model runs every AI task unless you give a task its own, all chosen from OpenRouter's current list.
+nav: Models and AI tasks
+sources:
+  - convex/aiTasks.ts
+  - convex/aiSettings.ts
+  - convex/compare.ts
+  - src/app/settings/Ai.tsx
+  - src/app/settings/Compare.tsx
+  - src/app/ModelChoice.tsx
+  - src/app/useModelCatalog.ts
+---
+
+Every AI step runs on a model you choose, through your own OpenRouter key. You choose in <Screen id="settings" />, AI.
+CareerBot has no built-in model: until you choose one, AI work can't run, and a step says
+"Choose a model for reading narratives in settings." (with its own task's name).
+
+## One model for every task
+
+Under **Model**, choose the model every task uses, from reading your stories to writing letters. A few recommended
+models are listed, each with a line on what it's good at and what it would cost:
+
+- Before CareerBot has done any work, the cost shows as OpenRouter's price per million tokens read, then written.
+- After that, it shows what your last 30 days of AI work would cost a month with that model, at today's price.
+
+To use a model that isn't listed, open **Advanced** and choose it under **A model that isn’t listed**. Any OpenRouter
+model works.
+
+## A task's own model
+
+In **Advanced**, **Tasks with their own model** lists the tasks that don't follow the main model. **Choose a model for
+a task** gives one its own; **Use the main model** puts it back. Every other task keeps using the main model.
+
+A task with its own model also has its own reasoning effort, for models that take one: the model's default, none, low,
+medium or high. Some models reason at length by default, which costs more.
+
+Each step on [The order](/docs/ai) names the task whose model it uses. These are the tasks:
+
+<AiTasks />
+
+## Sorting roles with Jev
+
+**Sorting roles** in **Advanced** chooses how new roles are sorted into your directions: with the main model (or the
+Sorting roles task's own), or with Jev, a decision model made for this. Jev answers, for each role and direction,
+whether the role's main work is that direction's work, with a probability. It can't do any other task, so it never
+becomes the main model. See [Roles](/docs/ai/roles).
+
+## Try it
+
+**Try it** sends one question to the model, to check your key and see how it answers. It shows the answer, the model,
+how long it took and what it cost, and is paid from your AI budget like any call.
+
+## Compare models
+
+**Compare models** runs one task with up to four models side by side: reading a story, writing the base resume, or
+finding insights. Each run is paid from your AI budget; nothing it writes enters your record or resumes. When one model
+does best, **Use this model** makes it the main model, or that task's own.

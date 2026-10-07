@@ -1,0 +1,211 @@
+---
+title: Run it with Docker
+description: One compose file runs CareerBot on your own computer or any server with Docker, with Convex in its cloud or right beside it.
+nav: Docker
+sources:
+  - compose.yaml
+  - compose.build.yaml
+  - .env.example
+  - Dockerfile
+  - docker/convex-setup.sh
+  - docker/web-start.sh
+  - docker/convex-keys.mjs
+---
+
+The repository's `compose.yaml` runs every part of CareerBot. Coolify and Dokploy deploy the same file; this page is
+what happens underneath, and how to run it by hand.
+
+## What compose runs
+
+| Service | What it does | Runs |
+| --- | --- | --- |
+| `web` | The web app, on port 3000 in the container, published on `WEB_PORT` (default 3000) | Always |
+| `convex-setup` | Sets the Convex deployment's settings, deploys CareerBot's functions to it, prints the setup code until the owner account exists, then exits | Always, once per `up` |
+| `convex-backend` | Self-hosted Convex: its API on 3210, its HTTP actions (sign-in callbacks) on 3211 | Profile `self-hosted` |
+| `convex-admin-key` | Writes the backend's admin key where `convex-setup` reads it, then exits | Profile `self-hosted` |
+| `convex-dashboard` | Convex's dashboard, on 6791 | Profile `self-hosted` |
+
+`web` starts only after `convex-setup` has finished without an error. With self-hosted Convex, the data lives in the
+`convex-data` Docker volume.
+
+`web` and `convex-setup` are CareerBot's release images, `ghcr.io/careerbotdev/careerbot-web` and
+`ghcr.io/careerbotdev/careerbot-setup`, always at the same version: the one in `CAREERBOT_VERSION`, or, unset, the release
+`compose.yaml` came with. Docker downloads them the first time; nothing is built on your machine. Which version to run
+and how to move to a new one: [Updates, backups, export](/docs/self-hosting/updates).
+
+## What you need
+
+- Docker with Compose v2.20 or later (`compose.yaml` uses `depends_on` with `required: false`). Docker Desktop,
+  OrbStack or Colima on a Mac; Docker Engine on Linux.
+- Git.
+- An OpenRouter key, added in the app once you've signed in. It pays for the AI.
+
+## Install
+
+<Steps>
+<Step title="Get the code">
+
+```bash title="Terminal"
+git clone https://github.com/careerbotdev/careerbot.git
+cd careerbot
+cp .env.example .env
+```
+
+`.env` holds keys: never commit it.
+
+</Step>
+<Step title="Say where people open it">
+
+`SITE_URL` is the address people type, as the browser sees it. On your own computer leave it as it is. On a server, it's
+the https address your proxy or tunnel sends to `WEB_PORT`.
+
+```bash title=".env"
+SITE_URL=http://localhost:3000
+```
+
+</Step>
+<Step title="Point it at Convex">
+
+Pick one. More on the choice: [Convex](/docs/self-hosting/convex).
+
+<Tabs labels={["Self-hosted Convex", "Convex’s cloud"]}>
+<Tab label="Self-hosted Convex">
+
+Keep the example's four lines. Compose runs Convex on this machine.
+
+```bash title=".env"
+COMPOSE_PROFILES=self-hosted
+NEXT_PUBLIC_CONVEX_URL=http://localhost:3210
+CONVEX_SITE_ORIGIN=http://localhost:3211
+CONVEX_SELF_HOSTED_URL=http://convex-backend:3210
+```
+
+On a server with a domain, `NEXT_PUBLIC_CONVEX_URL` and `CONVEX_SITE_ORIGIN` become two https addresses of their own,
+which your proxy sends to port 3210 and port 3211 (websockets must pass through to 3210).
+`CONVEX_SELF_HOSTED_URL` stays `http://convex-backend:3210`: the setup step reaches Convex inside compose.
+
+```bash title=".env"
+COMPOSE_PROFILES=self-hosted
+SITE_URL=https://careerbot.example.com
+NEXT_PUBLIC_CONVEX_URL=https://convex.example.com
+CONVEX_SITE_ORIGIN=https://convex-site.example.com
+CONVEX_SELF_HOSTED_URL=http://convex-backend:3210
+```
+
+</Tab>
+<Tab label="Convex’s cloud">
+
+Create a project at [dashboard.convex.dev](https://dashboard.convex.dev). In the project, open Settings > URL & Deploy
+Key: copy the deployment URL, and generate a production deploy key. In `.env`, uncomment the two cloud lines and fill
+them in:
+
+```bash title=".env"
+NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
+CONVEX_DEPLOY_KEY=prod:your-deployment|…
+```
+
+Then comment out or delete the self-hosted block's four lines (`COMPOSE_PROFILES`, `NEXT_PUBLIC_CONVEX_URL`,
+`CONVEX_SITE_ORIGIN`, `CONVEX_SELF_HOSTED_URL`). `CONVEX_SITE_ORIGIN` isn't needed: Convex's cloud has its own
+`https://your-deployment.convex.site`.
+
+</Tab>
+</Tabs>
+
+</Step>
+<Step title="Start it">
+
+```bash title="Terminal"
+docker compose up -d
+```
+
+Docker downloads the images the first time, then `convex-setup` makes the sign-in keys and the key that encrypts saved
+API keys, deploys the functions, and exits. Then `web` starts.
+
+This runs the release `compose.yaml` came with. To stay on one release whatever `compose.yaml` says, set it in `.env`,
+such as `CAREERBOT_VERSION=0.8.0` ([Releases](/docs/self-hosting/updates#releases)).
+
+</Step>
+<Step title="Read the setup code">
+
+```bash title="Terminal"
+docker compose logs convex-setup
+```
+
+Near the end:
+
+```text title="docker compose logs convex-setup"
+────────────────────────────────────────────────────────────────────────────────
+  Setup code: 7KQ4-M2XD
+
+  Open http://localhost:3000 and create the owner account with it. It works once, and only
+  until the owner account exists; an earlier code no longer works.
+  Lost it? Deploy again (Redeploy in Coolify or Dokploy, or docker compose up -d)
+  to get a new one, or: docker compose run --rm convex-setup new-setup-code
+────────────────────────────────────────────────────────────────────────────────
+```
+
+</Step>
+<Step title="Create the owner account">
+
+Open `SITE_URL`. The sign-in screen shows **Create your account**: enter the setup code, a username, and a password
+twice (at least 8 characters). The first account owns this copy and decides who else can sign in. You land on
+<Screen id="today" />.
+
+</Step>
+<Step title="Add your OpenRouter key">
+
+Open <Screen id="settings" />, then **Keys**, and add your OpenRouter key. Set a monthly budget under **Budgets and
+spending**. Then check it all works: [Check it works](/docs/self-hosting/check-it-works).
+
+</Step>
+</Steps>
+
+## Made for you the first time
+
+The first `docker compose up` makes three settings and keeps them in your Convex deployment, not in `.env`:
+
+- `JWT_PRIVATE_KEY` and `JWKS`: the keys sign-in uses.
+- `MASTER_KEY_V1`: encrypts the API keys people save in CareerBot. Losing it means entering those keys again.
+
+Later runs see them on the deployment and don't make new ones (the log says the variables are already set). Put them in
+`.env` only to bring keys over from another copy.
+
+## Running it again
+
+`convex-setup` runs on every `docker compose up`. Running it again is safe: it sets the settings from `.env` (an empty
+value in `.env` leaves the one on the deployment as it is), deploys the functions again, and, until the owner account
+exists, prints a new setup code. Each new code makes the earlier one stop working.
+
+`SITE_URL` and `NEXT_PUBLIC_CONVEX_URL` are fixed into the web container when it starts. To change them, edit `.env` and
+run `docker compose up -d`: compose makes a new container.
+
+## Commands
+
+Run these in the folder with `compose.yaml` and `.env`:
+
+```bash title="Terminal"
+docker compose logs convex-setup                                # the setup code
+docker compose run --rm convex-setup new-setup-code             # a new setup code (the old one stops working)
+docker compose run --rm convex-setup reset-password <username>  # a temporary password for that username
+docker compose exec convex-backend ./generate_admin_key.sh      # self-hosted: the dashboard's admin key
+docker compose pull && docker compose up -d                     # update, after a backup (Updates, backups, export)
+docker compose down                                             # stop; keeps your data
+```
+
+Once the owner account exists, `new-setup-code` answers that the copy already has its owner, and shows the
+`reset-password` command for that username. More: [Sign-in and who can join](/docs/self-hosting/sign-in).
+
+<Callout title="Careful" type="caution">
+`docker compose down -v` deletes the `convex-data` volume, and every account, story and resume with it.
+</Callout>
+
+## On a server
+
+The compose file publishes its ports on the machine's loopback address only (`BIND_ADDRESS`, default `127.0.0.1`):
+`WEB_PORT` (3000), 3210, 3211 and 6791 open from the machine itself, not from other machines. A proxy in Docker (Coolify,
+Dokploy) reaches the containers over Docker's network; a proxy or tunnel on the machine reaches the loopback ports. Set
+`BIND_ADDRESS=0.0.0.0` only to reach the ports from other machines without a proxy, never on a server facing the
+internet: [Firewall](/docs/self-hosting/vps#firewall).
+
+HTTPS on a domain works with any reverse proxy or tunnel to `WEB_PORT` (and, for self-hosted Convex, to 3210 and 3211
+on two more hostnames). A Cloudflare Tunnel was tested this way.

@@ -1,0 +1,79 @@
+---
+title: Privacy and your data
+description: Where your data lives, what goes to OpenRouter, Apollo, Brave, Google and GitHub, and how to get a copy or have it deleted.
+nav: Privacy and your data
+sources:
+  - src/app/site/Privacy.tsx
+  - src/app/privacy/page.tsx
+  - src/app/site/Analytics.tsx
+  - src/app/site/beacon.ts
+  - convex/secretBox.ts
+  - convex/drive.ts
+  - convex/repoReader.ts
+  - convex/allowlist.ts
+  - docs/BUILD.md
+---
+
+What you give CareerBot is used only for your own job search. It isn't sold, used for advertising, or shared with
+employers.
+
+## Your workspace
+
+Everything belongs to a workspace: your stories, record, goals, directions and limits, companies, roles, pursuits,
+resumes, letters, notes and the people you choose to contact, along with your keys, budgets and spending. Each person who
+signs in has a workspace of their own, and nothing in one workspace is visible from another.
+
+CareerBot also keeps the cost of each paid step, so your budgets and <Screen id="reports" /> work.
+
+## Your own keys
+
+Every paid service runs on your own account: OpenRouter for AI, Apollo for company search, and Brave Search if you add
+it. Keys are stored encrypted and used only to make calls for you. A new key is checked with its service before it's
+saved. Removing a key in <Screen id="settings" />, under **Keys**, deletes it from your workspace.
+
+## What goes where
+
+<Terms>
+  <Term title="OpenRouter and the AI models">To read, rank and write for you, CareerBot sends the needed parts of your stories, record, goals and job postings to the models you choose, through OpenRouter. OpenRouter and the model provider handle it under their own terms.</Term>
+  <Term title="Apollo and Brave">Search terms only: company names and websites, industries, titles. Your stories and record aren't sent to them. An email address is revealed through Apollo only for a person you choose.</Term>
+  <Term title="Google">Your name and email when you sign in with Google. If you connect Google Drive, CareerBot can see only the files it creates and the folder you pick for them, nothing else in your Drive. Disconnecting stops syncing; the files stay yours.</Term>
+  <Term title="GitHub">Your name and email when you sign in with GitHub. If you connect GitHub, CareerBot reads only the repositories you choose, read-only. Files that look secret (environment files, keys and certificates) are never fetched, and keys, tokens and passwords found in what is read are replaced with [redacted] before anything goes to an AI model.</Term>
+  <Term title="Your browser">CareerBot keeps you signed in, and saves a story you haven't submitted yet and how you like the sidebar. Signing out clears unsent drafts. Talk uses your browser's own speech recognition, and CareerBot keeps no recordings.</Term>
+</Terms>
+
+## careerbot.dev and a copy you run
+
+On careerbot.dev, the app runs on Cloudflare and its data is stored with Convex, in the United States. The
+[privacy page](https://careerbot.dev/privacy) is the full statement.
+
+On a copy you run yourself, everything stays in your own accounts: your own Convex holds the data, and your keys are
+encrypted with a key that lives only in your deployment's settings. Whoever runs the copy decides what happens to its
+data. A self-hosted copy has no privacy page of its own and sends no analytics. See
+[Run your own copy](/docs/self-hosting).
+
+Once a day a self-hosted copy asks careerbot.dev for the list of releases, to tell its owner when a newer version is
+out. The request carries no account, personal data or anything about the copy or its people, but like any web request
+it shows careerbot.dev the IP address of the server the copy runs on. Turn it off with **Check for updates** in
+Settings, Updates, or with `UPDATE_CHECK=off` ([Configuration](/docs/self-hosting/configuration)).
+
+## Analytics on the public pages
+
+careerbot.dev counts visits to its public pages (the ones you can see without signing in) with Cloudflare Web Analytics,
+and only while you're signed out. It records the page (without anything after a ? or #), the site you came from, your
+browser, operating system, type of device and country, and how fast the page loaded. It uses no cookies, stores nothing
+in your browser, and Cloudflare doesn't keep your IP address.
+
+The signed-in app is never measured. To opt out, turn on Global Privacy Control or Do Not Track in your browser; your
+visits aren't counted. Copies run by others, and local builds, send nothing.
+
+## Getting a copy or deleting it
+
+There's no export or delete button in Settings. On careerbot.dev, email
+[privacy@careerbot.dev](mailto:privacy@careerbot.dev) to get a copy of your data, or to have your account and everything
+in it deleted, including your keys and your Drive connection.
+
+On your own copy, you hold the data: see [Updates, backups and export](/docs/self-hosting/updates).
+
+Disconnecting Google Drive or GitHub, or removing a key, takes effect at once. Rejecting a story takes everything that
+came only from it out of your record. Deleting a story removes the story and its versions; the facts it gave your record
+stay, each marked for you to keep or reject.

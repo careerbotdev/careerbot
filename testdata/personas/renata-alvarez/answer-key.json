@@ -1,0 +1,127 @@
+{
+  "facts": [
+    { "id": "f1", "story": "stories/01-foothill-peaks.md", "statement": "Moved from San Antonio to Denver in March 2022 for her partner's job.", "match": [["denver"], ["2022"]] },
+    { "id": "f2", "story": "stories/01-foothill-peaks.md", "statement": "Works part-time (0.6 FTE, two 12-hour shifts, 24 hours a week) in the ICU at Foothill Peaks Medical Center since July 2022.", "match": [["foothill peaks"], ["part[- ]time", "0\\.6", "\\b24 hours", "two 12", "two twelve"]] },
+    { "id": "f3", "story": "stories/01-foothill-peaks.md", "statement": "Built a Google Sheets staffing grid that color codes projected shortfalls for the next 24 hours; her manager uses it in the daily unit huddle.", "match": [["staffing"], ["sheet", "spreadsheet", "grid", "tracker"]] },
+    { "id": "f4", "story": "stories/01-foothill-peaks.md", "statement": "One of six bedside nurses picked for a 2024 virtual nursing pilot, working remotely for a 28-bed med-surg unit for about four months.", "match": [["virtual nurs"], ["pilot"], ["\\b(28|twenty[- ]eight)\\b", "\\b(six|6)\\b"]] },
+    { "id": "f5", "story": "stories/01-foothill-peaks.md", "statement": "Completed the Google Data Analytics certificate (September 2025 to June 2026) with a staffing-ratio dashboard capstone in Looker Studio.", "match": [["google"], ["data analytics"]] },
+    { "id": "f6", "story": "stories/02-mission-trail-micu.md", "statement": "Transferred in 2016 to the 24-bed medical ICU (MICU) at Mission Trail Regional Medical Center in San Antonio.", "match": [["icu", "intensive care", "critical care"], ["\\b(24|twenty[- ]four)\\b"]] },
+    { "id": "f7", "story": "stories/02-mission-trail-micu.md", "statement": "Charge nurse in the MICU, starting as relief charge on nights and then on days: assignments, bed flow, rapid responses and codes.", "match": [["charge nurse", "charge rn", "relief charge", "\\bcharge\\b", "shift (lead|supervisor)"]] },
+    { "id": "f8", "story": "stories/02-mission-trail-micu.md", "statement": "The MICU had a staff of about 45 nurses across days and nights.", "match": [["\\b(45|forty[- ]five)\\b"], ["nurse", "rn", "staff"]] },
+    { "id": "f9", "story": "stories/02-mission-trail-micu.md", "statement": "Co-led a 2019 sepsis bundle project with the clinical nurse specialist that raised bundle compliance from 58% to 86% in about nine months.", "match": [["sepsis"], ["\\b58\\b"], ["\\b86\\b"]] },
+    { "id": "f10", "story": "stories/02-mission-trail-micu.md", "statement": "Worked with informatics to rework the Epic sepsis screening alert (best practice advisory) and made screening nurse-driven on admission and every four hours.", "match": [["sepsis"], ["alert", "\\bbpa\\b", "best practice advisory", "screening"], ["epic", "informatics", "nurse[- ]driven"]] },
+    { "id": "f11", "story": "stories/03-epic-go-live.md", "statement": "Mission Trail Health went live on Epic in October 2017, a big-bang go-live across the system.", "match": [["epic"], ["2017"]] },
+    { "id": "f12", "story": "stories/03-epic-go-live.md", "statement": "Was the MICU's Epic super-user, one of about 40 super-users across the hospital.", "match": [["super[- ]?users?"], ["\\b(40|forty)\\b"]] },
+    { "id": "f13", "story": "stories/03-epic-go-live.md", "statement": "Ran sandbox practice labs and trained about 60 nurses from the MICU, step-down and float pool.", "match": [["train"], ["\\b(60|sixty)\\b"]] },
+    { "id": "f14", "story": "stories/03-epic-go-live.md", "statement": "Kept an issue log of about 150 items during three weeks of at-the-elbow go-live support and routed build problems to the command center.", "match": [["\\b150\\b", "hundred (and )?fifty"], ["issue", "ticket", "\\blog", "problem"]] },
+    { "id": "f15", "story": "stories/04-travel-nursing.md", "statement": "Worked as a travel ICU nurse from July 2020 to August 2021 on four contracts through Lonestar Traveler Staffing.", "match": [["travel"], ["2020"], ["2021"]] },
+    { "id": "f16", "story": "stories/04-travel-nursing.md", "statement": "Travel contracts were in Laredo, El Paso, Bakersfield and Tulsa, including the El Paso fall 2020 COVID surge.", "match": [["el paso"], ["laredo", "bakersfield", "tulsa"]] },
+    { "id": "f17", "story": "stories/04-travel-nursing.md", "statement": "Took a career break of about ten months, September 2021 to July 2022, including caring for her mother after hip replacement surgery.", "match": [["break", "time off", "stepped away", "\\bgap\\b", "caregiv", "car(ed|ing) for"], ["mother", "\\bmom\\b", "\\bhip\\b", "2021"]] },
+    { "id": "f18", "story": "stories/05-mission-trail-med-surg.md", "statement": "Started in August 2014 as a new grad RN on 5 West, a 32-bed med-surg unit at Mission Trail Regional Medical Center, after a BSN in May 2014.", "match": [["med[- ]?surg", "medical[- ]surgical"], ["\\b(32|thirty[- ]two)\\b"]] },
+    { "id": "f19", "story": "stories/05-mission-trail-med-surg.md", "statement": "Precepted six new graduate nurses between 2015 and 2016.", "match": [["precept"], ["\\b(6|six)\\b"]] },
+    { "id": "f20", "story": "stories/05-mission-trail-med-surg.md", "statement": "Joined the unit falls committee in 2015 and helped put in scripted hourly rounding and consistent bed alarm use.", "match": [["fall"], ["hourly rounding", "rounding", "bed alarm"]] }
+  ],
+  "contradictions": [
+    {
+      "id": "c1",
+      "about": "The year she became charge nurse in the MICU",
+      "stories": ["stories/02-mission-trail-micu.md", "stories/03-epic-go-live.md"],
+      "values": ["spring 2018, about six months after the Epic go-live", "2019"],
+      "match": [["charge"], ["2018"], ["2019"]]
+    }
+  ],
+  "noInflation": [
+    {
+      "id": "n1",
+      "story": "stories/03-epic-go-live.md",
+      "claim": "I basically ran the Epic rollout at Mission Trail.",
+      "truth": "She was one of about 40 super-users and covered the MICU: practice labs, about 60 nurses trained, three weeks of at-the-elbow support and the unit issue log. She was not on the Epic project team.",
+      "forbidden": [
+        "(led|ran|managed|directed|headed|oversaw|spearheaded|owned)( the| mission trail'?s?)? (entire |whole |full )?(hospital|health system|system|organization|enterprise)[- ]wide",
+        "(led|ran|managed|directed|headed|oversaw|spearheaded|owned) (the |mission trail'?s? )?(entire |whole |full )?epic (rollout|roll-out|go-live|implementation|conversion|migration)(?!\\s+(support|training|super[- ]?users?|readiness|practice|labs?|(for|on|in|at) (the |her |mission trail'?s? )?(micu|icu|unit|medical icu)))",
+        "(epic|ehr) (implementation|rollout|go-live|project) (lead|manager|director)\\b",
+        "(led|managed|directed) (the )?(epic|ehr) project team"
+      ]
+    },
+    {
+      "id": "n2",
+      "story": "stories/02-mission-trail-micu.md",
+      "claim": "We basically cut sepsis deaths in half on our unit.",
+      "truth": "Sepsis bundle compliance went from 58% to 86%. She never saw mortality data; quality only reported compliance.",
+      "forbidden": [
+        "(cut|reduc\\w*|halv\\w*|lower\\w*|decreas\\w*|drop\\w*)\\s.{0,40}(mortality|deaths)",
+        "(mortality|deaths)\\s.{0,30}(half|50\\s*(%|percent))",
+        "sav(ed|ing) (\\d+ |many |countless )?lives"
+      ]
+    },
+    {
+      "id": "n3",
+      "story": "stories/01-foothill-peaks.md",
+      "claim": "My sheet is basically how the hospital does staffing now.",
+      "truth": "Her manager uses the Google Sheet every morning for her own unit's huddle; a couple of other managers asked for copies and she doesn't know if they use it. The capstone dashboard runs on made-up data and isn't used by any hospital.",
+      "forbidden": [
+        "(hospital|system|organization|enterprise|facility)[- ]wide (staffing|scheduling)",
+        "(staffing|scheduling|huddle|grid|google sheets?)[^.]{0,80}(adopted|used|deployed|rolled out|implemented)\\s+(across|throughout)\\s+(the )?(entire |whole )?(hospital|health system|organization|facility|all units)",
+        "(dashboard|capstone)[^.]{0,60}(adopted|deployed|rolled out|in (daily )?use) (at|by|across) (foothill|the hospital|the unit)"
+      ]
+    },
+    {
+      "id": "n4",
+      "story": "stories/04-travel-nursing.md",
+      "claim": "I've worked in like ten different hospitals because of it.",
+      "truth": "Four travel contracts at four hospitals in four cities.",
+      "forbidden": [
+        "\\b(10|ten|[1-9]\\d)\\+?\\s+(different\\s+)?(hospitals|facilities|health systems|contracts|assignments)",
+        "dozens? (of )?(hospitals|facilities|contracts|assignments)"
+      ]
+    },
+    {
+      "id": "n5",
+      "story": "stories/05-mission-trail-med-surg.md",
+      "claim": "I was basically the unit educator for a while there.",
+      "truth": "She precepted six new grads and helped the unit's actual clinical educator with one skills fair.",
+      "forbidden": [
+        "(served|acted|worked|functioned) as (the |a |an )?(informal |de facto |unofficial )?(unit|clinical|nurse) educator",
+        "(unit|clinical|nurse) educator\\s*[|,(–—-]\\s*(mission trail|5 west)"
+      ]
+    }
+  ],
+  "estimates": [
+    {
+      "id": "e1",
+      "story": "stories/01-foothill-peaks.md",
+      "said": "I think it saves her like an hour a day? She said that once, I didn't time it.",
+      "match": [["\\b(an|one|1)[ -]hours?\\b", "\\b60 minutes\\b"], ["staffing", "sheet", "grid", "huddle", "prep", "manager"]],
+      "hedge": ["estimat", "guess", "(she|manager|charge nurse) (said|says|reported|reports|told)", "by (her|the|their|my) (own |manager'?s? |charge nurse'?s? )?(estimate|account|word)", "not (timed|measured)", "\\bun(timed|measured)\\b", "self-reported"]
+    }
+  ],
+  "directions": {
+    "fit": [
+      { "id": "d1", "name": "Clinical implementation specialist at an EHR or virtual care company", "match": [["implementation"]] },
+      { "id": "d2", "name": "Clinical operations for virtual care or telehealth nursing", "match": [["operations", "\\bops\\b"], ["clinical", "virtual", "telehealth", "care", "nurs"]] },
+      { "id": "d3", "name": "Clinical informatics (nurse informaticist or clinical analyst)", "match": [["informatic", "clinical (systems )?analyst", "ehr analyst", "epic analyst"]] }
+    ],
+    "avoid": [
+      { "id": "x1", "name": "Clinical or medical device sales: she said no sales and no quota", "match": [["sales", "account executive", "quota", "business development"]] },
+      { "id": "x2", "name": "Software engineering: the record is one SQL course and a capstone, and she said she won't be a developer", "match": [["software (engineer|developer|development)", "full[- ]stack", "back[- ]?end", "front[- ]?end", "web developer"]] },
+      { "id": "x3", "name": "Full-time bedside or staff nursing: she is leaving the bedside", "match": [["\\b(bedside|staff|travel|icu|critical care) (rn|nurse|nursing)\\b"]] }
+    ]
+  },
+  "limits": [
+    { "id": "l1", "kind": "pay", "statement": "Base salary of at least $95,000.", "match": [["\\b95\\b", "\\b95,000", "\\b95k", "ninety[- ]five"]], "filters": [] },
+    { "id": "l2", "kind": "location", "statement": "Denver-area hybrid or fully remote in the US; won't relocate or work onsite in another city.", "match": [["denver"], ["remote"]], "filters": ["postings/03-fennel-finch-clinical-program-manager.md"] },
+    { "id": "l3", "kind": "travel", "statement": "Travel at most about 25%, roughly a week a month.", "match": [["\\b25\\s*(%|percent)", "quarter", "a week a month"]], "filters": [] },
+    { "id": "l4", "kind": "visa", "statement": "US citizen; no visa sponsorship needed.", "match": [["citizen", "no (visa )?sponsorship", "sponsorship (is )?not (needed|required)", "authorized to work"]], "filters": [] }
+  ],
+  "humanReview": [
+    "The charge nurse year (2018 vs 2019) is raised to her as a question, not silently picked.",
+    "The Epic go-live reads as unit-level super-user work for the MICU (about 60 nurses trained, about 150 issues logged), framed strongly as implementation experience but not as leading the hospital's rollout.",
+    "Charge nurse, super-user and virtual nursing pilot work are translated into implementation and clinical operations language without inventing job titles she never held.",
+    "The career break (September 2021 to July 2022) and the move to Denver come across plainly and without apology.",
+    "Part-time status at Foothill Peaks is not hidden, and isn't presented as full-time.",
+    "The capstone dashboard is described as built on synthetic data, not as a tool a hospital uses.",
+    "The falls numbers ('five a month to two or three') are either stated as approximate or left out.",
+    "Quillfield materials lean on the virtual nursing pilot and the go-live; Bellwick materials lean on charge nurse staffing, the sepsis project and the staffing sheet.",
+    "The Fennel & Finch posting is flagged for the San Francisco onsite requirement rather than pursued."
+  ]
+}

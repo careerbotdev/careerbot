@@ -1,0 +1,60 @@
+{
+  "facts": [
+    { "id": "f1", "story": "stories/01-shiftwell.md", "statement": "Joined Shiftwell, a scheduling and HR SaaS company for hourly workforces, as a senior backend engineer", "match": [["shiftwell"], ["senior"], ["backend|software engineer"]] },
+    { "id": "f2", "story": "stories/01-shiftwell.md", "statement": "Promoted to staff engineer at Shiftwell in 2021", "match": [["staff"], ["2021"]] },
+    { "id": "f3", "story": "stories/01-shiftwell.md", "statement": "Tech lead for extracting five services (Go, Postgres, Kafka) out of the Rails monolith, with a team of six engineers", "match": [["\\b(5|five)\\b"], ["services?"], ["monolith|rails"]] },
+    { "id": "f4", "story": "stories/01-shiftwell.md", "statement": "Cut the nightly payroll export from about six hours to about forty minutes", "match": [["payroll"], ["\\b(6|six)[- ]?(hours?|hrs?|h\\b)"], ["\\b(40|forty)[- ]?(minutes?|mins?|m\\b)"]] },
+    { "id": "f5", "story": "stories/01-shiftwell.md", "statement": "Deploys for the extracted services dropped from about 45 minutes to about 12 minutes", "match": [["deploy"], ["\\b45\\b|forty[- ]five"], ["\\b12\\b|twelve"]] },
+    { "id": "f6", "story": "stories/01-shiftwell.md", "statement": "Turned down an offer to become the platform team's engineering manager in 2022", "match": [["manag"], ["declin|turned down|said no|chose not|passed on|stay(ed)? (an )?(ic|individual contributor)"]] },
+    { "id": "f7", "story": "stories/02-tallyline.md", "statement": "Owned the double-entry ledger service at Tallyline, a payments startup in Austin", "match": [["tallyline"], ["ledger"], ["double[- ]entry|ledger service"]] },
+    { "id": "f8", "story": "stories/02-tallyline.md", "statement": "Migrated about 900 million historical transactions into the new ledger after three months of dual writes", "match": [["\\b900\\b|900 ?m\\b"], ["transactions?|records|entries"]] },
+    { "id": "f9", "story": "stories/02-tallyline.md", "statement": "Cut over to the new ledger with zero downtime", "match": [["zero[- ]downtime|no downtime|without downtime"]] },
+    { "id": "f10", "story": "stories/02-tallyline.md", "statement": "Nightly reconciliation surfaced about $41,000 of old discrepancies", "match": [["41(,000|k\\b| ?thousand)"], ["discrepanc|reconcil|mismatch"]] },
+    { "id": "f11", "story": "stories/02-tallyline.md", "statement": "Incident lead for the Thanksgiving 2017 duplicate payout incident: about 1,100 merchants paid twice, about $380,000, all but about $12,000 recovered in two weeks", "match": [["1,?100"], ["380(,000|k\\b| ?thousand)"]] },
+    { "id": "f12", "story": "stories/02-tallyline.md", "statement": "Added idempotency keys across the whole payout path after the incident", "match": [["idempoten"]] },
+    { "id": "f13", "story": "stories/02-tallyline.md", "statement": "The ledger handled about $2 billion a year by 2018", "match": [["\\$?\\b2 ?(billion|bn?\\b)"]] },
+    { "id": "f14", "story": "stories/03-caregiving-break.md", "statement": "Took a career break from spring 2023 through 2025 to care for his father after a stroke", "match": [["stroke|caregiv|care for|caring for|family care"], ["father|dad|parent"]] },
+    { "id": "f15", "story": "stories/03-caregiving-break.md", "statement": "Moved from Austin back to Atlanta (Decatur) in 2023", "match": [["atlanta|decatur"], ["austin|moved|relocat"]] },
+    { "id": "f16", "story": "stories/03-caregiving-break.md", "statement": "Wrote pgledger, an open-source double-entry ledger library in Go on Postgres, with about 640 GitHub stars", "match": [["pgledger"]] },
+    { "id": "f17", "story": "stories/03-caregiving-break.md", "statement": "Wrote tollgate, an open-source distributed rate limiter in Go backed by Redis", "match": [["tollgate"], ["rate[- ]?limit"]] },
+    { "id": "f18", "story": "stories/04-redstone.md", "statement": "Held a Secret clearance at Redstone Ridge Systems, a defense contractor in Huntsville, from 2009; it has since lapsed", "match": [["secret"], ["clearance"]] },
+    { "id": "f19", "story": "stories/04-redstone.md", "statement": "Rewrote the telemetry decoder's buffering and threading, cutting dropped frames from about 2% to under 0.1%", "match": [["0\\.1 ?(%|percent)"], ["\\b2 ?(%|percent)|two percent"]] },
+    { "id": "f20", "story": "stories/05-lumenrent-contract.md", "statement": "Four-month contract at Lumenrent building ACH return reconciliation for about 14,000 rent payments a month, cutting monthly reconciliation from about two days to about two hours", "match": [["ach|reconcil"], ["14,?000|14k\\b|14 ?thousand"]] }
+  ],
+  "contradictions": [
+    { "id": "c1", "about": "When he left Tallyline and started at Shiftwell", "stories": ["stories/02-tallyline.md", "stories/01-shiftwell.md"], "values": ["left Tallyline in March 2019", "started at Shiftwell in October 2018"], "match": [["2018"], ["2019"]] }
+  ],
+  "noInflation": [
+    { "id": "n1", "story": "stories/02-tallyline.md", "claim": "I basically designed the whole payments platform", "truth": "He owned the ledger service, its data model and its migration on a ledger team of eight; card processing, underwriting, the dashboard and payouts belonged to other teams", "forbidden": ["design(ed)? (the )?(whole |entire )?payments? platform", "architect(ed)? (the )?(whole |entire )?payments? platform", "(built|led|owned) (the )?(whole|entire) payments? (platform|stack|system)"] },
+    { "id": "n2", "story": "stories/01-shiftwell.md", "claim": "I pretty much rewrote the whole platform", "truth": "He led the extraction of five services; the Rails monolith is still most of the product", "forbidden": ["rewr(o|i)t(e|ten) (the )?(whole|entire) (platform|product|monolith|codebase|application)", "(replaced|retired|eliminated|decommissioned|sunset) the (rails )?monolith", "rebuilt (the )?(whole|entire) (platform|product)"] },
+    { "id": "n3", "story": "stories/04-redstone.md", "claim": "I was basically the lead on the whole telemetry system", "truth": "He was one of twelve on the team and owned the frame sync and decoder module; a 20-year lead engineer led the team", "forbidden": ["led (the )?(whole |entire )?telemetry (system|program|team|software)", "\\blead (on|for|of) (the )?(whole |entire )?telemetry (system|program|software)", "(lead|head|principal) (engineer|architect|developer) (for|of|on) (the )?(whole |entire )?telemetry", "telemetry (team|tech) lead"] },
+    { "id": "n4", "story": "stories/03-caregiving-break.md", "claim": "pgledger is used in production all over the place", "truth": "Two small companies he knows of run it in production; about 640 GitHub stars", "forbidden": ["widely (used|adopted)", "used (in production )?(all over|everywhere|across the industry)", "used (by|at|in) (dozens|hundreds|many|numerous)", "(industry|broad)[- ]adoption", "thousands of (users|companies|stars|teams)"] },
+    { "id": "n5", "story": "stories/05-lumenrent-contract.md", "claim": "I basically saved their ops team", "truth": "He cut one ops person's monthly ACH reconciliation from about two days to about two hours", "forbidden": ["saved (the|their) (entire |whole )?(ops|operations) team", "(eliminated|replaced|automated away) (the|their) (ops|operations) (team|department)"] }
+  ],
+  "directions": {
+    "fit": [
+      { "id": "d1", "name": "Senior or staff backend engineer on payments and ledger infrastructure", "match": [["payment|ledger|money movement|fintech|financial (systems|infrastructure)"]] },
+      { "id": "d2", "name": "Senior or staff platform engineer (internal platform, service extraction, reliability)", "match": [["platform|infrastructure|reliability|\\bsre\\b"]] }
+    ],
+    "avoid": [
+      { "id": "x1", "name": "Defense or cleared government work: he did five years of it and said he's done", "match": [["defen[cs]e|cleared|clearance|government|federal|public sector"]] },
+      { "id": "x2", "name": "Frontend engineering: he said it's not what he does", "match": [["front[- ]?end|ui engineer|react"]] },
+      { "id": "x3", "name": "Engineering management right now: he said not yet, maybe in two or three years", "match": [["engineering manag|people manag|manager of engineers|head of engineering|director of engineering"]] }
+    ]
+  },
+  "limits": [
+    { "id": "l1", "kind": "pay", "statement": "Base pay of at least $185,000", "match": [["185"]], "filters": [] },
+    { "id": "l2", "kind": "location", "statement": "Remote in the US, or hybrid in the Atlanta area; won't relocate", "match": [["remote"], ["atlanta"]], "filters": [] },
+    { "id": "l3", "kind": "travel", "statement": "Travel under 10%", "match": [["travel"], ["10 ?%|ten percent|10 percent"]], "filters": [] },
+    { "id": "l4", "kind": "clearance", "statement": "No roles requiring an active security clearance (his Secret clearance has lapsed)", "match": [["clearance"]], "filters": ["postings/03-kestrel-ridge-disbursement.md"] }
+  ],
+  "humanReview": [
+    "The 2023-2025 caregiving break shows up plainly on the resume (he asked for it not to be hidden), with pgledger, tollgate and the Lumenrent contract shown as work during it, not as a fake job",
+    "Tallyline is framed as owning the ledger service and migration on a team of eight, not as designing the whole payments platform",
+    "Shiftwell tech-lead work reads as technical leadership of six engineers, without implying he managed people or had direct reports",
+    "The conflict check asks which is right, March 2019 or October 2018, instead of silently picking one; resumes don't show overlapping Tallyline and Shiftwell dates",
+    "The lapsed Secret clearance is either left off or stated as inactive; nothing implies he holds an active clearance or wants defense work",
+    "Resumes and cover letters lead with payments/ledger depth (double-entry, idempotency, reconciliation, zero-downtime migration) for the Brickyard Pay posting and with service extraction and rate limiting for the Cartwheel Commerce posting",
+    "Nothing suggests he needs visa sponsorship; he is a US citizen"
+  ]
+}

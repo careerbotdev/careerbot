@@ -1,0 +1,66 @@
+{
+  "slug": "renata-alvarez",
+  "name": "Renata Alvarez",
+  "oneLine": "ICU nurse and former charge nurse in Denver, working part-time while finishing a data analytics certificate, who wants to move into clinical implementation or clinical operations at a virtual care company",
+  "workspaceName": "Renata Alvarez (test persona)",
+  "profile": {
+    "name": "Renata Alvarez",
+    "email": "renata.alvarez@example.com",
+    "phone": "+1 555 010 2290",
+    "location": "Denver, CO",
+    "links": ["https://example.com/ralvarez-rn"]
+  },
+  "budgets": { "aiMonthlyUsd": 25, "apolloMonthlyCredits": 0, "apolloMode": "paused" },
+  "settings": { "resumeLength": "one" },
+  "stories": [
+    { "file": "stories/01-foothill-peaks.md", "title": "Foothill Peaks Medical Center (Denver)" },
+    { "file": "stories/02-mission-trail-micu.md", "title": "Mission Trail Regional Medical Center - MICU" },
+    { "file": "stories/03-epic-go-live.md", "title": "Epic go-live at Mission Trail" },
+    { "file": "stories/04-travel-nursing.md", "title": "Travel nursing with Lonestar Traveler Staffing" },
+    { "file": "stories/05-mission-trail-med-surg.md", "title": "Mission Trail Regional - 5 West med-surg" }
+  ],
+  "goals": "goals.md",
+  "projects": [
+    {
+      "file": "projects/icu-staffing-dashboard/README.md",
+      "repo": "https://example.com/ralvarez-rn/icu-staffing-dashboard",
+      "title": "icu-staffing-dashboard"
+    }
+  ],
+  "companies": [
+    { "name": "Quillfield Health", "domain": "quillfieldhealth.example", "why": "They actually do virtual nursing in hospitals, which is exactly the pilot I loved.", "fictional": true },
+    { "name": "Bellwick Health", "domain": "bellwickhealth.example", "why": "They have their own virtual care nurses, and I want to run the operations side of a team like that.", "fictional": true },
+    { "name": "Fennel & Finch", "domain": "fennelandfinch.example", "why": "Telehealth at a big scale, and I'm curious how they run the clinical side.", "fictional": true },
+    { "name": "Medlattice", "domain": "medlattice.example", "why": "Clinicians actually use it, so they must listen to clinicians.", "fictional": true },
+    { "name": "Dosewell", "domain": "dosewell.example", "why": "Helps patients afford meds, which I watched people struggle with at every discharge.", "fictional": true }
+  ],
+  "postings": [
+    {
+      "file": "postings/01-quillfield-clinical-implementation.md",
+      "company": "Quillfield Health",
+      "title": "Clinical Implementation Specialist (RN)",
+      "location": "Remote (US)",
+      "url": "https://example.com/jobs/renata-alvarez-1",
+      "expect": "fits",
+      "why": "Clinical implementation of virtual nursing programs; remote US, $98k-$124k base (above her $95k floor), travel up to 20% (under her 25% cap), and her super-user go-live and virtual nursing pilot map straight onto it."
+    },
+    {
+      "file": "postings/02-bellwick-clinical-operations-virtual-care.md",
+      "company": "Bellwick Health",
+      "title": "Clinical Operations Manager, Virtual Care Nursing",
+      "location": "Remote (US)",
+      "url": "https://example.com/jobs/renata-alvarez-2",
+      "expect": "fits",
+      "why": "Clinical operations for a virtual care nursing team; remote US, $112k-$138k base, under 10% travel, and charge nurse, staffing, sepsis QI and dashboard work cover the core asks."
+    },
+    {
+      "file": "postings/03-fennel-finch-clinical-program-manager.md",
+      "company": "Fennel & Finch",
+      "title": "Clinical Program Manager, Nursing Operations",
+      "location": "San Francisco, CA",
+      "url": "https://example.com/jobs/renata-alvarez-3",
+      "expect": "filtered",
+      "why": "Onsite in San Francisco four days a week, not open to remote; she will only work Denver hybrid or US remote and won't relocate."
+    }
+  ]
+}

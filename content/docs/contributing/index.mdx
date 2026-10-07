@@ -1,0 +1,153 @@
+---
+title: Local development
+description: Run CareerBot from a clone of the repository, with your own Convex backend and keys.
+sources:
+  - package.json
+  - .env.example
+  - scripts/sync-convex-env.sh
+  - scripts/with-secrets.sh
+  - docker/convex-keys.mjs
+  - convex/auth.ts
+  - src/app/mode.ts
+  - scripts/personas.ts
+  - testdata/personas
+  - scripts/demo.ts
+  - convex/functions.ts
+---
+
+CareerBot is a Next.js app with a Convex backend. Locally you run two processes: the Next.js dev server and `convex dev`, which pushes the functions in `convex/` to a Convex deployment as you edit them.
+
+## What you need
+
+- Node.js 22.18 or later. The docs load `next.config.ts` with Node's own TypeScript support, which older versions lack.
+- pnpm, through Corepack: `corepack enable`. The version is pinned in `package.json` (`packageManager`).
+- A Convex backend: a free account at [dashboard.convex.dev](https://dashboard.convex.dev), or a backend on your own machine with `npx convex dev --local` (no account needed).
+- For anything that calls an AI step: an OpenRouter key, which you enter in the app's settings like any user.
+
+## Get it running
+
+<Steps>
+<Step title="Get the code">
+
+```bash title="Terminal"
+git clone https://github.com/careerbotdev/careerbot.git
+cd careerbot
+corepack enable
+pnpm install
+```
+
+</Step>
+<Step title="Start Convex">
+
+```bash title="Terminal"
+pnpm dev:convex
+```
+
+This runs `convex dev`. The first time, it asks you to log in and create a project, then writes `CONVEX_DEPLOYMENT` and `NEXT_PUBLIC_CONVEX_URL` to `.env.local`. For a backend on your machine instead, run `npx convex dev --local`. Leave it running: it pushes `convex/` on every save.
+
+</Step>
+<Step title="Give the deployment its settings">
+
+The backend reads its settings from the Convex deployment's environment, not from `.env.local`. See [the deployment's settings](#the-deployments-settings) below.
+
+</Step>
+<Step title="Start the app">
+
+```bash title="Terminal"
+pnpm dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+</Step>
+</Steps>
+
+## The app's settings
+
+The Next.js app needs one value, in `.env.local`:
+
+| Variable | What it is |
+|---|---|
+| `NEXT_PUBLIC_CONVEX_URL` | The deployment's URL (`https://….convex.cloud`, or a localhost address for a local backend). `convex dev` writes it. |
+| `SITE_URL` | Optional. The site's own address, used in the page head, `robots.txt` and the sitemap; unset, they use localhost. |
+| `CAREERBOT_MODE` | Optional. `self-hosted` builds the self-hosted app (below). |
+
+`.env*` files are gitignored, except `.env.example`.
+
+## The deployment's settings
+
+Every key the backend reads is listed in `KEYS` in `scripts/sync-convex-env.sh`:
+
+| Variable | What it is |
+|---|---|
+| `SITE_URL` | Where the app runs: `http://localhost:3000` locally. Sign-in only sends people back to this address, a path on it, or an origin in `AUTH_REDIRECT_ORIGINS`. |
+| `AUTH_REDIRECT_ORIGINS` | Optional. Other origins sign-in may return to, comma-separated. |
+| `JWT_PRIVATE_KEY`, `JWKS` | Convex Auth's signing key and its public half. Required for any sign-in. |
+| `MASTER_KEY_V1` | 32 random bytes as hex. Encrypts the API keys people save in CareerBot. |
+| `CAREERBOT_MODE` | `self-hosted` for username and password sign-in; unset is careerbot.dev's behaviour (Google and GitHub). |
+| `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET` | Optional OAuth apps. Their callback URL is the deployment's HTTP actions URL plus `/api/auth/callback/google` (or `/github`). |
+| `SIGNUP_ALLOWLIST` | Emails allowed to sign in with Google or GitHub, comma-separated. |
+| `GOOGLE_PICKER_KEY`, `LIQUIDAI_API_KEY` | Optional: the Google Drive folder picker, and an experiment in sorting roles. |
+
+Make the keys with the same script the Docker setup uses, then set them on the deployment `convex dev` points at:
+
+```bash title="Terminal"
+node docker/convex-keys.mjs jwt      # prints JWT_PRIVATE_KEY='…' and JWKS='…'
+node docker/convex-keys.mjs master   # prints MASTER_KEY_V1='…'
+```
+
+Put those lines and the others you want (`SITE_URL=http://localhost:3000`, `CAREERBOT_MODE=self-hosted`, …) in a file that stays out of git, for example `.env.convex` (every `.env*` file is gitignored), then copy it to the deployment:
+
+```bash title="Terminal"
+SECRETS_FILE=.env.convex scripts/with-secrets.sh scripts/sync-convex-env.sh env
+```
+
+`sync-convex-env.sh env` sets every listed key that has a value and leaves the rest as they are on the deployment. You can also set values one at a time with `npx convex env set NAME value`, or in the Convex dashboard. The `dev` and `prod` targets of the script read the maintainer's secret store and aren't needed for your own copy.
+
+<Callout title="Keep keys out of the repository" type="caution">Never commit a file with keys in it, and keep `MASTER_KEY_V1`: losing it means everyone enters their saved API keys again.</Callout>
+
+## Self-hosted mode
+
+`CAREERBOT_MODE=self-hosted` turns on what a self-hosted copy does: username and password sign-in with a setup code, and no careerbot.dev website pages. Set it in two places, because the app fixes it into the build and the backend reads it at run time:
+
+- in `.env.local` for `pnpm dev`, and
+- on the Convex deployment.
+
+Without it on the deployment, the sign-in screen says: "This copy’s Convex isn’t set up for username and password sign-in: set CAREERBOT_MODE=self-hosted in its environment." Leave it unset in both to work on the careerbot.dev website and its Google and GitHub sign-in. Running the whole thing in Docker is covered in [Run it with Docker](/docs/self-hosting/docker).
+
+## Storybook
+
+```bash title="Terminal"
+pnpm storybook
+```
+
+Opens on [http://localhost:6006](http://localhost:6006). Every part in `src/components` and every screen has stories with fixture data, in light and dark, so you can work on the interface without a backend.
+
+## Test personas
+
+`testdata/personas/` holds three fictional people (`daniel-okonkwo`, `marisol-reyes-tan`, `renata-alvarez`), each with stories, goals, limits, projects, target companies, postings and an `answer-key.json`.
+
+```bash title="Terminal"
+npx convex dev --local          # in one terminal: a backend on this machine
+OPENROUTER_API_KEY=… pnpm personas:run renata-alvarez
+```
+
+The script seeds the persona into a fresh workspace, runs the real AI steps under a budget (`--budget`, default $3) and writes a scored report to the persona's `runs/` folder, which is gitignored. It only runs against a backend on your machine (`npx convex dev --local`, or a self-hosted one at localhost) and refuses cloud deployments. The backend needs the current functions (`npx convex dev --once`) and `MASTER_KEY_V1` set. Without an OpenRouter key it refuses to start unless you pass `--seed-only`. Other flags: `--model`, `--writer`, `--discovery` (with `APOLLO_API_KEY`; spends Apollo credits), `--apollo-credits`.
+
+After changing an `answer-key.json`, `pnpm personas:run <slug> --rescore` scores every saved run of that persona again from the raw results kept beside each report, and rewrites the reports. It needs no backend or keys and makes no AI calls.
+
+## The demo
+
+[The demo](/docs/demo) is its own Convex deployment and its own copy of the site, built from the same release with `CAREERBOT_MODE=demo` (no website pages; signed out, every address shows the way into the demo). Its deployment has no keys of any kind. Its one workspace is marked as the demo: every public mutation and action is defined through `convex/functions.ts`, which refuses there before the handler runs (a lint rule keeps them from being defined any other way), and the app shows the refusal without calling the server. Visitors sign in with the `demo` sign-in, which only works where a demo workspace exists, at most 60 a minute; their sessions are deleted after a day.
+
+The search in it is a frozen persona run, kept in `testdata/demo/renata-alvarez.json`. Each command needs the deployment's own `CONVEX_DEPLOY_KEY`, and refuses the maintainer's own and hosted deployments whatever the flags say, a safeguard for the maintainer's setup:
+
+```bash title="Terminal"
+pnpm demo prepare --from <persona workspace> --allow-deployment <test deployment>   # needs OPENROUTER_API_KEY
+pnpm demo export --workspace <prepared workspace> --allow-deployment <test deployment> --out testdata/demo/renata-alvarez.json
+pnpm demo seed --allow-deployment <demo deployment>          # --check compares the counts
+```
+
+`prepare` copies a persona run into a new workspace on the test deployment and carries it on through the app's own functions: a pursuit on the Outreach path beside the application, made-up contacts (example.com addresses), an outreach message written by the AI and the person's own monthly AI budget, with what it adds in `testdata/demo/renata-alvarez.extra.json`. `export` writes the workspace to the snapshot, leaving out keys, Google Drive and GitHub connections and unfinished work. `seed` replaces the demo on a deployment with the snapshot, whole, and holds it at the moment the snapshot was exported (`workspaces.asOf`): the server (`clockOf` in `convex/workspaces.ts`) and the app (`src/app/clock.ts`) count what's new, due, recent or this month's from then, so the demo never ages between releases. The persona's target companies are real, so `prepare` and `export` swap their names and domains for made-up ones (`fictional` in the `.extra.json`), and the snapshot never carries a real one.
+
+The maintainer deploys careerbot.dev's demo after each release: its functions, then `seed` and `seed --check`, then its Worker (`wrangler.jsonc`, `--env demo`), each step pointed at the demo by `scripts/as-demo.sh`. careerbot.dev links to it (Home and Questions, and `/demo`) only when its build has `DEMO_URL`, the demo's address.

@@ -1,0 +1,1751 @@
+// CareerBot's system map: what each part does, what it reads and writes, and which inputs are filtered.
+// Every Convex function and table must appear here (metadata functions / table); `pnpm arch:check` enforces it.
+// Input tags on relationships: #approvedOnly (only what the person approved), #unreviewedInput (includes proposals
+// they haven't reviewed), #rawNarrative (their own words, unfiltered), #rejectedAsGuard (rejected items, passed so
+// they're not proposed again).
+model {
+  person = actor 'Job seeker' {
+    description 'Writes narratives, reviews what CareerBot proposes, sets goals, models and budgets.'
+  }
+  operator = actor 'Operator' {
+    description 'Runs admin fixes from the Convex CLI. Never reachable from a client.'
+  }
+  openrouter = external 'OpenRouter' {
+    description 'Routes every AI call to the model the workspace chose. Billed to the person’s own key.'
+  }
+  oauth = external 'Google / GitHub' {
+    description 'Sign-in providers.'
+  }
+  githubApi = external 'GitHub' {
+    description 'CareerBot’s own GitHub App, separate from signing in with GitHub: read-only repository contents and metadata on the repositories each person chooses (all or some) on GitHub. The API for installations, app tokens, git trees, file contents and commits; the manifest flow that created the app; the check that an installation is the person’s own; webhooks about installations.'
+  }
+
+  googleDrive = external 'Google Drive' {
+    description 'Their own Google Drive, through the Drive API with drive.file access only, and the Google Picker for choosing a folder.'
+  }
+
+  webAnalytics = external 'Cloudflare Web Analytics' {
+    description 'Counts page views of the public website on careerbot.dev: the page (no query or fragment), referring site, browser, operating system, device type, country and load timings. No cookies or browser storage; Cloudflare drops the IP address at its edge. A manual install: the edge never injects the beacon.'
+  }
+  releasesFeed = external 'careerbot.dev releases' {
+    description 'careerbot.dev/releases.json: every release\u2019s notes, newest first, as /changelog shows them. A self-hosted copy reads it once a day with a plain GET that carries nothing about the copy or its people.'
+  }
+
+  careerbot = system 'CareerBot' {
+
+    ui = area 'Screens' {
+      shell = screen 'Shell' {
+        description 'The frame on every signed-in page (none when signed out). Large screens: the sidebar (Today, Review with how many decisions wait, Pursuits with how many have a reminder due, Companies, Resumes, Record with Story, Roles, Projects, Skills, Tools, Certifications, Breaks and Insights, Goals with Goals, Limits and Directions; then Activity, Settings and the account menu with Profile and Sign out), collapsible to the rail and remembered on the device. Medium: the rail. Small: the bottom bar (Today, Review, Pursuits, More, where More opens the rest in a sheet), which turns into a screen\u2019s actions, several rows\u2019 bulk actions or the choice before deleting. ⌘K reaches every screen and a screen\u2019s own commands; G then a letter moves between areas; ? shows every shortcut. Activity lists work running, waiting and paused, and what finished or failed in the last day, with Try again. Signing out forgets the drafts this browser keeps. In the demo workspace, a banner above everything (Demo: a fictional person\u2019s search; the demo workspace\u2019s person, by its name, is made up, and nothing you change is saved; Leave the demo, which signs out and goes to careerbot.dev), and every action shows This is a demo, so nothing can be changed (with Get notified) instead of reaching the server; nothing is written without a click (tours offered are kept for the visit only).'
+        metadata {
+          path 'every signed-in page'
+        }
+      }
+      today = screen 'Today' {
+        description 'Signed out, / is the Website; the sign-in (Invite only: Continue with Google, Continue with GitHub, and Get notified to the website’s waitlist) is at /sign-in and at any other address, and comes back to it. An account that isn’t invited is told so, with the waitlist and its email filled in (joined from sign-in), or Try another account. Signed in, the date and how many things need them, in groups: Review (how many decisions, the first groups, to Review), Pursuits (each reminder due: follow up, prepare, reply to an offer, check in; Snooze until a day), New strong roles (strong fits ranked in the last week not yet rated: Interested, Not for me with a reason), Resumes (a new version to keep or discard, or lines changed since it was written: Rewrite), Working (running work). The line opens beside the list (the pursuit, the role or the resume update). Until it is put away (Hide until later, or Show Today once every step is done; Show getting started in the \u22ef menu brings it back), Getting started shows instead, each step ticking itself off from the workspace, opening beside the list (?step=) with what it unlocks and its Learn more page under /docs/start. Setup: sign in, the OpenRouter key, AI budget and model (in place), the first story (in place, with what to cover; Talk to say it instead of typing, with the browser\u2019s own speech recognition, or where it can\u2019t, a pointer to the device\u2019s dictation; Done, read it with its cost), review, goals, the base resume (the first resume, in one sitting), the Apollo key, credits and automated Apollo work (in place), companies, and Google Drive (optional: Connect Google Drive, coming back to the step, or Skip). Once Setup is done it folds to one row and Your first pursuit follows, on the pursuit furthest along: pick a role and Start (their strongest new roles), tailor the resume, Choose a path (Outreach and Apply as check boxes, both allowed), then the steps of the path or paths chosen: Outreach, find contacts (people found, Reveal email at its cost) and send the outreach message; Apply, the cover letter and answers and apply (open the posting, Mark Applied); then Follow up. A path not chosen stays as a row, Outreach or Apply before choosing and Outreach too or Apply too after, that adds it; either path finishes it. Each opens the pursuit at its tab.'
+        metadata {
+          path '/ (signed in), /sign-in'
+        }
+      }
+      reviewScreen = screen 'Review' {
+        description 'Every decision waiting on them, in groups ordered by what they unlock (Directions, Limits, Direction criteria, Positioning first; then Companies to rate, Facts, Rewrites, Questions, Insights, Skills, Same work, Resume updates), each with a preview of what waits. Cards: one decision at a time with what it rests on (Built on), the next one, and keys (A, E, R, J, K, U); every negative decision asks Why? (optional) and saves the reason with it; Undo reverses the last. List: rows with checkboxes and bulk Approve and Reject; each group lists what was turned down with its reason and Restore. On a phone the card swipes and its actions sit in the bottom bar. Suggest questions in the menu. The old Follow-ups address comes here.'
+        metadata {
+          path '/review (?kind=, ?item=; /followups redirects to ?kind=questions)'
+        }
+      }
+      settingsScreen = screen 'Settings' {
+        description 'Sections, each with its current state: Account (sign out; on a self-hosted copy also the username, Change password, and for the owner People: everyone who can sign in, Add a person, Reset password and Remove, with the temporary password to give them, and who may use Google and GitHub), AI (one model for every task from a few recommended ones with their monthly cost; Try it; Advanced: a task\u2019s own model, the model for sorting roles, a model not listed, Compare models), Budgets and spending (meters, the AI budget, Apollo credits, automated Apollo work, to Reports), Keys (OpenRouter, Apollo with its balance, Brave: masked, Replace, Remove asks first), Companies (industries, checking companies against goals with Check all again and its cost, job postings from Apollo), Reminders, Contact and GitHub (to the base resume and Projects), Your data (Export: one ZIP of the whole workspace, what is in it and what isn\u2019t, its progress, Download for an hour and Export again; Import, only into an empty workspace: choose or drop a ZIP, its preview (which CareerBot, when, how many of each kind), Import with its progress, Continue when it stopped partway, the result with keys and connections to add again; a file too large, from a newer CareerBot or not an export is refused in plain words). Every change saves as made, with Undo.'
+        metadata {
+          path '/settings (?section=)'
+        }
+      }
+      narrativesScreen = screen 'Record: Story' {
+        description 'Their stories and notes: the list with how much each says and when it was read; the item with the writing edited in place (a new version when it changes) or said with Talk (\u21e7T: the browser\u2019s own speech recognition, words being heard shown greyed, saved when they stop; nothing recorded; where the browser can\u2019t, a pointer to the device\u2019s dictation), versions with restore, Read or Read new version with its cost, what a read proposed (to Review), link a story to a role, reject a story with a reason (Restore), delete (asks first), Notes. The goals story lives in Goals.'
+        metadata {
+          path '/record/story (?story=, ?tab=; /narratives and /narratives/[id] redirect)'
+        }
+      }
+      recordScreen = screen 'Record: Roles' {
+        description 'The timeline of roles, with career breaks as gaps and linked projects inside their role; a role\u2019s facts (approve, edit, reject with a reason, Undo approval, add a fact, add context, ask for a rewrite with its cost), its context, sources, history, same work and duplicates in place, disagreements; add or remove a role; Notes. A fact opens as a third pane (a drawer on medium, a sheet on a phone). Projects, Skills, Tools, Certifications and Breaks are their own sub-screens: Projects with GitHub (connect, choose and read repositories with their cost, disconnect), a project\u2019s facts and its role; Skills, Tools and Certifications with where each shows, merge, keep apart, classify; Breaks with how each shows on resumes.'
+        metadata {
+          path '/record/roles, /record/projects, /record/skills, /record/tools, /record/certifications, /record/breaks (/record redirects to /record/roles)'
+        }
+      }
+      goalsScreen = screen 'Goals' {
+        description 'The goals story edited in place with versions (restore as newest), Read my goals again with its cost, and what it produced: limits, directions and company goals, what waits in Review, what was rejected and why. Limits: firm and preference, each rule on or off, what it hides or ranks lower, a changed sentence (update the rule with its cost, or keep it), the rule\u2019s values and form, add or delete a hand-added limit, Notes. Directions: positioning, criteria, title map, fit, the direction resume, paste a posting to tailor, proposed directions, Notes.'
+        metadata {
+          path '/goals, /goals/limits (?limit=), /goals/directions (?direction=, ?tab=; /directions and /directions/[id] redirect)'
+        }
+      }
+      insightsScreen = screen 'Record: Insights' {
+        description 'Approved insights with the facts they rest on (a peek) and where they are used; rejected ones with the reason, reopen; approve, edit, Undo approval.'
+        metadata {
+          path '/record/insights (/insights redirects)'
+        }
+      }
+      resumeScreen = screen 'Resumes' {
+        description 'The base resume, one per direction, and every tailored one (frozen, with its posting and Tailor again). A resume: each line with Built on, Edit (in their own words on this resume, marked Edited, Use CareerBot\u2019s to put it back, and Check against facts with its cost: Supported, or Goes beyond with the words that do), Pin and Hide (hidden lines kept struck), the summary edited the same way by clicking it, the contact block edited in place, Layout (length, titles, folds, breaks, projects, skills; for this resume or as the default), Export (PDF, Word, copy), Write again and Add what\u2019s new with their costs (new lines from facts approved since, added or skipped one by one with a reason), History with restore and undo, two versions side by side, Notes.'
+        metadata {
+          path '/resumes (?resume=base | direction | tailored id; /resume and /profile redirect)'
+        }
+      }
+      companiesScreen = screen 'Companies' {
+        description 'One list with tabs Targets, Maybe, Found and Set aside (Doesn\u2019t fit your goals, Not for me with its reason, Not a place to work, each with a line saying why; nothing is deleted: Keep anyway, Restore). Rating in place: Target T, Maybe M, Not for me R with Why?, saved together. The item: about, how it fits their company goals (Built on), fit per direction, open roles into Pursuits, Start outreach (a pursuit there with no open role, for the direction it fits best, opened at People), people found there, website and job board edited in place, coverage with Check again and its cost, how it was found, Notes. The list \u22ef: Find companies (its Apollo estimate and credits left), Fill in details, Select several (bulk Check again), companies they\u2019d name, seed companies, lens settings.'
+        metadata {
+          path '/companies'
+        }
+      }
+      pursuitsScreen = screen 'Pursuits' {
+        description 'The main screen, an inbox of roles and pursuits: the list, the item beside it, and the tailored resume, Ask or a message as a third pane (a drawer on medium, a sheet on a phone). The address holds what is open (/pursuits?role=<posting>&direction=&status=, ?company= for one company\u2019s roles). With nothing open: By direction (started, contacted, applied, interviewed, offers, closed and why; what stands out; where roles come from, with Check again).'
+        metadata {
+          path '/pursuits (?role=, ?status=; /roles, /roles/[id] and /pursuits/[id] redirect there)'
+        }
+      }
+      rolesScreen = screen 'Pursuits list' {
+        description 'The list: tabs All roles, Interested, Pursuing and Closed (folding into More when narrow; with none asked for, Pursuing when any are under way); a filter bar with Direction and every role filter behind + (score, pay, place, setup, posted within, company, seniority, years asked, employment type, rating, travel, clearance, visa; each can include roles that don\u2019t say); rows with score, title, company and place, status and next step, several places folded into one row; Against your limits and Other roles folded at the end. The list \u22ef: By direction, Select several (bulk Interested, Not for me), Rank again and Check roles again with their costs, Count how big a stretch a role is, Reminders.'
+        metadata {
+          path '/pursuits (left pane)'
+        }
+      }
+      roleScreen = screen 'Pursuits panel: role' {
+        description 'A role not started: score, title, company, pay and place; Start (S, the one amber action), Interested (I), Not for me (R, with Why?); About the job, For you, fit per direction with Built on, the stretch, what it misses of their limits, the full description folded, Notes, and its details; the \u22ef holds Tailor a resume, Ask, open the posting and rate the company.'
+        metadata {
+          path '/pursuits?role=[posting]'
+        }
+      }
+      pursuitScreen = screen 'Pursuits panel: pursuit' {
+        description 'A started pursuit: status (Preparing, Contacted, Applied, In conversation, Interviewing, Offer, Closed asks why), contacted and applied dates or how far it got, Apply, Find contacts or prepare for the interview, reminders due with Snooze, and tabs Overview (next step from its path, Choose a path while it\u2019s being prepared: Outreach and Apply as two equal check boxes, both allowed; the follow-up draft when one is due: Copy and open Mail, Mark as sent, Rewrite with its cost, Built on; while outreach is quiet, Follow up with the last contact, then Next contact with People, then after three contacts Apply or Close · No response; the timeline), Role (the role as before it was started: About the job, For you, fit per direction, the stretch, the full description, notes on the role and its details beside), Resume (the tailored resume, kept as sent once applied), Letter, Answers, People (the outreach step due and its person marked Follow up or Next contact, Find contacts in three groups, Hiring manager, Team and Recruiting, move someone to another group, Add a contact by hand, Mark a reply, reveal an email at its cost, draft a message, mark sent) and Notes. A pursuit with no open role (Start outreach, at /pursuits?pursuit=) says No open role and has only Overview, Role (what the company does and the direction it\u2019s for, when either is known), People and Notes.'
+        metadata {
+          path '/pursuits?role=[posting], once started'
+        }
+      }
+      reportsScreen = screen 'Reports' {
+        description 'Views Overview, Spending, Search, Outcomes, Record and Activity for this month, this quarter or all time; every number says what it counts. Overview: spent against budget, pursuits started, contacted or applied (each counted apart too; a pursuit can be both), replies, new strong roles, facts approved, and each since they started. Spending: by month against budget, by task, by area, who started it (you or CareerBot), Apollo credits, per pursuit, and what is not settled yet. Search: companies found and targets over time, roles by fit per direction, the pursuit funnel by direction from started to contacted or applied to offer, time to first reply, why pursuits closed. Outcomes: contacted or applied, interviewed, offers and closed (with why), suggestions worked out from those counts (never acted on), replies by path and by contact group, interviewed of contacted or applied by direction, and interviewed of applied by the direction resume version each application was sent with. Record: stories, facts approved by week, insights, resumes kept and updated. Activity: work done and failed by kind and by day, with the failures.'
+        metadata {
+          path '/reports (?view=, ?period=)'
+        }
+      }
+      compareScreen = screen 'Compare' {
+        description 'Settings > AI > Compare models: up to four models on reading a story, writing the base resume or finding insights, each with its estimate before running (from the AI budget), results side by side with cost and time, past comparisons, and Use this model. Nothing is saved into the record or resumes.'
+        metadata {
+          path '/settings?section=ai&compare=1 (/compare redirects)'
+        }
+      }
+      website = screen 'Website' {
+        description 'Home, the public page at careerbot.dev for signed-out visitors (signed in, / is Today), led by the reader’s pains: the headline (Hundreds of job applications. No callbacks. Let’s fix that.) and a form to join the waitlist (an email; nothing is sent), Where job searches go wrong (three pains; on a phone a short list), a call to action (on a phone it takes you to the top form), How CareerBot fixes it (four steps in short, each a small animated tile; a few feature names linking to How it works), two cards (Open source, yours to run; It writes boldly, but never makes things up), three questions (folded on a phone) with All questions, and the form again. The website is four pages, Home, How it works, Open source and Questions, plus Privacy; links between them are plain links that load the whole page (the analytics count document loads only), and Home opened at an old section address (#features, #open-source, #questions) goes to the page it moved to. Every drawing is an animated mock-up drawn in code that holds its final frame for reduced motion. Each form records where it was joined (hero, band-pains, closing on Home; how-it-works-closing, open-source-closing, questions-closing on the other pages). The header sticks to the top: on a large screen the pages (the one you’re on marked), Sign in, and Get notified (on Home once the top form is out of view, it takes you back to that form; on the other pages always, to the page’s own form at its end); narrower, Sign in and a Menu that drops the pages (the one you’re on marked) and Get notified. The footer: Product (the pages, Home first) and Account (Sign in), the AGPL-3.0 line and Privacy. Sign in goes to /sign-in. Its share card is drawn in code at build time (pnpm share:card). Each page’s head, Home’s structured data, robots.txt and the sitemap take their addresses from the build (SITE_URL); only careerbot.dev is open to search engines, and link previews work on dev too. Analytics: only in the careerbot.dev build, the public site’s frame (SiteFrame, on every page of the website and the privacy page, and the sign-in at /sign-in) loads Cloudflare Web Analytics once the visitor is known to be signed out, unless their browser sends Global Privacy Control or Do Not Track; never under the signed-in app’s frame.'
+        metadata {
+          path 'careerbot.dev/ (signed out)'
+        }
+      }
+      howItWorksScreen = screen 'How it works' {
+        description 'The website’s How it works page, the same for everyone, signed in or not, with no app frame: How CareerBot helps with your job search, Why isn’t your job search working?, the four steps in full (each a mock-up and the pain it answers), See where else your experience fits, Your whole search in one place (the portal; a list on a phone), It writes boldly, but never makes things up, Everything CareerBot does (at #features) and the closing form (how-it-works-closing).'
+        metadata {
+          path '/how-it-works'
+        }
+      }
+      openSourceScreen = screen 'Open source' {
+        description 'The website’s Open source page, the same for everyone, signed in or not, with no app frame: Open source, yours to run, the licence (AGPL-3.0) and View the source on GitHub, what you need to run it (an OpenRouter key, an Apollo key, Convex, a place to run it, a way to sign in; optional Brave key) and the self-hosting guide, how it differs from the hosted version, and the closing form, Get notified when the hosted version opens (open-source-closing).'
+        metadata {
+          path '/open-source'
+        }
+      }
+      questionsScreen = screen 'Questions' {
+        description 'The website’s Questions page, the same for everyone, signed in or not, with no app frame: every question with its answer (once the demo is live, DEMO_URL set in the build, Can I try it first? before the last one, with Open the demo), and the closing form (questions-closing).'
+        metadata {
+          path '/questions'
+        }
+      }
+      privacyScreen = screen 'Privacy' {
+        description 'The public privacy page, the same for everyone, signed in or not, with no app frame: what CareerBot keeps, who else sees it (AI models through OpenRouter, Apollo and Brave, hosting, Cloudflare Web Analytics on the public pages with how to opt out), Google Drive and GitHub, the browser (no cookies from analytics, no advertising tracking, the signed-in app not measured, Talk\u2019s speech turned into text by the browser\u2019s own service with no recordings kept), the waitlist, the demo (no account, nothing typed kept, its session deleted after a day, nothing measured inside it), and how to get a copy (Settings, Your data: the whole workspace as one file, readable and importable into another copy; kept an hour) or have it deleted (privacy@careerbot.dev).'
+        metadata {
+          path '/privacy'
+        }
+      }
+      docsScreen = screen 'Docs' {
+        description 'The docs at /docs, public on careerbot.dev and on a self-hosted copy, signed in or not, in the website’s header and footer (Docs current; a self-hosted copy’s header has only Docs): getting started, running your own copy, how CareerBot and its AI work, using each screen, integrations, best practices, troubleshooting, contributing and reference. Large screens: a sidebar with search and the page tree, the page, and On this page. Medium and phones: a docs bar with the page tree in a sheet and search. Search (⌘K) runs in the browser over a static index (/api/search) built with the site. Each page: where it sits, its title and description, Previous and Next, and Edit this page on GitHub. Pages are MDX in content/docs, built at build time (fumadocs); the reference parts come from this model (pnpm docs:gen), and the docs check (pnpm lint) fails when they drift.'
+        metadata {
+          path '/docs'
+        }
+      }
+      changelogScreen = screen 'Changelog' {
+        description 'The changelog, public on careerbot.dev, the demo and every self-hosted copy (each with the releases up to its own version), signed in or not, in the website\u2019s header and footer (Changelog in the footer\u2019s Product links): the heading and its RSS feed, then each release newest first at its own address (#v0.7.0): its version and date, Read before updating when a self-hoster has steps to do, its two sentences, its docs screenshots, New, Better, Fixed, and If you host your own copy with How to update. From src/app/changelog/releases.json, written by pnpm release:prepare; the same list is /changelog/rss.xml, /releases.json, CHANGELOG.md and each GitHub Release (pnpm release:notes).'
+        metadata {
+          path '/changelog'
+          files 'src/app/site/Changelog.tsx, src/app/changelog, src/app/releases.json/route.ts, scripts/release-notes.ts'
+        }
+      }
+      demoEntry = screen 'Demo' {
+        description 'The way into the demo at demo.careerbot.dev (a build with CAREERBOT_MODE=demo, whose only workspace is the demo): No sign-up, the heading Demo, who Renata Alvarez is (made up) and that nothing changed is saved, the one action Open the demo (signs in as the demo\u2019s shared person, no account, and lands on Today), and Want your own? Get notified when it opens (careerbot.dev\u2019s waitlist). Refused: The demo is busy. Try again in a minute. On the demo build it is what / and every other address show when signed out, the website pages are not there (the header has Docs and Open the demo), and nothing is indexed. On careerbot.dev, once the demo is live (DEMO_URL set in the build, Infisical dev and prod), /demo goes to demo.careerbot.dev/demo, Home has Open the demo under its form and Questions offers it; without DEMO_URL none of them appear. The demo runs on its own Convex deployment (careerbot project, reference demo) and its own Worker (careerbot-demo, wrangler env demo), deployed and seeded again by CI after each production release.'
+        metadata {
+          path '/demo (demo build: also / and every address when signed out)'
+        }
+      }
+    }
+
+    ai = area 'AI steps' {
+      extract = aiStep 'Read a narrative' {
+        description 'Turns one career narrative into proposed roles, facts and context. Every role gets at least one other title, which resumes use until the official one is given. Time away from paid work comes out as a proposed career break keyed by its start (side projects named on it, their facts on it), never an employer named after an activity. Facts keep the person’s own hedge on a number they only guessed at.'
+        metadata {
+          functions 'extract:start, extract:inputs, extract:saveProposals, extract:tryExtract, extract:runFor'
+          model_task 'extract'
+        }
+      }
+      rework = aiStep 'Rewrite a fact' {
+        description 'Rewrites one fact from the person’s note; the note is the top authority. Result is a suggestion.'
+        metadata {
+          functions 'extract:rework, extract:reworkInputs, extract:saveRework, extract:tryRework'
+          model_task 'rework'
+        }
+      }
+      goalsRead = aiStep 'Read my goals' {
+        description 'Turns the goals narrative into directions and bucketed limits, against the approved record.'
+        metadata {
+          functions 'goals:start, goals:inputs, goals:save'
+          model_task 'extract'
+        }
+      }
+      limitRule = aiStep 'Filters from wording' {
+        description 'Derives a limit’s typed filters from its own edited wording only (never the narrative).'
+        metadata {
+          functions 'goals:limitFor, goals:setRule'
+          model_task 'extract'
+        }
+      }
+      check = aiStep 'Check for disagreements' {
+        description 'Finds where narratives contradict the approved record and asks which is right. Also asks, without AI, about approved jobs at different employers whose dates overlap by three months or more (checkOverlaps): after every check, and whenever a role is approved, unapproved, edited, added or removed, or a question is answered; a pair answered Both are right is never asked again, and a question whose dates no longer overlap goes.'
+        metadata {
+          functions 'conflicts:start, conflicts:inputs, conflicts:save'
+          model_task 'extract'
+        }
+      }
+      gatherSkills = aiStep 'Gather skills' {
+        description 'On request (Gather skills on Record): reads the approved record that counts (roles’ skills and tools, projects’ stack, approved facts) and proposes each skill, tool and certification once, named the way resumes and postings write it, with a group and where the record shows it (roles, projects, facts; anything else dropped). Vague ones are flagged low value; near-duplicates are offered as merges (an item awaiting review flagged as the same as another; never an approved one, never a pair kept apart). An item named by id or by a name they already have is that item: an approved one only gains sources, one awaiting review may be renamed, regrouped or re-kinded. A rejected one is never proposed again, in any spelling (checked in code). A run saves once.'
+        metadata {
+          functions 'skills:start, skills:inputs, skills:save'
+          model_task 'skills'
+          files 'convex/skills.ts'
+        }
+      }
+      duplicatesStep = aiStep 'Find duplicates' {
+        description 'On request only: finds facts within one role that say the same thing and flags them. Flags only facts in the workspace that share a role, never a pair the person kept apart; a new run replaces the last run’s flags.'
+        metadata {
+          functions 'duplicates:start, duplicates:inputs, duplicates:save'
+          model_task 'duplicates'
+        }
+      }
+      sameWorkStep = aiStep 'Find same work' {
+        description 'When a project is linked to a role, and on request (Find same work on Record): suggests pairs of the project’s approved facts and its role’s approved facts that describe the same work, the richer one as lead. Only approved facts that count, of that project and role, in the workspace; never a fact already connected or a pair kept separate; each fact once. A new search replaces the project’s waiting suggestions; unlinking or relinking the project drops them.'
+        metadata {
+          functions 'sameWork:start, sameWork:inputs, sameWork:save'
+          model_task 'sameWork'
+        }
+      }
+      insights = aiStep 'Insights' {
+        description 'Reads across the approved record and proposes what is true of the person across roles and projects; each cites approved facts, a role’s or an approved project’s alike (a project’s facts are first-class evidence). Runs after a narrative or project is fully reviewed (a project approved, by Approve or Save and approve, with none of its facts left to review; its last fact approved once the project is) and on request.'
+        metadata {
+          functions 'insights:start, insights:inputs, insights:save'
+          model_task 'insights'
+        }
+      }
+      followups = aiStep 'Follow-up questions' {
+        description 'On request: questions whose answers would sharpen the record. Answers route to a fact rewrite or to a note that is read.'
+        metadata {
+          functions 'followups:start, followups:inputs, followups:save'
+          model_task 'followups'
+        }
+      }
+      resume = aiStep 'Resume' {
+        description 'Structured resumes (summary, experience with bullets citing approved facts, skills) at three levels: base (neutral), direction (approved positioning), tailored (one posting, pasted or a role from the Roles page: its title, company, place and description; with no direction resume yet, it is written first in the same run; requirements map graded strong/partial/thin, and per role a title the facts support in the posting’s wording, offered as a suggestion). Every level is saved structured. Approved career breaks are entries of their own, bullets only from their own facts. Every version kept; a direction or tailored one starts with the overrides of the one it’s made from.'
+        metadata {
+          functions 'resume:start, resume:inputs, resume:savedBy, resume:save'
+          model_task 'resume'
+        }
+      }
+      letter = aiStep 'Cover letter' {
+        description 'A cover letter for one pursuit, in the first person, from the approved record, the resume tailored to its role as it shows (the sent one, once sent) and the posting (title, company and its summary, place, description as the AI reads it), signed with their name from Profile. Paragraphs cite approved facts; a citation of anything else is dropped. Every version kept, the newest in use; their edit is a new version (a paragraph kept word for word keeps its facts). Refused before a resume is tailored to the role, while one is being written, and once the pursuit was sent. Written and edited go on the timeline.'
+        metadata {
+          functions 'letters:write, letters:save, letters:edit, letters:forPursuit'
+          files 'convex/letters.ts'
+          model_task 'letter'
+        }
+      }
+      ask = aiStep 'Ask about this role' {
+        description 'Answers in a conversation kept with each pursuit: an application question gets an answer to paste, in the first person; anything about the role, company or how to present themselves. Rests on the approved record, the resume tailored to the role as it shows (or as sent) and the posting; cites approved facts (any other citation dropped); says when the record or posting doesn\u2019t support something. One question at a time per pursuit. When their latest message tells something new about them, the model lists it as learned: that message, in their words, becomes a note narrative read into the record by Read a narrative, so what it holds arrives as proposals in the normal review queue and is never used as approved. Keep saves an answer to the pursuit\u2019s answers under the question it answered.'
+        metadata {
+          functions 'ask:ask, ask:conversation, ask:keep, ask:history, ask:save'
+          files 'convex/ask.ts'
+          model_task 'ask'
+        }
+      }
+      outreach = aiStep 'Outreach' {
+        description 'An outreach message (subject and text) from them to one contact at the pursuit\u2019s company, in four parts: who they are, why this role, why they fit (cited approved facts), and one small ask that suits the contact\u2019s group (hiring manager, team, recruiting). Knows who else they already wrote to there (a new message, not a copy) and whether they applied; with no open role, that there is none, so the ask is a conversation about the team and roles to come. Says what each part says (parts). Signed with their name. Cites approved facts; any other citation dropped. They send it from their own email (Copy and open Mail, with Download resume as a PDF beside it to attach) and mark it sent.'
+        metadata {
+          functions 'people:draft, people:outreachTarget, people:saveDraft'
+          model_task 'outreach'
+        }
+      }
+      followUpWriter = aiStep 'Write follow-ups' {
+        description 'When an application or an outreach message goes quiet, or after an interview: a short follow-up email (subject and text) to the pursuit\u2019s contact (the person they last wrote to, else the likely hiring manager; a new follow-up goes to whoever they wrote to last), from the approved record, the role, what it follows (the application, the outreach message to this person, or both) and where the pursuit stands (status, dates, timeline, what was already sent). After an outreach message, its ask is a short call or who the right person would be. Cites approved facts; any other citation dropped. A rewrite waits beside the draft until kept. They send it from their own email (Copy and open Mail) and mark it sent: kept exactly as it was, on the timeline as Followed up, so the reminder starts over; Undo takes it back.'
+        metadata {
+          functions 'followUpEmails:forPursuit, followUpEmails:write, followUpEmails:keep, followUpEmails:discard, followUpEmails:edit, followUpEmails:markSent, followUpEmails:undoSent, followUpEmails:standing, followUpEmails:save'
+          model_task 'followUp'
+        }
+      }
+      lineCheck = aiStep 'Check against facts' {
+        description 'On their ask only, with its estimate beside the button: a line (or the summary) they put in their own words on one resume, read beside the approved facts it rests on as the resume shows now (the summary: every entry and the facts all its lines rest on), says whether it says only what those facts support and which of its words go beyond them. One metered call with the model chosen for checking edited lines. The answer is kept with the words it checked and the facts it was checked against as they read (the resume\u2019s layout), and cleared when they edit the words again; a new version doesn\u2019t carry it. Not kept when a fact it was checked against was edited or stopped counting during the run, and not shown once one is since. Refused for words in CareerBot\u2019s, a version that isn\u2019t current, or a line on no approved facts.'
+        metadata {
+          functions 'lineCheck:check, lineCheck:checking, lineCheck:inputs, lineCheck:save'
+          files 'convex/lineCheck.ts'
+          model_task 'lineCheck'
+        }
+      }
+      lineUpdate = aiStep 'Update lines for changed facts' {
+        description 'An approved fact edited or rejected since a document was written: the lines citing it on each document in use (the base resume and each approved direction\u2019s current version, a tailored resume, cover letter and answers of a pursuit not sent) are found by the facts as the lines reflect them (the marks kept once updated, else what a base or direction resume was written from, else the fact\u2019s wording at the time from its history), and offered Update lines with its estimate. On their ask only, one metered call rewrites just those lines from the facts as they read now (a line left on no fact that counts goes; an answer always keeps an answer), with the model for resumes or for letters. The new lines wait to Apply or Discard; a line in their own words stays theirs unless they tick Use the new line. Apply changes only those lines (a resume in place with its pins, hides and own words following the line, and what it was written from taking the facts as they read; a cover letter as a new version; answers in place), holds the facts as they read, and Google Drive syncs soon after. Apply is refused, changing nothing, when a fact the new lines were written from was edited or stopped counting since, or a cited fact that didn\u2019t count then counts again. A document sent with a pursuit is never offered nor changed.'
+        metadata {
+          functions 'factChanges:forDocument, factChanges:documents, factChanges:update, factChanges:inputs, factChanges:save, factChanges:setUse, factChanges:discard, factChanges:apply'
+          files 'convex/factChanges.ts'
+          model_task 'resume, letter'
+        }
+      }
+      readProject = aiStep 'Read a project' {
+        description 'One of their GitHub repositories, read whole with a token minted for that repository alone: README, docs, product and planning documents, design and brand files (assets by name), architecture maps, in-repo trackers, changelogs, the stack from its manifests, a small code sample, and the commit history (span, count, commits per month, who committed, subjects). Secret-looking files (.env*, keys and certificates, anything named like a key, credentials) are never fetched; credentials inside what is read (key and token shapes, private key blocks, user:password in URLs, random values named like a key, secret, token or password) become [redacted] in file text and commit subjects before any call; a repository too big for one listing is listed a folder at a time; reading stops at a byte cap and splits into parts, one call each. Proposes a project (summary, stack; name, link, dates and commit count from GitHub) and facts, each citing the files it rests on (commit history for what the commits show); a fact citing no file that was read is flagged. The prompt carries the credit rule: plain and factual, the person built it, tools are tools, no framing about AI and no inflated labels. Each repository is its own job; a retried part saves nothing twice; a later read refreshes GitHub’s details and keeps what they approved or wrote.'
+        metadata {
+          functions 'projects:runFacts, projects:finalFacts, projects:read, projects:runs, projects:inputs, projects:save'
+          model_task 'projects'
+          files 'convex/projects.ts, convex/repoReader.ts'
+        }
+      }
+      revision = aiStep 'Read the changes' {
+        description 'A narrative revised after it was read: new facts, suggested updates and no-longer-said flags on this narrative’s facts only.'
+        metadata {
+          functions 'extract:revisionInputs, extract:saveRevision'
+          model_task 'extract'
+        }
+      }
+      directionsStep = aiStep 'Directions and search criteria' {
+        description 'Per approved direction: positioning, target titles, market vocabulary, stories that carry over or need reframing (citing approved facts), title translation, and search criteria. Suggest more proposes new directions. Approved detail and criteria are never overwritten.'
+        metadata {
+          functions 'directions:detail, directions:suggest, directions:inputs, directions:save'
+          model_task 'directions'
+        }
+      }
+      compare = aiStep 'Compare models' {
+        description 'Runs extraction with several models for judging. Nothing enters the record.'
+        metadata {
+          functions 'compare:start, compare:saveResult, compare:get_'
+          model_task 'per contender'
+        }
+      }
+      firstCall = aiStep 'Test call' {
+        description 'A one-off prompt to check the key and model work.'
+        metadata {
+          functions 'jobs:start, jobs:latest'
+          model_task 'firstCall'
+        }
+      }
+    }
+
+    core = area 'Record and goals' {
+      reviewApi = service 'Record review' {
+        description 'Approve, edit, reject (with reason, logged), reopen, accept/dismiss suggestions, move facts, edit roles. Undo approval (review to proposed from approved): back to review, logged on the item (undone) and in a fact’s or insight’s history; it stops counting everywhere at once, and a role-checked limit refreshes role ranks.'
+        metadata {
+          functions 'extract:items, extract:review, extract:edit, extract:acceptSuggestion, extract:dismissSuggestion, extract:editRole, extract:moveFact, extract:keepOrphan, extract:revertWording, extract:flagOrphan, extract:addRole, extract:removeRole, extract:addFact, extract:removeAddedFact, extract:addContext'
+        }
+      }
+      goalsApi = service 'Goals review' {
+        description 'Directions: edit (title, includes, fit), merge. Limits: one updateLimit (wording, firm, filters, scope, condition; hand-entered filters must be valid), add (in their words, or as its fields approved as given and worded from them: the Goals page adds Eligibility this way, the security clearance they hold and whether they need visa sponsorship). An edit to a direction\u2019s title or summary records when it changed, so roles ranked before it are marked.'
+        metadata {
+          functions 'goals:items, goals:edit, goals:merge, goals:unmerge, goals:updateLimit, goals:addLimit, goals:setLimitOn, goals:updateRule, goals:keepRule, goals:removeLimit, goals:lastRead, goals:effects, goals:hiddenBy'
+        }
+      }
+      questionsApi = service 'Questions' {
+        description 'Lists open disagreements and records the answer; an answer that changes a role is logged on it. An overlap question is answered Both are right (nothing changes) or by fixing the first job’s end or the other’s start; Undo puts the date back.'
+        metadata {
+          functions 'conflicts:list, conflicts:lastCheck, conflicts:answer, conflicts:reopen'
+        }
+      }
+      skillsApi = service 'Skills and tools' {
+        description 'Their skills, tools and certifications for the Record page (with where each shows, whether it counts, the item a flagged one looks like, the last gathering). Edit (name, group, kind: approved as given), Merge (one name stays, approved, with both items’ sources; the other superseded; flags, resume skill lines and left-out choices move to the kept one), Keep both (never offered as the same again). Approve, reject (with reason), reopen and undo approval go through Record review. migrate (operator, once): approved roles’ skills and tools become proposed items, one per name.'
+        metadata {
+          functions 'skills:list, skills:edit, skills:merge, skills:unmerge, skills:keepApart, skills:reopenPair, skills:onResumes, skills:classify, skills:migrate'
+        }
+      }
+      sameWorkApi = service 'Same work' {
+        description 'Connect: links the two facts (their text untouched); resumes then write the pair as one line from the lead, resting on both, and a version from before shows the work once. Keep separate: the pair is never suggested again. Disconnect (either side, once connected): the pair is unlinked on both facts and kept separate; resumes show both lines again as shown, no rewrite. The latest search per project.'
+        metadata {
+          functions 'sameWork:last, sameWork:connect, sameWork:keepSeparate, sameWork:reopen, sameWork:disconnect'
+        }
+      }
+      duplicatesApi = service 'Duplicates' {
+        description 'Merge: one wording stays approved and gains the other fact’s sources, history and notes; the other is superseded. Keep both: the pair is remembered as different and never flagged again.'
+        metadata {
+          functions 'duplicates:last, duplicates:merge, duplicates:unmerge, duplicates:keepBoth, duplicates:reopen'
+        }
+      }
+      narrativesApi = service 'Narratives' {
+        description 'Create, save (new version), restore, delete (facts stay, flagged; its passages leave every item that quoted it; comparisons that read it go).'
+        metadata {
+          functions 'narratives:list, narratives:get, narratives:create, narratives:save, narratives:restore, narratives:remove, narratives:link'
+        }
+      }
+      limitSchema = service 'Limit schema' {
+        description 'Fixed buckets and vocabularies; validation, prompt spec, display rows, job check (pass/fail/unknown). Pure module, shared with the browser.'
+        metadata {
+          files 'convex/limitBuckets.ts, convex/directionPaths.ts'
+        }
+      }
+      roleDetailsSchema = service 'Role details' {
+        description 'A role\u2019s details (pay, work setup, locations, seniority, years asked, employment type, travel, clearance, visa) in the limits\u2019 vocabularies; validation; the board\u2019s details merged over the AI\u2019s with where each came from; pay as yearly US dollars; words for the pages. Pure module, shared with the browser.'
+        metadata {
+          files 'convex/roleDetails.ts'
+        }
+      }
+      insightsApi = service 'Insights review' {
+        metadata {
+          functions 'insights:list'
+        }
+      }
+      followupsApi = service 'Follow-ups' {
+        description 'Answer: a fact question becomes a rework suggestion on the fact; any other becomes a note narrative that is read. Not now (with an optional reason, kept on the question) is never asked again. reopen undoes Not now or an answer (the rework it asked for is cleared, the note it wrote set aside).'
+        metadata {
+          functions 'followups:list, followups:answer, followups:notNow, followups:reopen'
+        }
+      }
+      reviewQueue = service 'Review queue' {
+        description 'summary: every decision waiting, counted per group in the order that unlocks work, with a preview of what waits; the total is the count the sidebar, Today and Review show. items: one group\u2019s cards with what each rests on (approved facts, or quotes with the story and when it was written), plus what was turned down there with its reason and how to restore it. What waits is decided by shared rules the Record and Companies screens use too: fact pairs (duplicates, same work) and companies still to rate. Decisions go through each kind\u2019s own service; every negative one takes its reason in the same call, and each has an Undo (reopen, unmerge, revertWording, flagOrphan, unmerge a direction, reopen a resume version).'
+        metadata {
+          functions 'review:summary, review:items'
+          files 'convex/review.ts, convex/reviewKinds.ts, convex/factPairs.ts, convex/companySets.ts'
+        }
+      }
+      todayApi = service 'Today' {
+        description 'roles: strong fits ranked in the last week that are neither rated nor started, best first. setup: Getting started, worked out from what the workspace holds: Setup\u2019s steps (signed in; an OpenRouter key and an AI budget; a first story; a fact approved from it; a direction or limit approved; a base resume; an Apollo key; a target company or ranked roles; Google Drive connected or skipped) with the line a done step shows; the first pursuit, the one furthest through its steps (the earliest started among equals): its path (pursuitSteps.pathOf), its tailored resume and how many requirements it covers strongly (with no open role, its direction\u2019s resume), contacts found or added, the first outreach message marked sent and to whom, its cover letter and kept answers, Applied while it is kept as sent, and when it was followed up or is due (a week after the first outreach message or the application, whichever came first); the steps they skipped; what reading a story has cost per word so far; and the workspace id that keys what the browser keeps. hideSetup puts Getting started away for the workspace or brings it back; skipStep leaves Google Drive out, or brings it back.'
+        metadata {
+          functions 'today:roles, today:setup, today:hideSetup, today:skipStep'
+        }
+      }
+      toursApi = service 'Guided tours' {
+        description 'A short tour of each dense screen (Today with the shell, Review, Pursuits, Companies, Resumes, Record, Goals, Settings > Google Drive), in src/app/tours, run by driver.js in the design system\u2019s look (a bottom card on a phone): each step lights up one part by its data-tour name, steps whose part isn\u2019t on screen drop out, and tours never click, spend or change anything. Every screen has Take the tour in \u2318K and its \u22ef menu; the first visit offers it once. offered lists the screens whose tour was offered for the workspace (workspaces.toursOffered); markOffered adds one. scripts/tour-check.mjs (lint) fails when a step points at a part no screen has.'
+        metadata {
+          functions 'tours:offered, tours:markOffered'
+          files 'convex/tours.ts, src/components/Tour.ts, src/app/shell/useTour.ts, src/app/tours'
+        }
+      }
+      activityApi = service 'Activity' {
+        description 'list: the workspace\u2019s work that is queued, running or paused, and what finished or failed in the last 24 hours, each in plain words with its progress, and a way to try failed work again.'
+        metadata {
+          functions 'activity:list'
+        }
+      }
+      resumeApi = service 'Resumes' {
+        description 'Versions (a direction’s, or those tailored to one role, forPosting), the resume settings and the translated titles to offer (direction title map, else the record’s market title; never invented). setPresentation saves how an approved role or career break shows on every resume (fold, break shown, reason shown), judged among approved roles and breaks that count, by date; presentation reads it for the record page. setRole saves one resume’s choice for one entry: folds and breaks as that resume’s override of the record; titles on a base resume into the resume settings for every resume, on a direction or tailored resume as its override. The written resume never changes; a fold with no role on that side is refused. setProjectPresentation leaves an approved project out of every resume (or shows it again); setProject shows or leaves one out on one resume, or follows the record again (choosing what the record says stores nothing). setWords and setSummary put a line or the summary in their own words on one resume, its current version or a tailored one (its layout; the written resume never changes; a line on it twice word for word is refused), and Compare reads each version with them: the line keeps the facts it rests on and shows as edited in every format and in Drive; pins and hides still go by CareerBot\u2019s words; a new version keeps a reworded line where it has the same line, and writes its own summary. Bullets count only approved facts that still count (sourceCheck). Resume updates (updates): per base and direction resume (tailored ones are frozen), its latest version compared with the record now (resumeBasis: ids of the approved roles, facts, projects, insights and direction with a mark of their content, so a fact reworded in place shows even when counts stay the same); a version from before this was kept is unknown until rewritten. rewrite and updateAll queue resume runs whose new version waits (one at a time per resume), previewable in updates, and is never the resume until kept: not listed, downloaded, tailored from, inherited from or compared with. keep makes it the current version; discard sets it aside with an optional reason (older versions stay); reopen undoes either.'
+        metadata {
+          functions 'resume:list, resume:forPosting, resume:setRole, resume:setPresentation, resume:presentation, resume:setProjectPresentation, resume:setProject, resume:setSkillPresentation, resume:setSkill, resume:setBullet, resume:setWords, resume:setSummary, resume:setLength, resume:setRecordLength, resume:updates, resume:rewrite, resume:updateAll, resume:keep, resume:discard, resume:reopen, resume:overview, resume:showsFact, resume:history, resume:version, resume:compare, resume:restore, resume:undoRestore, resume:whatsNew, resume:linesInputs, resume:saveLines, resume:setLine, resume:addAll, resume:closeAdditions'
+          files 'convex/resume.ts, convex/resumeBasis.ts'
+        }
+      }
+      breaksApi = service 'Career breaks' {
+        description 'Add or edit a career break (dates, reason in their words), approved as given; stored as a role with break set. Remove and restore go through Record review.'
+        metadata {
+          functions 'breaks:add, breaks:edit'
+        }
+      }
+      directionsApi = service 'Directions review' {
+        description 'Approve, undo the approval of (logged on the direction) or edit positioning and criteria; criteria must use the shared industry, size and stage lists. Approving, undoing or editing either records when the direction changed, so roles ranked before it are marked.'
+        metadata {
+          functions 'directions:list, directions:fit, directions:approvePart, directions:unapprovePart, directions:editDetail, directions:editCriteria'
+        }
+      }
+      profileApi = service 'Contact' {
+        description 'Name and contact line for downloaded resumes. Written by the person; never read by an AI step.'
+        metadata {
+          functions 'profile:get, profile:save'
+        }
+      }
+      projectsApi = service 'Projects review' {
+        description 'Edit a project’s name, summary and dates (approved as given); link it to one of their approved roles, or unlink it. Approve goes through Record review; reject, restore and read again through Sources.'
+        metadata {
+          functions 'projects:edit, projects:link, projects:setAside'
+        }
+      }
+      sourcesApi = service 'Sources' {
+        description 'Narratives (career and notes) and projects as sources of the record, acted on from its own row in Record. Reject: what it proposed that is still unreviewed is set aside (status setAside: not a rejection, never a do-not-repeat guard); what was approved from it stays approved but stops counting everywhere while none of its sources stands (recordContext.sourceCheck: a narrative not rejected, or its project while approved; an item citing several counts while any does). A proposed insight citing its facts is set aside too once none of its cited facts counts (another live fact keeps it). Restore: the source and only what was set aside with it (insights citing its facts included) come back to review; what was rejected one by one stays rejected. Read again: reads it against the record as it is now (nothing already there proposed again; its rejections kept unless Including what I rejected, for that run only). list: each narrative with its counts, set-aside count and latest read; per project, its set-aside count and latest read (set-aside insights count toward the sources of the facts they cite). extract:review routes a project’s reject and reopen here too.'
+        metadata {
+          functions 'sources:list, sources:reject, sources:restore, sources:readAgain'
+          files 'convex/sources.ts, convex/recordContext.ts'
+        }
+      }
+      compareApi = service 'Comparisons' {
+        metadata {
+          functions 'compare:list, compare:get, compare:estimate'
+        }
+      }
+    }
+
+    platform = area 'Platform' {
+      jobs = service 'Jobs' {
+        description 'Runs background work by kind; a job that hits a budget pauses and resumes. A run cut off by a deploy is picked up again every 5 minutes (up to three tries).'
+        metadata {
+          functions 'jobs:get, jobs:setState, jobs:markStarted, jobs:run, jobs:resumePaused, jobs:recoverStuck, jobs:checkpoint, jobs:latestTestCall, jobs:pursuitOf'
+        }
+      }
+      metering = service 'Metering' {
+        description 'Every AI call: check this month\u2019s settled spending against the budget, read the model\u2019s price (Model prices; a model without a set price is refused), then reserve the most the call could cost (its prompt at a token per byte of the request, no more than the model\u2019s context, and a reply as long as its max_tokens, at the model\u2019s highest prices, with a quarter more for a price that rose since it was read) in one step against the budget less what\u2019s settled and what calls not settled yet hold, reading the month\u2019s running total; a call that doesn\u2019t fit is refused and its job pauses (waiting on running calls, it starts again as they settle). The call is sent with that max_tokens (32,000; 96,000 for resumes, skills and directions; less when the model writes less), settled at its real cost with OpenRouter\u2019s generation id, and what it held beyond that is given back (on one of 8 shards picked at random, so calls settling at once rarely write the same row; the month\u2019s first call starts the total from the usage rows). Every AI step that reads a JSON reply goes through chatJson with its reply\u2019s own schema (the shape that step reads): for a model some provider of which keeps to one, structured output (strict JSON Schema) sent only to the providers that keep it, since JSON mode alone isn\u2019t kept by every provider, else OpenRouter\u2019s JSON mode; a schema the provider refuses as too large (Claude, for the goals reply\u2019s limit rules) is asked for again in JSON mode; a reply that stopped at its max_tokens is never read; one cut off or unreadable is asked for once more (a cut-off one with twice the max_tokens, up to the model\u2019s own most), reserved and settled like any call as \u201c<purpose>: retry\u201d, so it counts under the same task; when that fails too, the step fails with a message to try again. Decision models (Jev, through OpenRouter\u2019s Decisions API) are sent in groups that share one usage row and one reservation: each decision can cost at most the model\u2019s context in tokens at its price (Jev: 32,000 tokens at $0.042 a million, answers free), with the same quarter more, settled with the group\u2019s summed cost. Busy replies (rate limits, the in-flight spending budget) are retried after the wait OpenRouter asks for. Apollo calls reserve their credits and check them in one step. A call whose cost is uncertain (the request failed on its way, the reply named no cost, or it was cut off) is marked so and keeps what it holds; every night reconcile settles it from OpenRouter\u2019s generation lookup, or charges uncertain Apollo calls oldest first up to Apollo\u2019s own count for the cycle, and what can\u2019t be settled is marked unresolved. Each call records who started its work (they or CareerBot) and the pursuit it was for.'
+        metadata {
+          functions 'metering:settle, metering:unsettled, metering:workspaces, metering:reconcile, metering:resolve, metering:settleApollo, budgets:reserve, budgets:aiCheck'
+        }
+      }
+      modelPrices = service 'Model prices' {
+        description 'Each AI model\u2019s highest prices across the providers OpenRouter may route it to (per prompt token, per reply token, per request, and the long-prompt tier), the longest reply any of them writes and the longest request any of them takes (context), and whether any of them keeps a reply to a JSON schema (structured outputs), from OpenRouter\u2019s list of the model\u2019s endpoints. Kept per model and read again every hour, or when a call finds its model\u2019s missing or an hour old; when it can\u2019t be read again then, the call is refused. A model OpenRouter no longer lists is dropped. Routers whose price depends on the model they pick have no set price.'
+        metadata {
+          functions 'modelPrices:get, modelPrices:save, modelPrices:models, modelPrices:refresh'
+        }
+      }
+      budgetsApi = service 'Budgets' {
+        metadata {
+          functions 'budgets:status, budgets:set'
+        }
+      }
+      aiSettings = service 'AI models' {
+        description 'One main model and reasoning per workspace (aiDefaults) that every task uses, chosen from a few recommended models with their price and what they would cost a month at the workspace\u2019s last 30 days of use; a task may have its own model (Advanced), and clearTask sends it back to the main one. Decision tasks (sorting roles with Jev) keep their own choice and never fall back. adoptDefault (operator, once) made each workspace\u2019s most used model its main one.'
+        metadata {
+          functions 'aiSettings:choiceFor, aiSettings:list, aiSettings:set, aiSettings:defaultChoice, aiSettings:setDefault, aiSettings:clearTask, aiSettings:recommended, aiSettings:usagePage, aiSettings:adoptDefault, aiSettings:catalog'
+        }
+      }
+      apolloKey = service 'Apollo key' {
+        description 'The person’s own Apollo key, sealed; checked against Apollo’s credit usage stats before saving, and the live balance shown.'
+        metadata {
+          functions 'apolloKey:status, apolloKey:balance, apolloKey:myWorkspace, apolloKey:save, apolloKey:store, apolloKey:remove, apolloKey:sealedFor'
+        }
+      }
+      screening = aiStep 'Screen companies' {
+        description 'Sorts found companies into places to work and non-employers (recruiters, job boards, associations, government, schools, media, investors): rules first, then a cheap AI read of name and website. Nothing deleted; the person can restore or set aside.'
+        metadata {
+          functions 'screening:unscreened, screening:mark, screening:setEmployer'
+          model_task 'companies'
+        }
+      }
+      enrich = aiStep 'Fill in companies' {
+        description 'Free details for places to work, strongest-sourced first, in batches of 40 (fit in batches of 15; each schedules the next). A site that turns away server requests is read through Jina Reader (r.jina.ai, public URL only); with no readable site, a summary from general knowledge, labelled, only for companies the model knows. Job board found by, in order: a board link the person gave; a link on the company site or careers page; a Brave Search result that names the company or its site (optional key); a guessed board name kept only if the board page links back to the site; last, only if turned on, Apollo job postings (1 credit). Readers: Greenhouse, Lever, Ashby, Workday and Oracle Recruiting Cloud (total + a search per target title), SmartRecruiters, Breezy, Personio, Rippling, Gem, Workable, Recruitee, BambooHR, Pinpoint, Teamtailor, Jobvite, iCIMS (search pages), JazzHR, Dover. Open and remote counts and roles matching approved directions’ titles, counted only inside the approved Location limit (its countries; remote only if remote is allowed; a role naming only other countries never counts). One AI call per batch writes a one-sentence summary from site text only. Once details are in, further batches judge fit per approved-criteria direction (strong/some/weak/none with a reason) from the summary, roles, direction and approved limits. The person rates each company Excited (a target), Maybe or Not for me. Only public https hosts fetched; every redirect re-checked. With goals judgment on (the lens: Rank or Hide), the same call also judges each company against the approved company goals (fits / partly / doesn’t / can’t tell, with a reason; general knowledge of well-known companies allowed and labelled); a signal only; Keep anyway overrides; named companies are never set aside. Check again (one company or a selection) and Edit website clear that company’s details and verdicts and put it first in the next pass; Judge all again keeps details and redoes fit and goals. One pass at a time.'
+        metadata {
+          functions 'enrich:todo, enrich:save, enrich:next, enrich:start, enrich:setApolloJobs, enrich:saveFit, enrich:rate, enrich:keepAnyway, enrich:rejudge, enrich:recheck, enrich:setWebsite, enrich:setBoard'
+          model_task 'companies'
+        }
+      }
+      watchRoles = service 'Watch roles' {
+        description 'Every open role at Targets and Maybe companies, read from their own job boards (all roles; Workday and Oracle searched by title as in enrichment; Apollo job postings only for a company found that way, and only while turned on). One pass at a time per workspace; a company they ask to check again while a pass runs is read before that pass ends (roles:finish looks and ends the pass in one write, else queues another run of it). Boards first, 10 companies a run, each scheduling the next. A role listed twice (same board id, or same title and location at one company) is one row. A role gone from a complete read is closed; a partial or failed read closes nothing. Then every open role in the Location area is queued for its next step (description, sort, judging) and 32 workers run side by side: each claims a few roles in one write (no two workers hold the same role; a claim older than 10 minutes is free again), works on them, saves (a save from a worker that lost its claim is dropped) and claims again. Descriptions: 10 a claim, fetched together, plain text (up to 8,000 characters) from the listing or each board\u2019s job detail endpoint; a role with none is marked. Sorting (Sort roles, 40 a claim) waits until every description is in, and first works out what each company repeats across its postings (a line in postings under at least 3 of its titles, or over 30% of them) and stores each description without it, the raw text kept. Judging (Rank roles) 5 a claim. Everything that goes through every role (queueing, the result, rankAgain) or every description of a company (what it repeats: counted a page of 200 at a time, then cleaned a page at a time; one worker per company at a time, the others put those roles off) works a page at a time, so no function reads more than its limit however large a company or workspace is. A role whose own input fails (an unreadable reply, a request too long) 3 times in a pass is set aside until the next pass, with why; roles that fail together are tried alone first, and if every one fails alone the cause is taken to be ours. Any other failure (our limits and bugs, OpenRouter down) sets nothing aside and is counted for the pass; after 20 the pass stops and fails with the last one. admin:clearRoleFailures forgets recorded failures. Workers stop claiming after 6 minutes; the pass\u2019s run watches them, ends when nothing is left, pauses the pass when the AI budget is used up, stops when asked, and otherwise hands over to a new run with fresh workers. Nothing is ranked again by itself: rankAgain clears one direction\u2019s (or, with none named, every approved direction\u2019s) sort and verdicts on every open role and starts a pass that reads no boards and sorts and judges them for those directions alone. setSortMethod picks how roles are sorted (admin:setRoleSort for the operator). An operator pass (admin:startJob with only: company ids) reads, describes, sorts and judges only those companies\u2019 roles and takes the rest out of the queue; the next full pass queues them again. Each board\u2019s own details (pay, work setup, employment type, locations where the board states them: Greenhouse pay transparency, Ashby compensation, Lever salary range and workplace type, Workday time type, and the like) are kept with the role from every read and win over what judging read. Lists judged roles for one approved direction or all of them together (each at its best direction), best score then newest, filtered (score, pay as yearly US dollars, place, setup, posted within, company, seniority, years asked, employment type, rating, travel, clearance, visa; each keeps roles that don\u2019t say when asked): the database checks every filter as it reads a page except place, which is checked on a page of up to 200 rows; count (up to 2,000); roles sorted out apart, newest first, with the rule that set them aside; whether a direction changed after its roles were ranked; coverage per company (read vs board total, last read, stale after 3 days); one role with its merged details, brief, description, sort and verdicts; the person\u2019s Interested / Not for me rating. Each role\u2019s rows on the Roles page (roleRanks: one per direction and one for all directions, with what the filters read) are kept in step whenever a role opens, closes, is read, sorted, judged, ranked again or rated; every pass brings every role in step, and so does refreshRanks for one company after its rating or place-to-work call changes.'
+        metadata {
+          functions 'roles:stopped, roles:halt, roles:todo, roles:plan, roles:claim, roles:release, roles:progress, roles:outcome, roles:work, roles:textInput, roles:saveJobs, roles:finishRead, roles:failRead, roles:saveTexts, roles:next, roles:finish, roles:start, roles:checkCompany, roles:startAll, roles:rankAgain, roles:rankAgainRest, roles:setSortMethod, roles:setStretch, roles:list, roles:count, roles:sortedOut, roles:against, roles:overview, roles:places, roles:refreshRanks, roles:get, roles:rate, roles:sortMethodChoice'
+        }
+      }
+      rankRoles = aiStep 'Rank roles' {
+        description 'Reads each role only against the directions the sort passed it to, 5 roles an AI call, many calls at once, from the whole description without what its company repeats (the title only when there is none, and it says so), with what its board states. Per judged direction: strong, some, weak or none, a score of 0 to 100, and one plain sentence of reason, under the workspace\u2019s rubric (roleRubric.ts): v1 scores inside the level\u2019s band and gaps never lower it; v2 (Count how big a stretch a role is, on by default) keeps the level for the work alone and places the score in its band by the work, then lowers it for the stretch, possibly below the band: years asked beyond their years of work (worked out from their approved roles\u2019 dates, overlaps once, career breaks out), seniority well above theirs, core requirements their record lacks, and limits that are not firm that it misses; the stretch is listed per role in short plain words and never hides a role; a judged direction the reply leaves out is none. Per role: its details as the description states them (pay, setup, locations, seniority, years asked, employment type, travel, clearance, visa; never guessed, the board\u2019s own left out) and a brief: the job in two or three neutral sentences from the posting, and For you, why it fits and what\u2019s thin, from their approved record only. Every approved direction, their limits and their record come first in each call, the same every time, so providers can reuse them. Not a prediction of being hired; a firm limit makes it none. Busy replies are retried after the wait OpenRouter asks for. Each verdict records its method ("model"), what sorted it there, when the direction had last changed, its rubric and its stretch.'
+        metadata {
+          functions 'roles:judgeInput, roles:saveFit'
+          model_task 'companies'
+        }
+      }
+      sortRoles = aiStep 'Sort roles' {
+        description 'Before judging, sorts each role to the approved directions it could plausibly be, or to none, leaning toward including: only those directions are judged, and a role sorted to none is not judged. One method per workspace: an AI model (Sorting roles) naming the directions of 10 roles a call, all calls at once; or Jev (Sorting roles with Jev) answering, per role, whether its main work is each direction’s work (yes or no with a probability) and which direction it is most or none of them (a probability each): a role is sorted out when Jev puts none at 0.95 or more, else it goes to each direction with a pick of 0.02 or more or a yes of 0.2 or more. Reads descriptions without the text a company repeats across its postings. roleSort:backtest (operator only) sorts the roles judged by the first full ranking and reports time, cost, recall of its strong and some verdicts, roles passed, directions per passed role and example misses (for Jev, also other rules scored from the same answers; method d1 asks Liquid AI\u2019s d1, free tier, the same questions as Jev, as a spike). sortFaceoff:faceoff (operator, spike) draws open roles at random, judges each against every approved direction as an answer key (roles:truthInput, Rank roles; paid as usage), and scores Jev and d1 on them alike; it reports within 5 minutes with what came back, and writes no verdicts.'
+        metadata {
+          functions 'roleSort:labelled, roleSort:texts, roleSort:backtest, sortFaceoff:openRoles, sortFaceoff:faceoff, roles:truthInput, roles:sortInput, roles:companyTexts, roles:holdCompany, roles:saveClean, roles:saveSort'
+          model_task 'roleSort (AI model), roleSortJev (Jev)'
+        }
+      }
+      tryRubric = aiStep 'Try a rubric' {
+        #operatorOnly
+        description 'Before a rubric is applied, judges a sample of a workspace\u2019s roles under it (roles:compareRubric) without touching their verdicts: every role they rated (Interested or Not for me), the best 30 per approved direction as the Roles page lists them, and 30 more at random among the judged roles listed. Reads what Rank roles reads, 5 roles a call, 32 calls at once, and keeps each new verdict (level, score, reason, stretch) beside the live one. rubricRun sums a run up (scores up, down and the same, mean change, levels up and down; overall, Interested and Not for me), with every rated role before and after and the biggest drops and rises. admin:applyRubric applies a rubric: the setting switches to it and every open role is ranked again.'
+        metadata {
+          functions 'roles:compareRubric, roles:rubricPool, roles:ratedRoles, roles:compareInput, roles:startRubricRun, roles:saveRubricRun, roles:rubricRun'
+          model_task 'companies'
+        }
+      }
+      braveKey = service 'Brave Search key' {
+        description 'Optional key; enrichment asks Brave for a company\u2019s job board when its site links none.'
+        metadata {
+          functions 'braveKey:status, braveKey:save, braveKey:store, braveKey:remove, braveKey:sealedFor'
+        }
+      }
+      discovery = service 'Company discovery' {
+        description 'One run: look up the companies they named and any new seed websites; then per direction with approved criteria, four Apollo searches: criteria (keywords and sizes), large companies (1,001+), hiring now (active postings for its target titles, steered into the goals’ wanted industries, added alongside, never narrowing) and lookalikes of its seeds (the default seeds or its own; identical seed batches shared). Past employers dropped; avoided industries never searched. Each finished search is checkpointed so a resumed run never repays. Ends by screening new companies. Every call goes through the Apollo credit guard: never past the account balance, fails closed if it cannot be read. The lens (workspace setting on Home): industries Steer (goals’ wanted industries added to each search; default) / Only (wanted industries alone, lookalikes too) / Ignore (no industry filter); avoided industries and past employers always excluded.'
+        metadata {
+          functions 'discovery:companySettings, discovery:setNamed, discovery:setSeeds, discovery:setDirectionSeeds, discovery:start, discovery:inputs, discovery:saveSeeds, discovery:saveCompanies, discovery:list, discovery:setLens, discovery:setLearn'
+        }
+      }
+      githubApp = service 'GitHub App' {
+        description 'CareerBot’s own GitHub App (read-only contents and metadata), created once by the operator through GitHub’s manifest flow: setupLink (Convex CLI) makes a one-time link to a page that sends the manifest to GitHub; GitHub comes back with a code that is exchanged once for the app’s id, private key, client secret and webhook secret, sealed with secretBox. Signs in as the app (RS256, ten minutes) and mints a read-only token per installation for each read; tokens are never stored.'
+        metadata {
+          functions 'githubApp:setupLink, githubApp:link, githubApp:dropLink, githubApp:stored, githubApp:save'
+          routes 'GET /github/app/new, GET /github/app/created'
+          files 'convex/githubApp.ts'
+        }
+      }
+      github = service 'GitHub connection' {
+        description 'Per workspace. connect makes a one-time link; /github/connect keeps it in a cookie and sends them to install the app (all repositories or some); /github/setup holds the installation GitHub returns and asks GitHub who they are; /github/authorized keeps it only if the installation is among theirs (their token is used for that check alone, then revoked), so no one can claim another person’s installation. repos lists the repositories it has; disconnect forgets this workspace’s connection only (the app stays installed on GitHub, where they uninstall it; other workspaces using it stay connected); the webhook (signature checked) forgets an installation uninstalled on GitHub, for every workspace, and follows changes to which repositories it has.'
+        metadata {
+          functions 'github:status, github:connect, github:installFor, github:mine, github:claim, github:saveInstall, github:forget, github:setSelection, github:repos, github:disconnect'
+          routes 'GET /github/connect, GET /github/setup, GET /github/authorized, POST /github/webhook'
+          files 'convex/github.ts, convex/http.ts'
+        }
+      }
+      keys = service 'OpenRouter key' {
+        description 'The person’s own key, sealed with AES-GCM; never sent to a client.'
+        metadata {
+          functions 'openrouterKey:status, openrouterKey:save, openrouterKey:store, openrouterKey:remove, openrouterKey:sealedFor'
+        }
+      }
+      auth = service 'Auth and workspaces' {
+        description 'Convex Auth with an allowlist; one workspace per person, created on first sign-in. The ways to sign in (Google, GitHub) are each on when their keys are in the deployment\u2019s environment; on a self-hosted copy (CAREERBOT_MODE=self-hosted) username and password too, and the allowlist covers only Google and GitHub. signInMethods tells the sign-in screen which. Each new session records when they last signed in. A fourth way, demo (a credentials provider with no account), signs a visitor in as the demo\u2019s shared user, only where a demo workspace exists (Demo). current says whether the workspace is the demo.'
+        metadata {
+          functions 'users:me, workspaces:current, auth:signIn, auth:signOut, auth:store, auth:isAuthenticated, auth:signInMethods'
+          routes 'GET /.well-known/jwks.json, GET /.well-known/openid-configuration, GET /api/auth/callback/*, GET /api/auth/signin/*, POST /api/auth/callback/*'
+          files 'convex/auth.ts, convex/http.ts, convex/allowlist.ts'
+        }
+      }
+      accounts = service 'Self-hosted accounts' {
+        description 'Username and password sign-in for a self-hosted copy (a Convex Auth credentials provider, passwords hashed with Scrypt, wrong ones rate-limited per account). The first account is the owner, made with the setup code: newSetupCode (the installer runs it while there is no owner, and docker compose run --rm convex-setup new-setup-code) keeps a SHA-256 hash; only the newest code works, once, and stops after ten wrong tries; ownerNeeded tells the sign-in screen to offer Create your account. The owner adds people (addPerson), resets their passwords (resetPersonPassword) and removes them (removePerson: their account at once, their workspace by purgeWorkspace, a page of one table at a time); a temporary password signs in only by choosing a new one, which ends every other session, as changing a password does. resetPassword is the owner\u2019s own way back in, from the command line or the Convex dashboard.'
+        metadata {
+          functions 'account:newSetupCode, account:ownerName, account:storeSetupCode, account:useSetupCode, account:ownerNeeded, account:passwordChosen, account:markTemporary, account:accountFor, account:resetPassword, account:ownerId, account:people, account:addPerson, account:personToChange, account:resetPersonPassword, account:removePerson, account:removeUser, account:purgeWorkspace'
+          files 'convex/account.ts, convex/passwordRules.ts'
+        }
+      }
+      updates = service 'Updates' {
+        description 'What\u2019s new: sawVersion keeps the newest version each person used (users.seenVersion); a newer one shows a toast once, Updated to CareerBot X with What\u2019s new opening its notes on /changelog, never on a first visit or in the demo. A self-hosted copy\u2019s check: once a day (and when its owner turns it on) check reads careerbot.dev/releases.json with a 10-second limit, keeps the releases newer than this copy (store), and skips a failed read until the next day; off with the owner\u2019s switch (setCheck) or UPDATE_CHECK=off (checkOff). status, for the owner only, gives this copy\u2019s version and the newer releases with whether any needs reading before updating: Settings, Updates and a line on Today. careerbot.dev and the demo never check.'
+        metadata {
+          functions 'updates:sawVersion, updates:status, updates:setCheck, updates:checkOff, updates:store, updates:check'
+          files 'convex/updates.ts, convex/releases.ts, convex/version.ts, src/app/shell/WhatsNew.tsx, src/app/settings/Updates.tsx'
+        }
+      }
+      waitlist = service 'Waitlist' {
+        description 'join: anyone signed out leaves an email on the website (lowercased and trimmed, stored once; joining again answers the same, so the form never says who has joined). A filled-in hidden field answers ok and stores nothing; something that isn\u2019t an email address is refused; after 200 joins in ten minutes across the site, more are refused for a while. No email is sent. list (operator, internal): everyone on it, newest first. remove (operator, internal): takes someone off when they ask.'
+        metadata {
+          functions 'waitlist:join, waitlist:list, waitlist:remove'
+        }
+      }
+      demo = service 'Demo' {
+        description 'The read-only demo at demo.careerbot.dev: one workspace marked demo, a fictional person\u2019s search seeded from a frozen test-persona run (testdata/demo, pnpm demo). Every public mutation and action is defined through convex/functions.ts, which refuses before its handler runs when the caller\u2019s workspace is the demo (This is a demo, so nothing in it can be changed); a lint rule keeps them from being defined any other way. Actions ask through callerIsDemo. signInUser finds the demo\u2019s shared user for the demo sign-in and refuses where there is no demo, or past 60 sign-ins a minute across the deployment (The demo is busy). dropOldSessions (hourly) deletes the demo user\u2019s sessions older than a day with their refresh tokens. The roles pass and the nightly settling of spending skip the demo. The demo is held at its snapshot\u2019s moment (workspaces.asOf): what\u2019s new, due, recent or this month\u2019s counts from then on the server (workspaces.clockOf: Today\u2019s new roles, Activity, budgets, Reports, roles\u2019 filters and coverage) and in the app (src/app/clock.ts), so it never ages between releases. demoSeed (operator, internal): reads a workspace\u2019s rows for the export, and replaces the demo whole: clears and drops the old demo workspace, its user and their sessions, then creates the new one (held at the snapshot\u2019s export time) with its user and membership and inserts the snapshot\u2019s rows with new ids, references filled in on a second pass.'
+        metadata {
+          functions 'demo:callerIsDemo, demo:signInUser, demo:dropOldSessions, demoSeed:read, demoSeed:workspace, demoSeed:tablesOf, demoSeed:shape, demoSeed:demoWorkspaces, demoSeed:create, demoSeed:insert, demoSeed:patch, demoSeed:clear, demoSeed:unlink, demoSeed:drop'
+          files 'convex/demo.ts, convex/functions.ts, convex/demoRefusal.ts, convex/demoSeed.ts, convex/workspaceCopy.ts, convex/workspaceRows.ts, scripts/demo.ts'
+        }
+      }
+      yourData = service 'Your data' {
+        description 'Settings, Your data. Export: one ZIP of the caller\u2019s whole workspace, made in the background (Node): every table the workspace owns is carried or left out on purpose (workspaceCopy.ts: keys, Drive and GitHub connections, memberships, the export\u2019s and import\u2019s own rows; jobs only once finished), read a page at a time through each table\u2019s workspace index only; careerbot-export.json (format, CareerBot version, when, the workspace\u2019s settings, every carried row with its ids, ids it names but doesn\u2019t carry, stored files), readable Markdown (record, goals, companies, stories, pursuits, notes) and the current resumes, cover letters and answers as Word and Markdown (the same plan Google Drive gets), and stored files. Kept in file storage for an hour, then deleted. Import: a ZIP up to 100 MB, only into an empty workspace (nothing but settings, which the file\u2019s replace): checked first (refused when it is not an export, or from a newer CareerBot or format; an older format is migrated forward), shown as a preview, then put in on their say with every id remapped (workspaceCopy.copyRows, the demo\u2019s own rules), rows needing work that wasn\u2019t finished left out, work running at the source never running here; each row recorded with its old id as it goes in (importIds), so an import cut off is continued without putting anything in twice. No AI, Apollo or email calls. Refused in the demo like every change.'
+        metadata {
+          functions 'yourData:status, yourData:startExport, yourData:exportRow, yourData:page, yourData:idTables, yourData:about, yourData:documents, yourData:exportProgress, yourData:exportDone, yourData:exportFailed, yourData:expire, yourData:prepareImport, yourData:partIn, yourData:joined, yourData:clearImport, yourData:startImport, yourData:importRow, yourData:importChecked, yourData:putIn, yourData:clearSettings, yourData:insertRows, yourData:fileIn, yourData:patchRows, yourData:importFinished, yourData:importFailed, yourData:forgetIds, yourDataRun:runExport, yourDataRun:checkImport, yourDataRun:runImport'
+          routes 'POST /your-data/import, OPTIONS /your-data/import'
+          files 'convex/yourData.ts, convex/yourDataRun.ts, convex/exportFormat.ts, convex/exportRules.ts, convex/readableExport.ts, convex/workspaceCopy.ts, convex/workspaceRows.ts, convex/http.ts'
+        }
+      }
+      crons = service 'Schedules' {
+        description 'On the 1st, paused work resumes as budgets reset. Every 5 minutes, interrupted runs are picked up again. Every hour, the kept model prices are read again, and the demo\u2019s sessions older than a day are deleted. Every morning (09:00 UTC), a roles pass starts for each workspace with Targets or Maybe companies, except the demo.'
+        metadata {
+          files 'convex/crons.ts'
+        }
+      }
+      admin = service 'Admin fixes' {
+        #operatorOnly
+        metadata {
+          functions 'admin:rankAgain, admin:applyRubric, admin:setStretch, admin:clearRoleFailures, admin:setRoleSort, admin:stopRoles, admin:rejudgeRoles, admin:clearStuckRechecks, admin:probe, admin:probeReader, admin:rejudge, admin:setNarrativeKind, admin:deleteNarrative, admin:setItemStatus, admin:setFactText, admin:deleteItem, admin:setSuggestion, admin:setAiChoice, admin:setAiTask, admin:startGoals, admin:startJob, admin:addNarrative, admin:saveNarrative, admin:readNarrative, admin:purgeNarrative, admin:createTrialWorkspace, admin:addTrialPosting, admin:readTrialProject, admin:setSeeds, admin:screenNow, admin:setNamed, admin:clearBoards, admin:clearNoBoard'
+        }
+      }
+    }
+
+    pursue = area 'Pursue' {
+      pursuitsApi = service 'Pursuits' {
+        description 'Start (one pursuit per role; direction it was opened from, else its best fit; role, company, direction, score and level kept as they were). startAtCompany (Start outreach: a pursuit with no posting, titled with the direction\u2019s name, on the Outreach path; one under way per company and direction; it uses its direction\u2019s resume, takes no tailoring or cover letter, and opens at ?pursuit=). setStatus (stages Preparing, Contacted, Applied, In conversation, Interviewing, Offer, Closed; Closed needs a reason; the first Contacted and Applied dates kept, so a pursuit can be both; reaching Applied, Interviewing or Offer keeps the resume exactly as it shows then, as sent; back to Preparing lets it go), setPath (Apply, Outreach or both; changes only the steps it suggests; its path joins the choice with what was done), setNextStep, setNotes, setResume (which tailored resume it uses; refused once sent or with no open role). saveAnswer (a question and its answer, new or changed; an answer changed loses the facts it rested on), removeAnswer. Leaving Preparing also keeps the newest cover letter and the saved answers as sent. grounding: what writing for a pursuit rests on (approved record, role or that there is no open role, resume as shown or sent, their name). Every change goes on the dated timeline and moves its last activity. get for its page (with the role\u2019s brief; with no open role, its direction\u2019s resume as shown, for the PDF), forPosting for the Role page, list for the Pursuing and Closed views (last activity first, whether a resume is tailored to the role).'
+        metadata {
+          functions 'pursuits:start, pursuits:startAtCompany, pursuits:setStatus, pursuits:setPath, pursuits:setNextStep, pursuits:setResume, pursuits:get, pursuits:forPosting, pursuits:list, pursuits:saveAnswer, pursuits:removeAnswer, pursuits:grounding, pursuits:setInterview, pursuits:done, pursuits:snooze, pursuits:unsnooze, pursuits:reminderRules, pursuits:setReminderRule, pursuits:byDirection'
+          files 'convex/pursuits.ts, convex/pursuitSteps.ts'
+        }
+      }
+      peopleApi = service 'People' {
+        description 'Opt in, per pursuit: find (three free Apollo people searches at the company, by its Apollo id or website: leaders, the role\u2019s own work at every level, and recruiting titles; each person once, in three groups worked out from titles: Hiring manager, Team, Recruiting; the likely hiring manager is the leader whose title names the role\u2019s work; found again replaces the list, keeping anyone revealed and the group they moved anyone to), setGroup (their choice wins), add (someone they know, with the email they typed and a group; no Apollo id, no credit; kept when they find again), markReplied (a contact answered: kept on the contact and the pursuit\u2019s first reply, on the timeline, and a pursuit at Preparing, Contacted or Applied moves to In conversation; unmarkReplied undoes it), reveal (the email of the person they chose, 1 credit, through metering: never past the Apollo balance or their cap, nothing when the balance can\u2019t be read; never paid twice, also for the same Apollo person on another pursuit: revealedBefore), list (in groups), markSent (the first outreach message sent dates the pursuit\u2019s Contacted and moves it there from Preparing). Found, revealed and sent go on the timeline.'
+        metadata {
+          functions 'people:find, people:saveFound, people:target, people:contact, people:reveal, people:revealedBefore, people:saveRevealed, people:setGroup, people:add, people:markReplied, people:unmarkReplied, people:list, people:atCompany, people:markSent'
+          files 'convex/people.ts, convex/contactGroups.ts'
+        }
+      }
+      driveApi = service 'Google Drive' {
+        description 'Their own Google Drive, connected with a separate consent for drive.file only (CareerBot sees only what it makes and the folder they pick); tokens sealed, never sent to a client. Keeps a CareerBot folder: Base resume, Directions/<direction>/Resume, Tailored/<company>/<role>/Resume, Cover letter and Answers, as Google Docs updated in place when a version is kept or restored (the link stays; Drive keeps the history). Each Doc is written as the Word document Download Word saves (docxFiles.ts), which Drive converts, so it reads like the PDF. A tailored resume, letter and answers are frozen once the pursuit leaves Preparing, written as they were sent. Choose a folder (Google\u2019s Picker) moves the CareerBot folder, with Undo; the CareerBot folder or one inside it is refused. Sync runs as automatic jobs a few seconds after a change, and every 10 minutes as a check; no AI, no cost. Disconnect revokes and leaves the files.'
+        metadata {
+          functions 'drive:status, drive:fileFor, drive:connect, drive:link, drive:dropLink, drive:saveConnection, drive:setFolder, drive:unsetFolder, drive:mine, drive:forget, drive:disconnect, drive:syncNow, drive:check, drive:checkAll, drive:syncInputs, drive:saveAccess, drive:markBroken, drive:saveFile, drive:failFile'
+          routes 'GET /google/drive/connect, GET /google/drive/callback'
+          files 'convex/drive.ts, convex/driveSoon.ts, convex/drivePaths.ts, convex/docxFiles.ts, convex/http.ts'
+        }
+      }
+      notesApi = service 'Notes' {
+        description 'Notes on a pursuit, a company, a role not started or anything in the record, in their own words, dated, oldest first: list, add (a pursuit\u2019s goes on its timeline), edit, remove, only within their workspace. Never evidence: no AI step reads them.'
+        metadata {
+          functions 'notes:list, notes:add, notes:edit, notes:remove'
+        }
+      }
+      reportsApi = service 'Reports' {
+        description 'overview, spending, search, outcomes, record and activity for a period (month, quarter, all; UTC), read from running totals kept where events happen (spendTotals, tallies) so no report scans every row; search and outcomes read the pursuits active in the period. A reply: a contact marked replied, or a move to In conversation, Interviewing or Offer, or Closed as rejected or declined; time to first reply runs from the first outreach message or the application. Contacted and Applied are counted apart and together (pursuitSteps.wentOut; a pursuit can be both) in overview, search and outcomes. outcomes: how far each pursuit got by direction (interviews of those contacted or applied) and, for applications, by the direction resume version its tailored resume was written from (the one current when it was written); replies by path (Apply, Outreach, both) and by contact group; with deterministic suggestions (pursuitSteps.outcomeSuggestions: enough pursuits contacted or applied, applications or pursuits on a path to compare, a clear lead); no AI, nothing changes. backfill counts existing rows once (operator).'
+        metadata {
+          functions 'reports:overview, reports:spending, reports:search, reports:outcomes, reports:record, reports:activity, reports:backfill, reports:backfillAll'
+        }
+      }
+      estimatesApi = service 'Estimates' {
+        description 'costs: what an action is likely to cost from what the same kind of work has cost them so far, shown beside it before they choose.'
+        metadata {
+          functions 'estimates:costs'
+        }
+      }
+    }
+
+    data = area 'Tables' {
+      tWorkspaces = table 'workspaces' {
+        metadata {
+          table 'workspaces'
+        }
+      }
+      tMemberships = table 'memberships' {
+        metadata {
+          table 'memberships'
+        }
+      }
+      tUsers = table 'users' {
+        description 'Convex Auth\u2019s people; on a self-hosted copy also their username, whether they are the owner, whether their password is a temporary one, and when they last signed in.'
+        metadata {
+          table 'users'
+        }
+      }
+      tSetupCodes = table 'setupCodes' {
+        description 'A self-hosted copy\u2019s setup codes, hashed: when one was used, and how many wrong tries it has had.'
+        metadata {
+          table 'setupCodes'
+        }
+      }
+      tUpdateCheck = table 'updateCheck' {
+        description 'A self-hosted copy\u2019s check for a new version, one row: whether its owner turned it off, when the list was last read, and the releases newer than the copy then.'
+        metadata {
+          table 'updateCheck'
+        }
+      }
+      tApiKeys = table 'apiKeys' {
+        metadata {
+          table 'apiKeys'
+        }
+      }
+      tUsage = table 'usage' {
+        description 'One row per paid call; reserved (holding the most an AI call could cost) then settled.'
+        metadata {
+          table 'usage'
+        }
+      }
+      tAiSpend = table 'aiSpend' {
+        description 'Each workspace\u2019s AI spending per month as a running total, in shards: what was settled and what calls not settled yet hold, read by the budget check instead of every call of the month.'
+        metadata {
+          table 'aiSpend'
+        }
+      }
+      tModelPrices = table 'modelPrices' {
+        description 'Each AI model\u2019s highest prices, longest reply and context across its providers, what AI calls reserve against the budget; and whether a provider of it keeps to a JSON schema.'
+        metadata {
+          table 'modelPrices'
+        }
+      }
+      tBudgets = table 'budgets' {
+        metadata {
+          table 'budgets'
+        }
+      }
+      tJobs = table 'jobs' {
+        metadata {
+          table 'jobs'
+        }
+      }
+      tNarratives = table 'narratives' {
+        description 'A person’s own account of a job, project or what they want next, with its version; rejectedAt when they rejected it as a source.'
+        metadata {
+          table 'narratives'
+        }
+      }
+      tNarrativeVersions = table 'narrativeVersions' {
+        metadata {
+          table 'narrativeVersions'
+        }
+      }
+      tItems = table 'items' {
+        description 'Everything understood about the person, by kind (role, fact, context, direction, limit, conflict) and status (proposed, approved, rejected, skipped, superseded, setAside: unreviewed when its narrative or project was rejected). sources: the narratives and versions it rests on (several once another narrative says the same); it counts while any of them, or its approved project, stands.'
+        metadata {
+          table 'items'
+        }
+        roles = table 'roles' {
+          description 'kind role: employer, titles, dates, skills. A career break is a role with break set: dates and the person’s own reason, no employer.'
+        }
+        facts = table 'facts' {
+          description 'kind fact: one line each, with history, suggestion, rejection reason, duplicate flag, facts kept apart from it, and what it was merged into. A project’s facts carry its projectKey and the files they rest on, and same work: a suggested pair (on the project’s fact), a connected pair with its lead (on both), and the role’s facts kept separate from it.'
+        }
+        projectsKind = table 'projects' {
+          description 'kind project: one of their repositories: name, repository and link, private, description, languages, first and last commit (YYYY-MM), commit count (from GitHub); summary and stack (read); edited; projectKey; roleKey is the role it is linked to.'
+        }
+        context = table 'context' {
+          description 'kind context: background that sharpens facts; from notes and details left out of a line.'
+        }
+        directions = table 'directions' {
+          description 'kind direction: banner, includes, summary, fit; when what ranking roles reads last changed.'
+        }
+        limits = table 'limits' {
+          description 'kind limit: bucket, value, firm, scope, condition, typed rule, note.'
+        }
+        skillsKind = table 'skills' {
+          description 'kinds skill, tool, certification: name, group, from (roleKeys, projectKeys, fact ids where the record shows it), low-value reason, sameAs (a merge to decide), kept apart, merged into, edited, rejection reason. Counts while one of its sources counts (sourceCheck).'
+        }
+        insightsKind = table 'insights' {
+          description 'kind insight: text, cited approved factIds, rejection reason.'
+        }
+        followupsKind = table 'follow-ups' {
+          description 'kind followup: question, why, fact or role, answer and where it went.'
+        }
+        questions = table 'questions' {
+          description 'kind conflict: where a narrative disagrees with the record, and the answer.'
+        }
+      }
+      tAiSettings = table 'aiSettings' {
+        metadata {
+          table 'aiSettings'
+        }
+      }
+      tResumes = table 'resumes' {
+        description 'Every version: doc (as written, with projects and skills keyed to their approved items), layout (where it differs from the resume settings: folds, breaks, projects and skills shown or left out on every level, titles on direction and tailored), posting (and the role it came from on the Roles page) and requirements map, titles suggested for the posting; writtenFrom (base and direction: what it was written from, resumeBasis); toReview (written from Resume updates, waiting to be kept or discarded). Older versions keep only counts (basedOn), never read.'
+        metadata {
+          table 'resumes'
+        }
+      }
+      tResumeSettings = table 'resumeSettings' {
+        description 'One per workspace: how each role, project and skill shows on every resume. Folds, career breaks (shown, reason shown, left out), and projects and skills left out, set on the record; titles set on the base resume.'
+        metadata {
+          table 'resumeSettings'
+        }
+      }
+      tPursuits = table 'pursuits' {
+        description 'A role they are going after, or a company they write to with no open role (no posting; titled with what they are after): its role and company (copied when started), direction, score and level then, status and why it closed, the path they chose (Apply, Outreach or both), their next step and notes, the first Contacted, Applied and reply dates, the tailored resume it uses, what was sent (the resume as shown, the cover letter and the answers when it left Preparing), a dated timeline of every change, and its last activity.'
+        metadata {
+          table 'pursuits'
+        }
+      }
+      tContacts = table 'contacts' {
+        description 'People found at a pursuit\u2019s company: Apollo id, name, title, likely hiring manager, the group they moved them to (else worked out from the title), no Apollo id for someone they added by hand, email and LinkedIn once revealed (when), an outreach draft with the approved facts it rests on, and every message they marked sent exactly as it was (subject, text, to whom, when), never changed by a later draft.'
+        metadata {
+          table 'contacts'
+        }
+      }
+      tReminderSettings = table 'reminderSettings' {
+        description 'Which reminders a workspace wants: Follow up, Prepare, Check in. No row: all on.'
+        metadata {
+          table 'reminderSettings'
+        }
+      }
+      tPursuitMessages = table 'pursuitMessages' {
+        description 'Ask about this role, per pursuit: their messages (with the note one became when it told something new) and the answers (with the approved facts each rests on, whether it was kept, the run that wrote it).'
+        metadata {
+          table 'pursuitMessages'
+        }
+      }
+      tLetters = table 'letters' {
+        description 'Cover letter versions per pursuit: paragraphs with the approved facts each rests on, whether it is their own wording, the resume it was written with, model, run, when.'
+        metadata {
+          table 'letters'
+        }
+      }
+      tLineUpdates = table 'lineUpdates' {
+        description 'Line updates waiting to apply or discard, one per document (a resume, a cover letter or a pursuit\u2019s answers): each line as it was (with the facts it cited and their own words for it), what it becomes with the facts it rests on now, and whether to use it; the cited facts\u2019 marks as they read when written, and which cited facts didn\u2019t count then; the run.'
+        metadata {
+          table 'lineUpdates'
+        }
+      }
+      tProfiles = table 'profiles' {
+        metadata {
+          table 'profiles'
+        }
+      }
+      tCompanies = table 'companies' {
+        metadata {
+          table 'companies'
+        }
+      }
+      tDiscovery = table 'discovery' {
+        description 'Default seed websites and their Apollo ids; how roles are sorted before judging (AI model or Jev); whether judging counts how big a stretch a role is (rubric v2; unset is on); when roles passes were stopped; failures in the current roles pass that were not about any one role.'
+        metadata {
+          table 'discovery'
+        }
+      }
+      tPostings = table 'postings' {
+        description 'Every role read from the boards of Targets and Maybe companies: board id, link, the board’s own application link when it gives one, title, location, dates seen and closed; what its board states (board details: pay, setup, employment type, locations); what judging read from its description (details) and its brief (job, for you); the quick sort (directions it could be, every direction sorted against with when it last changed, method); fit per judged direction (level, score, reason, method, what sorted it there, when the direction last changed, the rubric it was scored by and, under v2, its stretch); directions to rank again; a pass\u2019s next step for it with the worker holding it and failures; the person\u2019s rating.'
+        metadata {
+          table 'postings'
+        }
+      }
+      tPostingTexts = table 'postingTexts' {
+        description 'A role\u2019s full description as plain text, as read, and the same without what its company repeats across its postings (what the AI reads). Kept apart so lists of roles stay small.'
+        metadata {
+          table 'postingTexts'
+        }
+      }
+      tRoleRanks = table 'roleRanks' {
+        description 'Where each listed role stands for each approved direction, and for all of them together (its best verdict): judged (level, score), sorted out, or against (judged, but what it states is against a firm eligibility limit: a clearance above the one they hold, or no visa sponsorship when they need it; or outside a firm location limit: a setup or place they won’t work; set apart from the list, with the reason in words); meetsPreferences (false when against such a limit, firm or a preference, so it ranks after the rest); and what the Roles page filters on, copied from the role, its details (board first) and its company: rating, company rating, pay as yearly US dollars, setup, seniority, employment type, years asked, travel, clearance, visa, places and their countries, posted and newest dates; when the direction last changed as of its ranking. Derived from postings and kept in step with them, so the Roles page reads a page at a time, best score first, filtered.'
+        metadata {
+          table 'roleRanks'
+        }
+      }
+      tRubricRuns = table 'rubricRuns' {
+        description 'A rubric tried on a sample of a workspace\u2019s judged roles before it is applied: the rubric, when, status, the sample size, what the calls cost, roles that failed; one row per role and direction with its live verdict (level, score, reason) beside the new one (level, score, reason, stretch). Live verdicts are never touched.'
+        metadata {
+          table 'rubricRuns'
+        }
+      }
+      tGithubApp = table 'githubApp' {
+        description 'CareerBot’s GitHub App: id, slug, client id, owner; private key, client secret and webhook secret sealed. One row.'
+        metadata {
+          table 'githubApp'
+        }
+      }
+      tGithubInstalls = table 'githubInstalls' {
+        description 'A workspace’s GitHub connection: the installation id, its account, all or selected repositories, and where to change them on GitHub.'
+        metadata {
+          table 'githubInstalls'
+        }
+      }
+      tGithubLinks = table 'githubLinks' {
+        description 'One-time links for GitHub’s round trips, each good for a short while: creating the app (operator), or connecting a workspace (with the installation held until GitHub confirms it is theirs).'
+        metadata {
+          table 'githubLinks'
+        }
+      }
+      tAiDefaults = table 'aiDefaults' {
+        description 'Each workspace\u2019s main model and reasoning, used by every task without its own.'
+        metadata {
+          table 'aiDefaults'
+        }
+      }
+      tSpendTotals = table 'spendTotals' {
+        description 'Running spend per workspace, month, task, area, who started it and pursuit, for Reports.'
+        metadata {
+          table 'spendTotals'
+        }
+      }
+      tTallies = table 'tallies' {
+        description 'Running counts per workspace and week (companies found and targets, roles by fit, facts approved, resume versions, work done and failed), for Reports.'
+        metadata {
+          table 'tallies'
+        }
+      }
+      tComparisons = table 'comparisons' {
+        metadata {
+          table 'comparisons'
+        }
+      }
+      tDriveConnections = table 'driveConnections' {
+        description 'Each workspace\u2019s Google Drive connection: account, sealed tokens, the CareerBot folder, and whether it is broken.'
+        metadata {
+          table 'driveConnections'
+        }
+      }
+      tDriveFiles = table 'driveFiles' {
+        description 'Each file CareerBot keeps in Drive: what it is for (base, direction, tailored resume, letter, answers), its Drive id and folder, the content it last wrote, when, and any failure.'
+        metadata {
+          table 'driveFiles'
+        }
+      }
+      tDriveLinks = table 'driveLinks' {
+        description 'One-time links that start a Drive connection, bound to the browser, with where it began (Settings, or Getting started on Today), so Google comes back there.'
+        metadata {
+          table 'driveLinks'
+        }
+      }
+      tNotes = table 'notes' {
+        description 'Their own notes on a pursuit, company, role or record item: text, when, when edited. Never read by an AI step.'
+        metadata {
+          table 'notes'
+        }
+      }
+      tExports = table 'exports' {
+        description 'A workspace\u2019s export: running (what it is on, how far), done (the ZIP in file storage, its name and size, when it goes) or failed. One per workspace; deleted with its ZIP an hour after it is made.'
+        metadata {
+          table 'exports'
+        }
+      }
+      tImports = table 'imports' {
+        description 'A workspace\u2019s import: the uploaded ZIP, checking, ready with its preview (format, CareerBot version, when exported, counts by kind) or refused with why, importing (the kind going in, rows in so far, a last sign of life), done with its result, or failed. One per workspace.'
+        metadata {
+          table 'imports'
+        }
+      }
+      tImportIds = table 'importIds' {
+        description 'While an import runs: each row and stored file put in, by its id in the file and here, with fields still to patch in; written with the row, so a continued import never puts one in twice. Deleted once it is done.'
+        metadata {
+          table 'importIds'
+        }
+      }
+      tFollowUps = table 'followUps' {
+        description 'A pursuit\u2019s follow-up: the draft, a rewrite waiting to be kept, and every one marked sent, kept exactly as it was (to whom, when), with the approved facts it rests on.'
+        metadata {
+          table 'followUps'
+        }
+      }
+      tWaitlist = table 'waitlist' {
+        description 'Emails left on the website to hear when CareerBot opens up: when, and where on the page. Not tied to a workspace.'
+        metadata {
+          table 'waitlist'
+        }
+      }
+    }
+  }
+
+  // ---- People and screens ----
+  person -> careerbot.ui 'uses'
+  person -> oauth 'signs in with'
+  operator -> careerbot.platform.admin 'runs'
+  careerbot.platform.auth -[uses]-> oauth
+
+  careerbot.ui.narrativesScreen -[calls]-> careerbot.core.narrativesApi
+  careerbot.ui.narrativesScreen -[calls]-> careerbot.ai.extract 'Read this narrative'
+  careerbot.ui.narrativesScreen -[calls]-> careerbot.ai.goalsRead 'Read my goals'
+  careerbot.ui.recordScreen -[calls]-> careerbot.core.reviewApi
+  careerbot.ui.recordScreen -[calls]-> careerbot.ai.rework 'Ask for a rewrite / Add context'
+  careerbot.ui.recordScreen -[calls]-> careerbot.ai.check 'Check for disagreements'
+  careerbot.ui.recordScreen -[calls]-> careerbot.core.questionsApi
+  careerbot.ui.recordScreen -[calls]-> careerbot.ai.duplicatesStep 'Find duplicates'
+  careerbot.ui.recordScreen -[calls]-> careerbot.core.duplicatesApi 'Merge, Keep both'
+  careerbot.ui.recordScreen -[calls]-> careerbot.core.resumeApi 'Fold menu: how each role and break shows on every resume'
+  careerbot.ui.recordScreen -[calls]-> careerbot.core.breaksApi 'Add a career break, Edit'
+  careerbot.core.breaksApi -[writes]-> careerbot.data.tItems.roles 'career breaks'
+  careerbot.ui.goalsScreen -[calls]-> careerbot.core.goalsApi
+  careerbot.ui.goalsScreen -[uses]-> careerbot.core.limitSchema 'fields, rows'
+  careerbot.ui.compareScreen -[calls]-> careerbot.ai.compare
+  careerbot.ui.compareScreen -[calls]-> careerbot.core.compareApi
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.keys
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.aiSettings
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.budgetsApi
+  careerbot.ui.settingsScreen -[calls]-> careerbot.ai.firstCall
+
+  // ---- Every AI step runs as a job and through metering ----
+  careerbot.ai -[uses]-> careerbot.platform.jobs 'runs as a job'
+  careerbot.ai -[uses]-> careerbot.platform.metering 'every call'
+  careerbot.ai -[uses]-> careerbot.platform.aiSettings 'model for its task'
+  careerbot.platform.metering -[calls]-> openrouter
+  careerbot.platform.metering -[reads]-> careerbot.platform.keys 'unseals the key'
+  careerbot.platform.metering -[writes]-> careerbot.data.tUsage
+  careerbot.platform.metering -[reads]-> careerbot.data.tBudgets
+  careerbot.platform.metering -[reads]-> careerbot.data.tAiSpend 'this month\u2019s settled and held AI spending, before each call'
+  careerbot.platform.metering -[writes]-> careerbot.data.tAiSpend 'each call\u2019s reservation, then its cost'
+  careerbot.platform.metering -[uses]-> careerbot.platform.modelPrices 'price of the call\u2019s model'
+  careerbot.platform.metering -[calls]-> careerbot.platform.jobs 'a settled call restarts work waiting on what it held'
+  careerbot.platform.modelPrices -[calls]-> openrouter 'each model\u2019s endpoints and their prices'
+  careerbot.platform.modelPrices -[writes]-> careerbot.data.tModelPrices
+  careerbot.platform.jobs -[reads]-> careerbot.data.tAiSpend 'whether calls still hold the budget, before pausing for them'
+  careerbot.platform.jobs -[writes]-> careerbot.data.tJobs
+  careerbot.platform.crons -[calls]-> careerbot.platform.jobs 'resume paused; recover interrupted'
+  careerbot.platform.crons -[calls]-> careerbot.platform.watchRoles 'daily roles pass'
+  careerbot.platform.crons -[calls]-> careerbot.platform.modelPrices 'hourly: model prices'
+
+  // ---- Inputs and outputs of each AI step (the part that decides quality downstream) ----
+  careerbot.ai.extract -[reads]-> careerbot.data.tNarratives 'the one career narrative' {
+    #rawNarrative
+  }
+  careerbot.ai.extract -[reads]-> careerbot.data.tItems.facts 'confirmed roles and facts' {
+    #approvedOnly
+    description 'Only those that count (sourceCheck): nothing resting only on a narrative or project they rejected.'
+  }
+  careerbot.ai.extract -[reads]-> careerbot.data.tItems.facts 'proposed roles and facts, as a do-not-repeat list' {
+    #unreviewedInput
+    description 'Labelled as awaiting review: not to be treated as true or built on. Can still suppress a repeat while pending; rejecting one does not bring back what it covered (use Read again). Set-aside items are not sent.'
+  }
+  careerbot.ai.extract -[reads]-> careerbot.data.tNarratives 'their other narratives, background only' {
+    #rawNarrative
+    description 'Whole text of other career narratives (never the goals narrative or one they rejected), for understanding. Facts must quote the narrative being read; saveProposals flags facts whose quotes are not in it (provenance only, not truth).'
+  }
+  careerbot.ai.extract -[reads]-> careerbot.data.tItems.directions 'confirmed directions and limits' {
+    #approvedOnly
+    description 'Never the raw goals narrative, never rejected or unreviewed goals.'
+  }
+  careerbot.ai.extract -[reads]-> careerbot.data.tItems.facts 'rejected facts with reasons' {
+    #rejectedAsGuard
+    description 'Also skipped when proposed again in the same words. A Read again with Including what I rejected leaves out this narrative’s own rejections for that run only; set-aside items are never rejections.'
+  }
+  careerbot.ai.extract -[writes]-> careerbot.data.tItems.facts 'proposed roles, facts, context; a fact already there in the same words, in the same role or project, gains this narrative as a source instead (a set-aside one comes back for review)'
+
+  careerbot.ai.rework -[reads]-> careerbot.data.tItems.context 'the fact, its history, approved context for its role' {
+    #approvedOnly
+  }
+  careerbot.ai.rework -[reads]-> careerbot.data.tNarratives 'the fact’s source narrative' {
+    #rawNarrative
+  }
+  careerbot.ai.rework -[writes]-> careerbot.data.tItems.facts 'suggestion on the fact; note and left-out details as context'
+
+  careerbot.ai.goalsRead -[reads]-> careerbot.data.tNarratives 'the goals narrative' {
+    #rawNarrative
+  }
+  careerbot.ai.goalsRead -[reads]-> careerbot.data.tItems.facts 'approved roles and facts' {
+    #approvedOnly
+  }
+  careerbot.ai.goalsRead -[reads]-> careerbot.data.tItems.directions 'approved directions and limits (kept as settled)' {
+    #approvedOnly
+  }
+  careerbot.ai.goalsRead -[reads]-> careerbot.data.tItems.limits 'rejected directions and limits' {
+    #rejectedAsGuard
+    description 'Told not to propose them in any wording; a limit resting only on a rejected passage is skipped in code.'
+  }
+  careerbot.ai.goalsRead -[writes]-> careerbot.data.tItems.directions 'proposed directions and limits (rules validated by the limit schema)'
+  careerbot.ai.goalsRead -[uses]-> careerbot.core.limitSchema 'prompt spec, validation'
+
+  careerbot.ai.limitRule -[reads]-> careerbot.data.tItems.limits 'the limit’s own wording'
+  careerbot.ai.limitRule -[writes]-> careerbot.data.tItems.limits 'its filters, only if unchanged since (revision check)'
+  careerbot.core.goalsApi -[calls]-> careerbot.ai.limitRule 'wording changed, filters untouched'
+
+  careerbot.ai.check -[reads]-> careerbot.data.tItems.roles 'approved roles and facts; answered questions' {
+    #approvedOnly
+  }
+  careerbot.ai.check -[reads]-> careerbot.data.tNarratives 'every narrative' {
+    #rawNarrative
+  }
+  careerbot.ai.check -[writes]-> careerbot.data.tItems.questions 'open questions; overlap questions for approved jobs at different employers, without AI'
+  careerbot.core.reviewApi -[writes]-> careerbot.data.tItems.questions 'overlap questions, when a role is approved, unapproved, edited, added or removed'
+  careerbot.core.questionsApi -[writes]-> careerbot.data.tItems.questions 'answers (Both are right for an overlap); overlap questions again after an answer'
+  careerbot.core.questionsApi -[writes]-> careerbot.data.tItems.roles 'answer; role value and its change log'
+
+  careerbot.ui.recordScreen -[calls]-> careerbot.ai.gatherSkills 'Gather skills'
+  careerbot.ui.recordScreen -[calls]-> careerbot.core.skillsApi 'Skills and tools: Edit, Merge, Keep both'
+  careerbot.ui.recordScreen -[calls]-> careerbot.core.resumeApi 'Skills and tools: On resumes Show / Leave out (setSkillPresentation)'
+  careerbot.ai.gatherSkills -[reads]-> careerbot.data.tItems.roles 'approved roles that count: their skills and tools' {
+    #approvedOnly
+  }
+  careerbot.ai.gatherSkills -[reads]-> careerbot.data.tItems.projectsKind 'approved projects: their stack and languages' {
+    #approvedOnly
+  }
+  careerbot.ai.gatherSkills -[reads]-> careerbot.data.tItems.facts 'approved facts that count' {
+    #approvedOnly
+  }
+  careerbot.ai.gatherSkills -[reads]-> careerbot.data.tItems.skillsKind 'approved (settled) and awaiting-review skills, tools and certifications' {
+    #unreviewedInput
+    description 'Decision: items awaiting review are passed so they are not proposed twice and can be renamed, regrouped or offered as merges; nothing is built on them until approved.'
+  }
+  careerbot.ai.gatherSkills -[reads]-> careerbot.data.tItems.skillsKind 'rejected ones with reasons' {
+    #rejectedAsGuard
+  }
+  careerbot.ai.gatherSkills -[writes]-> careerbot.data.tItems.skillsKind 'proposed items; sources added to approved ones; merge flags'
+  careerbot.core.skillsApi -[writes]-> careerbot.data.tItems.skillsKind 'edit, merge, keep both; migration from role skills and tools'
+  careerbot.core.skillsApi -[writes]-> careerbot.data.tResumes 'merge: skill lines and left-out choices move to the kept item'
+  careerbot.core.skillsApi -[writes]-> careerbot.data.tResumeSettings 'merge: left-out choices move to the kept item'
+  careerbot.core.reviewApi -[writes]-> careerbot.data.tItems.skillsKind 'approve, reject with reason, reopen, undo approval'
+  careerbot.ai.resume -[reads]-> careerbot.data.tItems.skillsKind 'approved skills, tools and certifications that count (the only skills a resume lists; roles’ own skill lists are not sent)' {
+    #approvedOnly
+    description 'A reply’s skills are kept only as approved items (by id, or matched by name), printed with the record’s name, each once.'
+  }
+  careerbot.ai.duplicatesStep -[reads]-> careerbot.data.tItems.facts 'approved and awaiting-review facts, by role, with pairs kept apart' {
+    #unreviewedInput
+    description 'Decision: facts awaiting review are included, since a duplicate is most often a new proposal repeating an approved fact. Nothing is built on them; the only output is a flag the person resolves.'
+  }
+  careerbot.ai.duplicatesStep -[writes]-> careerbot.data.tItems.facts 'duplicate flags (same workspace and role; never a pair kept apart)'
+  careerbot.core.duplicatesApi -[writes]-> careerbot.data.tItems.facts 'merge: sources and history onto the kept fact, the other superseded; keep both: kept apart'
+  careerbot.core.duplicatesApi -[writes]-> careerbot.data.tItems.context 'notes move to the kept fact'
+
+  careerbot.ai.compare -[reads]-> careerbot.data.tNarratives 'one career narrative, without the record' {
+    #rawNarrative
+  }
+  careerbot.ai.compare -[writes]-> careerbot.data.tComparisons 'each contender’s output, cost, time'
+
+  careerbot.ai.firstCall -[writes]-> careerbot.data.tJobs 'the reply'
+
+  // ---- Review and data ----
+  careerbot.core.reviewApi -[writes]-> careerbot.data.tItems.facts
+  careerbot.core.reviewApi -[writes]-> careerbot.data.tItems.roles
+  careerbot.core.goalsApi -[writes]-> careerbot.data.tItems.directions
+  careerbot.core.goalsApi -[writes]-> careerbot.data.tItems.limits
+  careerbot.core.goalsApi -[uses]-> careerbot.core.limitSchema 'validation'
+  careerbot.core.narrativesApi -[writes]-> careerbot.data.tNarratives
+  careerbot.core.narrativesApi -[writes]-> careerbot.data.tNarrativeVersions
+  careerbot.core.narrativesApi -[writes]-> careerbot.data.tItems 'delete: drops its sources and quotes from every item, flags its facts'
+  careerbot.core.narrativesApi -[writes]-> careerbot.data.tComparisons 'delete: the comparisons that read it'
+  careerbot.core.compareApi -[reads]-> careerbot.data.tComparisons
+  careerbot.platform.keys -[writes]-> careerbot.data.tApiKeys
+  careerbot.platform.aiSettings -[writes]-> careerbot.data.tAiSettings
+  careerbot.platform.aiSettings -[calls]-> openrouter 'model catalog'
+  careerbot.platform.budgetsApi -[writes]-> careerbot.data.tBudgets
+  careerbot.platform.budgetsApi -[reads]-> careerbot.data.tAiSpend 'this month\u2019s AI spending'
+  careerbot.platform.auth -[writes]-> careerbot.data.tWorkspaces
+  careerbot.platform.auth -[writes]-> careerbot.data.tMemberships
+  careerbot.platform.auth -[writes]-> careerbot.data.tUsers 'last signed in'
+  careerbot.platform.auth -[uses]-> careerbot.platform.accounts 'the password provider'
+  careerbot.platform.auth -[uses]-> careerbot.platform.demo 'the demo provider: who to sign in as, and the cap'
+  careerbot.platform.demo -[reads]-> careerbot.data.tWorkspaces 'the caller\u2019s workspace, whether it is the demo'
+  careerbot.platform.demo -[reads]-> careerbot.data.tMemberships 'the caller\u2019s workspace; the demo\u2019s shared user'
+  careerbot.platform.demo -[writes]-> careerbot.data.tUsers 'the demo\u2019s shared user, replaced at each seed'
+  careerbot.platform.demo -[writes]-> careerbot.data.tWorkspaces 'the demo workspace, replaced whole at each seed'
+  careerbot.platform.crons -[calls]-> careerbot.platform.demo 'hourly: clear old demo sessions'
+  operator -> careerbot.platform.demo 'exports a persona run and seeds the demo (pnpm demo)'
+  careerbot.platform.accounts -[writes]-> careerbot.data.tUsers
+  careerbot.platform.accounts -[writes]-> careerbot.data.tSetupCodes
+  careerbot.platform.updates -[calls]-> releasesFeed 'daily, self-hosted only'
+  careerbot.platform.updates -[writes]-> careerbot.data.tUpdateCheck
+  careerbot.platform.updates -[writes]-> careerbot.data.tUsers 'newest version used'
+  careerbot.platform.crons -[calls]-> careerbot.platform.updates 'daily: check for a new version'
+  careerbot.ui.shell -[calls]-> careerbot.platform.updates 'What\u2019s new after an update'
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.updates 'Updates, the owner of a self-hosted copy'
+  careerbot.ui.today -[calls]-> careerbot.platform.updates 'a new version, the owner of a self-hosted copy'
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.yourData 'Your data: export, download, import, continue'
+  careerbot.ui.today -[calls]-> careerbot.platform.yourData 'Getting started: whether the workspace is empty, to offer Bring your data from another copy'
+  careerbot.platform.yourData -[reads]-> careerbot.data.tWorkspaces 'its settings, for the export'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tWorkspaces 'an import sets the file\u2019s settings'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tExports
+  careerbot.platform.yourData -[writes]-> careerbot.data.tImports
+  careerbot.platform.yourData -[writes]-> careerbot.data.tImportIds
+  careerbot.platform.yourData -[reads]-> careerbot.data.tNarratives 'export: this and every other carried table, through its workspace index'
+  careerbot.platform.yourData -[reads]-> careerbot.data.tNarrativeVersions 'export'
+  careerbot.platform.yourData -[reads]-> careerbot.data.tItems 'export'
+  careerbot.platform.yourData -[reads]-> careerbot.data.tCompanies 'export'
+  careerbot.platform.yourData -[reads]-> careerbot.data.tPostings 'export'
+  careerbot.platform.yourData -[reads]-> careerbot.data.tPursuits 'export'
+  careerbot.platform.yourData -[reads]-> careerbot.data.tContacts 'export'
+  careerbot.platform.yourData -[reads]-> careerbot.data.tLetters 'export'
+  careerbot.platform.yourData -[reads]-> careerbot.data.tResumes 'export'
+  careerbot.platform.yourData -[reads]-> careerbot.data.tNotes 'export'
+  careerbot.platform.yourData -[reads]-> careerbot.data.tUsage 'export'
+  careerbot.platform.yourData -[reads]-> careerbot.data.tJobs 'export: finished work only'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tNarratives 'import: this and every other carried table, into an empty workspace'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tNarrativeVersions 'import'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tItems 'import'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tCompanies 'import'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tPostings 'import'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tPursuits 'import'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tContacts 'import'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tLetters 'import'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tResumes 'import'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tNotes 'import'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tUsage 'import'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tJobs 'import: finished work only'
+  careerbot.platform.yourData -[writes]-> careerbot.data.tBudgets 'import: the file\u2019s settings replace the workspace\u2019s'
+  careerbot.platform.yourData -[calls]-> careerbot.pursue.driveApi 'the current resumes, letters and answers, for the readable copies'
+  careerbot.platform.accounts -[writes]-> careerbot.data.tMemberships 'removing someone'
+  careerbot.platform.accounts -[writes]-> careerbot.data.tWorkspaces 'removing someone deletes their workspace and everything in it'
+  careerbot.platform.admin -[writes]-> careerbot.data.tItems
+  careerbot.platform.admin -[writes]-> careerbot.data.tNarratives
+  careerbot.platform.admin -[writes]-> careerbot.data.tAiSettings
+  careerbot.platform.admin -[calls]-> careerbot.ai.readProject 'a test persona’s repository read from its README, the same way without GitHub (readTrialProject)'
+
+  // ---- Insights, follow-ups, resume, revisions ----
+  careerbot.ui.insightsScreen -[calls]-> careerbot.ai.insights 'Look across my record'
+  careerbot.ui.insightsScreen -[calls]-> careerbot.core.insightsApi
+  careerbot.ui.insightsScreen -[calls]-> careerbot.core.reviewApi 'approve, edit, reject'
+  careerbot.core.reviewApi -[calls]-> careerbot.ai.insights 'narrative fully reviewed'
+  careerbot.ai.insights -[reads]-> careerbot.data.tItems.facts 'approved roles, facts, context, directions (the evidence)' {
+    #approvedOnly
+  }
+  careerbot.ai.insights -[reads]-> careerbot.data.tNarratives 'career narratives, background only' {
+    #rawNarrative
+  }
+  careerbot.ai.insights -[reads]-> careerbot.data.tItems.insightsKind 'approved and pending (do not repeat); rejected with reasons' {
+    #rejectedAsGuard
+  }
+  careerbot.ai.insights -[writes]-> careerbot.data.tItems.insightsKind 'proposed insights citing approved facts (others dropped)'
+
+  careerbot.ai.followups -[reads]-> careerbot.data.tItems.facts 'approved record' {
+    #approvedOnly
+  }
+  careerbot.ai.followups -[reads]-> careerbot.data.tNarratives 'career narratives, background only' {
+    #rawNarrative
+  }
+  careerbot.ai.followups -[reads]-> careerbot.data.tItems.followupsKind 'already asked, answered or set aside' {
+    #rejectedAsGuard
+  }
+  careerbot.ai.followups -[writes]-> careerbot.data.tItems.followupsKind 'open questions'
+  careerbot.core.followupsApi -[calls]-> careerbot.ai.rework 'answer about a fact'
+  careerbot.core.followupsApi -[writes]-> careerbot.data.tNarratives 'answer as a note'
+  careerbot.core.followupsApi -[calls]-> careerbot.ai.extract 'reads the note'
+
+  careerbot.ui.resumeScreen -[calls]-> careerbot.ai.resume 'Write my resume'
+  careerbot.ui.resumeScreen -[calls]-> careerbot.core.resumeApi 'versions; title, fold and career break choices; Updates: Rewrite, Update all, Keep, Discard'
+  careerbot.core.resumeApi -[calls]-> careerbot.ai.resume 'Rewrite, Update all: a version to keep or discard'
+  careerbot.core.resumeApi -[reads]-> careerbot.data.tItems.facts 'the approved record that counts, to compare with what each resume was written from'
+  careerbot.core.resumeApi -[reads]-> careerbot.data.tJobs 'which resumes are being written'
+  careerbot.ai.resume -[reads]-> careerbot.data.tItems.facts 'approved roles, facts, insights, context' {
+    #approvedOnly
+    description 'Only those that count (recordContext.countedRecord); the same items give the version its writtenFrom.'
+  }
+  careerbot.ai.resume -[reads]-> careerbot.data.tItems.roles 'approved career breaks, with the reason in their words' {
+    #approvedOnly
+  }
+  careerbot.ai.resume -[writes]-> careerbot.data.tResumes 'a new version, with the overrides it starts from (bullets pinned or hidden kept where the line is the same)'
+  careerbot.ai.resume -[reads]-> careerbot.data.tResumeSettings 'the length to write to: the resume’s own, else the record’s (a tailored one: its direction’s), as a target (bullets per role and in all, skills 12 to 20)' {
+    #approvedOnly
+    description 'The person’s own setting, not record content. The version’s writtenFrom keeps it, so a change shows in Resume updates.'
+  }
+  careerbot.ui.recordScreen -[calls]-> careerbot.core.resumeApi 'Resume length for every resume (setRecordLength)'
+  careerbot.core.resumeApi -[reads]-> careerbot.data.tResumes
+  careerbot.core.resumeApi -[writes]-> careerbot.data.tResumes 'overrides (direction and tailored); keep or discard a version from Resume updates'
+  careerbot.core.resumeApi -[reads]-> careerbot.data.tResumeSettings
+  careerbot.core.resumeApi -[writes]-> careerbot.data.tResumeSettings 'choices made on the base resume'
+  careerbot.core.resumeApi -[reads]-> careerbot.data.tItems.roles 'approved roles’ market titles, for suggested titles'
+  careerbot.core.resumeApi -[reads]-> careerbot.data.tItems.directions 'approved title map, for suggested titles'
+
+  careerbot.ui.narrativesScreen -[calls]-> careerbot.ai.revision 'Read the changes'
+  careerbot.ai.revision -[reads]-> careerbot.data.tNarratives 'the version last read and the revised version' {
+    #rawNarrative
+  }
+  careerbot.ai.revision -[reads]-> careerbot.data.tNarratives 'their other narratives, background only' {
+    #rawNarrative
+  }
+  careerbot.ai.revision -[reads]-> careerbot.data.tItems.facts 'confirmed roles and facts' {
+    #approvedOnly
+    description 'Only those that count (sourceCheck).'
+  }
+  careerbot.ai.revision -[reads]-> careerbot.data.tItems.facts 'the facts this narrative is a source of, approved and proposed, with their ids' {
+    #unreviewedInput
+    description 'Every fact citing this narrative among its sources, not only those read from it first. Proposed ones are labelled as such.'
+  }
+  careerbot.ai.revision -[reads]-> careerbot.data.tItems.facts 'rejected facts with reasons' {
+    #rejectedAsGuard
+  }
+  careerbot.ai.revision -[writes]-> careerbot.data.tItems.facts 'new proposals; suggestions and no-longer-said flags only on facts this narrative is a source of'
+
+  // ---- Directions, direction and tailored resumes ----
+  careerbot.ui.goalsScreen -[calls]-> careerbot.ai.directionsStep 'Fill in / Suggest more'
+  careerbot.ui.goalsScreen -[calls]-> careerbot.core.directionsApi
+  careerbot.ui.goalsScreen -[calls]-> careerbot.ai.resume 'direction resume, tailor to a posting'
+  careerbot.ui.goalsScreen -[calls]-> careerbot.core.resumeApi 'versions; title, fold and career break choices; Updates: Rewrite, Update all, Keep, Discard'
+  careerbot.ai.directionsStep -[reads]-> careerbot.data.tItems.facts 'approved record, insights, limits, directions' {
+    #approvedOnly
+  }
+  careerbot.ai.directionsStep -[reads]-> careerbot.data.tNarratives 'career narratives, background only' {
+    #rawNarrative
+  }
+  careerbot.ai.directionsStep -[reads]-> careerbot.data.tItems.directions 'rejected and pending directions (do not repeat)' {
+    #rejectedAsGuard
+  }
+  careerbot.ai.directionsStep -[writes]-> careerbot.data.tItems.directions 'proposed detail and criteria; suggested directions'
+  careerbot.core.directionsApi -[writes]-> careerbot.data.tItems.directions
+  careerbot.ai.resume -[reads]-> careerbot.data.tItems.directions 'approved positioning (direction and tailored resumes)' {
+    #approvedOnly
+  }
+  careerbot.ai.resume -[reads]-> careerbot.data.tResumes 'the direction resume a tailored one starts from'
+
+  careerbot.ui.resumeScreen -[calls]-> careerbot.core.profileApi 'the contact block'
+
+  // ---- Projects from GitHub (M5.5) ----
+  operator -> careerbot.platform.githubApp 'setupLink, once'
+  careerbot.platform.githubApp -[calls]-> githubApi 'manifest conversion (once); app tokens; installation tokens'
+  careerbot.platform.githubApp -[writes]-> careerbot.data.tGithubApp 'the app, secrets sealed'
+  careerbot.platform.githubApp -[writes]-> careerbot.data.tGithubLinks 'the app link'
+  careerbot.ui.recordScreen -[calls]-> careerbot.platform.github 'Connect GitHub, repositories, Disconnect'
+  careerbot.ui.recordScreen -[calls]-> careerbot.ai.readProject 'Read N repositories; how each read went'
+  careerbot.platform.github -[calls]-> githubApi 'install, confirm the installation is theirs, list repositories'
+  careerbot.platform.github -[uses]-> careerbot.platform.githubApp 'app token, installation token'
+  careerbot.platform.github -[writes]-> careerbot.data.tGithubLinks 'connect links, the installation held'
+  careerbot.platform.github -[writes]-> careerbot.data.tGithubInstalls 'kept, forgotten, repositories all or selected'
+  githubApi -> careerbot.platform.github 'webhook: uninstalled, repositories changed'
+  careerbot.ai.readProject -[reads]-> careerbot.data.tGithubInstalls 'their installation'
+  careerbot.ai.readProject -[uses]-> careerbot.platform.githubApp 'a read-only token for that repository alone'
+  careerbot.ai.readProject -[calls]-> githubApi 'git trees, file contents, commits, languages' {
+    #rawNarrative
+    description 'Decision: the repository is read as it is, like the narrative being read: it is the evidence, so facts must cite its files, and those citing none that was read are flagged. Never fetched: secret-looking files, dependencies, build output, lockfiles, binaries. Credentials inside what is read are redacted before it is sent.'
+  }
+  careerbot.ai.readProject -[reads]-> careerbot.data.tItems.facts 'this project’s approved and proposed facts, as a do-not-repeat list' {
+    #unreviewedInput
+    description 'Decision: proposed facts are passed so they are not proposed again; when a repository is read in parts, the final pass merges the proposals from that run into at most six project facts, which stay proposed for the person to review.'
+  }
+  careerbot.ai.readProject -[reads]-> careerbot.data.tItems.facts 'this project’s rejected facts with reasons' {
+    #rejectedAsGuard
+    description 'Also skipped when proposed again in the same words, unless a Read again includes what they rejected (that run only).'
+  }
+  careerbot.ai.readProject -[reads]-> careerbot.data.tItems.directions 'confirmed directions (what matters to them)' {
+    #approvedOnly
+  }
+  careerbot.ai.readProject -[writes]-> careerbot.data.tItems.projectsKind 'proposed project; refreshed on a later read, keeping what they approved or wrote; a rejected one read again is restored with what was set aside with it'
+  careerbot.ai.readProject -[writes]-> careerbot.data.tItems.facts 'proposed facts citing files, with its projectKey'
+  careerbot.ui.recordScreen -[calls]-> careerbot.core.projectsApi 'Edit details, Link to a role'
+  careerbot.ui.recordScreen -[calls]-> careerbot.ai.sameWorkStep 'Find same work'
+  careerbot.ui.recordScreen -[calls]-> careerbot.core.sameWorkApi 'Connect, Keep separate, Disconnect'
+  careerbot.core.projectsApi -[calls]-> careerbot.ai.sameWorkStep 'linked to a new role'
+  careerbot.core.projectsApi -[writes]-> careerbot.data.tItems.facts 'relinked or unlinked: waiting same-work suggestions dropped'
+  careerbot.ai.sameWorkStep -[reads]-> careerbot.data.tItems.projectsKind 'the approved project (name, summary, stack) and the role it is linked to' {
+    #approvedOnly
+  }
+  careerbot.ai.sameWorkStep -[reads]-> careerbot.data.tItems.roles 'the linked approved role (title, employer, dates)' {
+    #approvedOnly
+  }
+  careerbot.ai.sameWorkStep -[reads]-> careerbot.data.tItems.facts 'approved facts of the project and of its role that count, not yet connected, with the pairs kept separate' {
+    #approvedOnly
+  }
+  careerbot.ai.sameWorkStep -[writes]-> careerbot.data.tItems.facts 'suggested pairs, on the project’s facts'
+  careerbot.core.sameWorkApi -[writes]-> careerbot.data.tItems.facts 'connect: the pair and its lead on both facts; keep separate and disconnect: remembered on the project’s fact (disconnect also clears the pair on both)'
+  careerbot.core.sameWorkApi -[reads]-> careerbot.data.tJobs 'the latest search per project'
+  careerbot.ui.recordScreen -[calls]-> careerbot.core.resumeApi 'On resumes: Show / Leave out (setProjectPresentation)'
+  careerbot.core.projectsApi -[writes]-> careerbot.data.tItems.projectsKind 'details approved as given; linked role'
+  careerbot.core.projectsApi -[calls]-> careerbot.ai.insights 'Save and approve: a project approved with nothing left to review'
+  careerbot.core.reviewApi -[writes]-> careerbot.data.tItems.projectsKind 'approve (reject and reopen go through Sources)'
+  careerbot.core.reviewApi -[calls]-> careerbot.core.sourcesApi 'a project rejected or reopened'
+  careerbot.ui.recordScreen -[calls]-> careerbot.core.sourcesApi 'Narratives and Projects: Read again, Reject, Restore'
+  careerbot.core.sourcesApi -[writes]-> careerbot.data.tNarratives 'rejectedAt'
+  careerbot.core.sourcesApi -[writes]-> careerbot.data.tItems 'set aside and restored items; a project rejected or restored'
+  careerbot.core.sourcesApi -[reads]-> careerbot.data.tJobs 'each source’s latest read'
+  careerbot.core.sourcesApi -[calls]-> careerbot.ai.extract 'Read again: a narrative against the record now'
+  careerbot.core.sourcesApi -[calls]-> careerbot.ai.readProject 'Read again: a project against the record now'
+  careerbot.core.reviewApi -[calls]-> careerbot.ai.insights 'project fully reviewed'
+  careerbot.ai.insights -[reads]-> careerbot.data.tItems.projectsKind 'approved projects and their approved facts' {
+    #approvedOnly
+    description 'A project’s facts count only while the project itself is approved, and any fact only while one of its sources stands (recordContext.sourceCheck, used by approvedRecord and every reader of the approved record).'
+  }
+  careerbot.ai.followups -[reads]-> careerbot.data.tItems.projectsKind 'approved projects and their approved facts' {
+    #approvedOnly
+  }
+  careerbot.ai.directionsStep -[reads]-> careerbot.data.tItems.projectsKind 'approved projects and their approved facts' {
+    #approvedOnly
+  }
+  careerbot.ai.resume -[reads]-> careerbot.data.tItems.projectsKind 'approved projects (name, link, dates, linked role) and their approved facts, inside the role they are linked to or under Projects' {
+    #approvedOnly
+    description 'Name, link, dates and linked role come from the approved project, never the reply (as shown, from the project now); a project bullet counts only that project’s approved facts; a role with a linked project written keeps its entry.'
+  }
+  careerbot.ai.resume -[reads]-> careerbot.data.tItems.facts 'facts connected as the same work: one fact, the lead, with the other’s words as context' {
+    #approvedOnly
+    description 'Only pairs that hold: both facts approved and counting, the project approved and linked to the other fact’s role. A line from the lead rests on both facts.'
+  }
+  careerbot.platform.rankRoles -[reads]-> careerbot.data.tItems.projectsKind 'approved projects (dates, linked role, summary, stack) with their approved facts, compact, for For you and the stretch' {
+    #approvedOnly
+  }
+  careerbot.platform.tryRubric -[reads]-> careerbot.data.tItems.projectsKind 'approved projects with their approved facts, as Rank roles reads them' {
+    #approvedOnly
+  }
+  careerbot.ui.resumeScreen -[reads]-> careerbot.core.profileApi 'shown on downloads'
+  careerbot.core.profileApi -[writes]-> careerbot.data.tProfiles
+
+  // ---- Company discovery (M4) ----
+  apolloApi = external 'Apollo' {
+    description 'Company search and enrichment, billed in credits to the person’s own Apollo plan.'
+  }
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.apolloKey
+  careerbot.ui.companiesScreen -[calls]-> careerbot.platform.discovery
+  careerbot.platform.discovery -[reads]-> careerbot.data.tItems.directions 'approved directions with approved criteria; approved limits' {
+    #approvedOnly
+  }
+  careerbot.platform.discovery -[writes]-> careerbot.data.tCompanies
+  careerbot.platform.discovery -[writes]-> careerbot.data.tDiscovery
+  careerbot.platform.discovery -[uses]-> careerbot.platform.metering 'Apollo credit guard'
+  careerbot.platform.metering -[calls]-> apolloApi 'credit balance, then search, people search or email reveal'
+  careerbot.platform.apolloKey -[calls]-> apolloApi 'credit usage stats'
+
+  careerbot.platform.discovery -[calls]-> careerbot.platform.screening 'after each run'
+  careerbot.platform.screening -[reads]-> careerbot.data.tCompanies 'name and website only'
+  careerbot.platform.screening -[writes]-> careerbot.data.tCompanies 'employer or not'
+  careerbot.platform.screening -[uses]-> careerbot.platform.metering 'AI call'
+
+  companyWebsites = external 'Company websites and job boards' {
+    description 'Public pages and Greenhouse/Lever/Ashby posting APIs. Free.'
+  }
+  careerbot.platform.discovery -[calls]-> careerbot.platform.enrich 'after each run'
+  careerbot.ui.companiesScreen -[calls]-> careerbot.platform.enrich 'Fill in details'
+  careerbot.platform.enrich -[calls]-> companyWebsites 'public hostnames only; every redirect re-checked'
+  jinaReader = external 'Jina Reader' {
+    description 'r.jina.ai: loads a public page in a real browser and returns its text and links. Used only when a site turns away direct requests.'
+  }
+  careerbot.platform.enrich -[calls]-> jinaReader 'blocked sites only; public company URL only'
+  careerbot.platform.enrich -[uses]-> careerbot.platform.braveKey 'job board search fallback'
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.braveKey
+  careerbot.platform.enrich -[reads]-> careerbot.data.tItems.directions 'approved directions (titles, positioning, criteria) and approved limits' {
+    #approvedOnly
+  }
+  careerbot.platform.enrich -[writes]-> careerbot.data.tCompanies 'details with sources'
+  careerbot.platform.enrich -[uses]-> careerbot.platform.metering 'AI call; Apollo job postings if turned on'
+
+  // ---- Finding roles ----
+  careerbot.platform.watchRoles -[uses]-> careerbot.platform.jobs 'runs as a job'
+  careerbot.platform.watchRoles -[reads]-> careerbot.data.tCompanies 'Targets and Maybe companies with their job board'
+  careerbot.platform.watchRoles -[writes]-> careerbot.data.tCompanies 'coverage: last read, roles read, board total'
+  careerbot.platform.watchRoles -[calls]-> companyWebsites 'job board listings and job detail pages; public hostnames only'
+  careerbot.platform.watchRoles -[uses]-> careerbot.platform.metering 'Apollo job postings, only while turned on'
+  careerbot.platform.watchRoles -[reads]-> careerbot.data.tItems.directions 'approved directions (titles to search Workday and Oracle; when each last changed, to mark roles ranked before it); approved Location limit; approved Eligibility limits, checked against what judged roles state (no AI) to set them apart or rank them lower; firm ones start the clearance and visa filters' {
+    #approvedOnly
+  }
+  careerbot.platform.watchRoles -[writes]-> careerbot.data.tPostings 'roles, seen and closed; what each board states about them; next step, claims and failures; directions to rank again'
+  careerbot.platform.watchRoles -[uses]-> careerbot.core.roleDetailsSchema 'board details, merging, yearly pay'
+  careerbot.platform.watchRoles -[writes]-> careerbot.data.tPostingTexts 'full descriptions'
+  careerbot.platform.watchRoles -[writes]-> careerbot.data.tRoleRanks 'each role\u2019s standing per direction and for all directions, with what the filters read, kept in step with the role'
+  careerbot.platform.watchRoles -[reads]-> careerbot.data.tRoleRanks 'a filtered page of judged roles, best score first; counts; sorted out; against a firm limit; ranked before a direction changed'
+  careerbot.platform.watchRoles -[uses]-> careerbot.core.limitSchema 'firm limit checks on judged roles: eligibility, location, pay, seniority, travel, schedule, excluded employers (eligibilityProblems; firmProblems; places.locationProblems)'
+  careerbot.core.goalsApi -[calls]-> careerbot.platform.watchRoles 'an Eligibility or Location limit added or changed: refreshRanks'
+  careerbot.core.reviewApi -[calls]-> careerbot.platform.watchRoles 'an Eligibility or Location limit approved or unapproved: refreshRanks'
+  careerbot.ai.limitRule -[calls]-> careerbot.platform.watchRoles 'Eligibility or Location filters read from wording: refreshRanks'
+  careerbot.ui.rolesScreen -[uses]-> careerbot.core.limitSchema 'what a role is against, in words'
+  careerbot.ui.roleScreen -[uses]-> careerbot.core.limitSchema 'what a role is against, in words'
+  careerbot.ui.rolesScreen -[calls]-> careerbot.platform.watchRoles 'overview, list and count with filters (Interested: rating Interested, not started), places (Location suggestions), sortedOut, against, rankAgain, setStretch (Count how big a stretch a role is)'
+  careerbot.ui.rolesScreen -[uses]-> careerbot.core.roleDetailsSchema 'where words; filter choices'
+  careerbot.ui.roleScreen -[calls]-> careerbot.platform.watchRoles 'get, rate'
+  careerbot.ui.roleScreen -[uses]-> careerbot.core.roleDetailsSchema 'detail words'
+  careerbot.ui.roleScreen -[calls]-> careerbot.ai.resume 'Tailor a resume: to this role, from one direction'
+  careerbot.ui.roleScreen -[calls]-> careerbot.core.resumeApi 'forPosting: the resumes tailored to it; title, fold and career break choices'
+  careerbot.ui.roleScreen -[reads]-> careerbot.core.profileApi 'shown on downloads'
+  careerbot.ai.resume -[reads]-> careerbot.data.tPostings 'the role tailored to: title and place'
+  careerbot.ai.resume -[reads]-> careerbot.data.tCompanies 'the company of the role tailored to'
+  careerbot.ai.resume -[reads]-> careerbot.data.tPostingTexts 'the role\u2019s description, as read'
+  careerbot.core.resumeApi -[reads]-> careerbot.data.tPostings 'the role a tailored resume came from'
+  careerbot.platform.enrich -[calls]-> careerbot.platform.watchRoles 'a company\u2019s rating changed: refreshRanks for it'
+  careerbot.platform.screening -[calls]-> careerbot.platform.watchRoles 'their place-to-work call changed: refreshRanks for it'
+  careerbot.platform.watchRoles -[reads]-> careerbot.data.tDiscovery 'how roles are sorted; whether the pass was stopped'
+  careerbot.platform.watchRoles -[writes]-> careerbot.data.tDiscovery 'how roles are sorted (setSortMethod); whether judging counts the stretch (setStretch)'
+  careerbot.platform.watchRoles -[reads]-> careerbot.data.tBudgets 'whether the AI budget is used up, to pause the pass'
+  careerbot.platform.watchRoles -[reads]-> careerbot.data.tAiSpend 'this month\u2019s AI spending, to pause the pass'
+  careerbot.platform.watchRoles -[calls]-> careerbot.platform.sortRoles 'after every description is in'
+  careerbot.platform.watchRoles -[calls]-> careerbot.platform.rankRoles 'for roles the sort passed on'
+  careerbot.platform.rankRoles -[reads]-> careerbot.data.tItems.directions 'approved directions (only approved positioning, titles, vocabulary and criteria) and approved limits (Eligibility with its fields)' {
+    #approvedOnly
+  }
+  careerbot.platform.rankRoles -[reads]-> careerbot.data.tPostings 'the roles claimed, each with the directions the sort passed it to that have no verdict yet'
+  careerbot.platform.rankRoles -[reads]-> careerbot.data.tPostingTexts 'their whole descriptions without what the company repeats'
+  careerbot.platform.rankRoles -[reads]-> careerbot.data.tCompanies 'company name and one-line summary'
+  careerbot.platform.rankRoles -[reads]-> careerbot.data.tItems.facts 'approved roles (employer, title, dates, skills) and their approved facts, compact, for the brief\u2019s For you and the stretch; under v2 their years of work from those roles\u2019 dates' {
+    #approvedOnly
+    description 'Never proposed, rejected or narrative text: For you says why the role fits and what\u2019s thin from what they approved.'
+  }
+  careerbot.platform.rankRoles -[writes]-> careerbot.data.tPostings 'fit per judged direction with level, score, reason, method, what sorted it and when the direction last changed; details read from the description; the brief'
+  careerbot.platform.rankRoles -[uses]-> careerbot.core.roleDetailsSchema 'vocabularies, validation'
+  careerbot.platform.rankRoles -[uses]-> careerbot.platform.metering 'AI call'
+  careerbot.platform.rankRoles -[reads]-> careerbot.data.tDiscovery 'the rubric: whether to count the stretch'
+  careerbot.platform.admin -[calls]-> careerbot.platform.tryRubric 'roles:compareRubric, then admin:applyRubric (setting and rankAgain)'
+  careerbot.platform.tryRubric -[reads]-> careerbot.data.tItems.directions 'approved directions and approved limits, as Rank roles reads them' {
+    #approvedOnly
+  }
+  careerbot.platform.tryRubric -[reads]-> careerbot.data.tItems.facts 'approved roles and facts, compact, and their years of work, as Rank roles reads them' {
+    #approvedOnly
+  }
+  careerbot.platform.tryRubric -[reads]-> careerbot.data.tPostings 'the sample: rated roles and their live verdicts (never written)'
+  careerbot.platform.tryRubric -[reads]-> careerbot.data.tPostingTexts 'their whole descriptions without what the company repeats'
+  careerbot.platform.tryRubric -[reads]-> careerbot.data.tCompanies 'company name and one-line summary'
+  careerbot.platform.tryRubric -[reads]-> careerbot.data.tRoleRanks 'the best per direction, and the judged roles listed to pick from at random'
+  careerbot.platform.tryRubric -[writes]-> careerbot.data.tRubricRuns 'each new verdict beside the live one'
+  careerbot.platform.tryRubric -[uses]-> careerbot.platform.metering 'AI call'
+  careerbot.platform.admin -[writes]-> careerbot.data.tDiscovery 'whether judging counts the stretch (setStretch, applyRubric)'
+  careerbot.platform.sortRoles -[reads]-> careerbot.data.tItems.directions 'approved directions: name, approved positioning, approved target and criteria titles' {
+    #approvedOnly
+  }
+  careerbot.platform.sortRoles -[reads]-> careerbot.data.tPostings 'role titles; for the backtest, the first ranking’s verdicts (never written)'
+  careerbot.platform.sortRoles -[reads]-> careerbot.data.tPostingTexts 'descriptions without the text the company repeats across its postings'
+  careerbot.platform.sortRoles -[reads]-> careerbot.data.tCompanies 'company name'
+  careerbot.platform.sortRoles -[uses]-> careerbot.platform.metering 'AI call (AI model); decisions in groups of 50 under one reservation (Jev)'
+  careerbot.platform.sortRoles -[writes]-> careerbot.data.tPostings 'the sort: directions it could be, every direction sorted against with when it last changed, method'
+  careerbot.platform.sortRoles -[writes]-> careerbot.data.tPostingTexts 'each description without what its company repeats (the raw text kept)'
+  operator -> careerbot.platform.sortRoles 'runs the backtest'
+
+  // ---- Pursue ----
+  careerbot.ui.roleScreen -[calls]-> careerbot.pursue.pursuitsApi 'start (Start, in place); forPosting: whether it was started (then its pursuit shows in the panel)'
+  careerbot.ui.pursuitScreen -[calls]-> careerbot.pursue.pursuitsApi 'get, setStatus, setPath, setNextStep, setNotes'
+  careerbot.ui.pursuitScreen -[reads]-> careerbot.core.profileApi 'shown on downloads of the sent resume'
+  careerbot.pursue.pursuitsApi -[reads]-> careerbot.data.tPostings 'the role started: title, its fit per direction, link, whether still listed'
+  careerbot.pursue.pursuitsApi -[reads]-> careerbot.data.tCompanies 'the company name, kept'
+  careerbot.pursue.pursuitsApi -[reads]-> careerbot.data.tItems.directions 'approved directions: the one it is pursued for, and its name'
+  careerbot.pursue.pursuitsApi -[reads]-> careerbot.data.tResumes 'the resume tailored to its role, arranged as it shows (when sent)'
+  careerbot.pursue.pursuitsApi -[reads]-> careerbot.data.tResumeSettings 'how the resume shows, when sent'
+  careerbot.pursue.pursuitsApi -[writes]-> careerbot.data.tPursuits 'the pursuit, its status, steps, notes, sent resume and timeline'
+  careerbot.ui.pursuitsScreen -[calls]-> careerbot.pursue.pursuitsApi 'list (which Status shows first; the Pursuing and Closed rows, each opening its role); byDirection; get (/pursuits/[id] finds its role)'
+  careerbot.ui.pursuitsScreen -[calls]-> careerbot.platform.watchRoles 'overview, start, checkCompany: Coverage, with no role open'
+  careerbot.platform.watchRoles -[reads]-> careerbot.data.tPursuits 'each listed role\u2019s pursuit and status'
+  careerbot.ui.pursuitScreen -[calls]-> careerbot.pursue.pursuitsApi 'setResume, saveAnswer, removeAnswer'
+  careerbot.ui.pursuitScreen -[calls]-> careerbot.ai.resume 'Tailor a resume: to its role, from its direction'
+  careerbot.ui.pursuitScreen -[calls]-> careerbot.core.resumeApi 'forPosting: the resumes tailored to its role; their in-place choices'
+  careerbot.ui.pursuitScreen -[calls]-> careerbot.ai.letter 'Write a cover letter, Edit, forPursuit'
+  careerbot.ai.letter -[reads]-> careerbot.data.tItems.facts 'approved roles, facts (with ids to cite), projects, context, insights, skills and directions that count' {
+    #approvedOnly
+    description 'Only what counts (recordContext.countedRecord): never proposed or rejected items or narrative text. Citations of anything else are dropped.'
+  }
+  careerbot.ai.letter -[reads]-> careerbot.data.tResumes 'the resume tailored to its role, arranged as it shows (or as sent)'
+  careerbot.ai.letter -[reads]-> careerbot.data.tPursuits 'the pursuit: role, company, direction, what was sent'
+  careerbot.ai.letter -[reads]-> careerbot.data.tPostings 'the role: place'
+  careerbot.ai.letter -[reads]-> careerbot.data.tPostingTexts 'its description as the AI reads it'
+  careerbot.ai.letter -[reads]-> careerbot.data.tCompanies 'the company summary'
+  careerbot.ai.letter -[reads]-> careerbot.data.tProfiles 'their name, to sign it'
+  careerbot.ai.letter -[writes]-> careerbot.data.tLetters 'a new version'
+  careerbot.ai.letter -[writes]-> careerbot.data.tPursuits 'Cover letter written or edited, on the timeline'
+  careerbot.ai.letter -[uses]-> careerbot.platform.metering 'AI call'
+  careerbot.pursue.pursuitsApi -[reads]-> careerbot.data.tLetters 'the newest letter, kept as sent'
+  careerbot.ui.pursuitScreen -[calls]-> careerbot.ai.ask 'Ask, conversation, Keep'
+  careerbot.ai.ask -[reads]-> careerbot.data.tItems.facts 'approved roles, facts (with ids to cite), projects, context, insights, skills and directions that count' {
+    #approvedOnly
+    description 'Only what counts (recordContext.countedRecord): never proposed or rejected items or narrative text. Citations of anything else are dropped.'
+  }
+  careerbot.ai.ask -[reads]-> careerbot.data.tPursuitMessages 'the conversation so far and their latest message' {
+    #rawNarrative
+    description 'Decision: their own words in the chat are the question and its context, never a source of claims about them; something new they say goes to the record as a note, for review.'
+  }
+  careerbot.ai.ask -[reads]-> careerbot.data.tResumes 'the resume tailored to its role, arranged as it shows (or as sent)'
+  careerbot.ai.ask -[reads]-> careerbot.data.tPursuits 'the pursuit: role, company, what was sent'
+  careerbot.ai.ask -[reads]-> careerbot.data.tPostings 'the role: place'
+  careerbot.ai.ask -[reads]-> careerbot.data.tPostingTexts 'its description as the AI reads it'
+  careerbot.ai.ask -[reads]-> careerbot.data.tCompanies 'the company summary'
+  careerbot.ai.ask -[writes]-> careerbot.data.tPursuitMessages 'their message; the answer with the facts it rests on; kept'
+  careerbot.ai.ask -[writes]-> careerbot.data.tPursuits 'a kept answer, under its question, and Answer saved on the timeline'
+  careerbot.ai.ask -[writes]-> careerbot.data.tNarratives 'a message that told something new about them, as a note in their words'
+  careerbot.ai.ask -[calls]-> careerbot.ai.extract 'reads that note: proposals to review'
+  careerbot.ai.ask -[uses]-> careerbot.platform.metering 'AI call'
+  careerbot.ui.settingsScreen -[calls]-> careerbot.pursue.pursuitsApi 'reminderRules, setReminderRule'
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.discovery 'company settings: setLens'
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.enrich 'company settings: setApolloJobs, rejudge'
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.auth 'Signed in as, workspace, Sign out'
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.accounts 'People, Add a person, Reset password, Remove, Change password'
+  careerbot.ui.today -[calls]-> careerbot.platform.auth 'Sign in'
+  careerbot.ui.today -[calls]-> careerbot.platform.accounts 'self-hosted: Create your account, Sign in with a username and password, Choose a new password'
+  careerbot.ui.website -[calls]-> careerbot.platform.waitlist 'join the waitlist'
+  careerbot.ui.website -[calls]-> webAnalytics 'page views, signed out, careerbot.dev only'
+  careerbot.ui.privacyScreen -[calls]-> webAnalytics 'page views, signed out, careerbot.dev only'
+  careerbot.ui.howItWorksScreen -[calls]-> careerbot.platform.waitlist 'join the waitlist (how-it-works-closing)'
+  careerbot.ui.howItWorksScreen -[calls]-> webAnalytics 'page views, signed out, careerbot.dev only'
+  careerbot.ui.openSourceScreen -[calls]-> careerbot.platform.waitlist 'join the waitlist (open-source-closing)'
+  careerbot.ui.openSourceScreen -[calls]-> webAnalytics 'page views, signed out, careerbot.dev only'
+  careerbot.ui.questionsScreen -[calls]-> careerbot.platform.waitlist 'join the waitlist (questions-closing)'
+  careerbot.ui.questionsScreen -[calls]-> webAnalytics 'page views, signed out, careerbot.dev only'
+  careerbot.ui.docsScreen -[calls]-> webAnalytics 'page views, careerbot.dev only'
+  careerbot.ui.today -[calls]-> webAnalytics 'page views of /sign-in only, careerbot.dev only'
+  careerbot.ui.today -[calls]-> careerbot.platform.waitlist 'join the waitlist, when signed in with an account that isn’t invited'
+  careerbot.platform.waitlist -[writes]-> careerbot.data.tWaitlist
+  careerbot.platform.waitlist -[reads]-> careerbot.data.tWaitlist 'already on it; joins in the last ten minutes'
+  operator -> careerbot.platform.waitlist 'reads the list'
+  careerbot.ui.shell -[calls]-> careerbot.pursue.pursuitsApi 'list: how many pursuits have a reminder due'
+  careerbot.ui.shell -[calls]-> careerbot.core.reviewQueue 'summary: how many decisions wait'
+  careerbot.ui.shell -[calls]-> careerbot.core.activityApi 'list: Activity'
+  careerbot.ui.shell -[calls]-> careerbot.platform.auth 'Sign out'
+  careerbot.ui.shell -[calls]-> careerbot.platform.auth 'workspaces.current: whether it is the demo (the banner, and actions refused before they are sent), and the moment it is held at (the app\u2019s clock); Leave the demo'
+  careerbot.ui.demoEntry -[calls]-> careerbot.platform.auth 'Open the demo: the demo sign-in'
+  careerbot.ui.today -[calls]-> careerbot.core.reviewQueue 'summary'
+  careerbot.ui.today -[calls]-> careerbot.pursue.pursuitsApi 'list: reminders due; snooze, unsnooze, done; Getting started: start a pursuit, setPath (Choose a path, Outreach too, Apply too), Mark Applied and its undo'
+  careerbot.ui.today -[calls]-> careerbot.core.todayApi 'roles, setup, hideSetup, skipStep'
+  careerbot.ui.today -[calls]-> careerbot.platform.keys 'Getting started: the OpenRouter key'
+  careerbot.ui.today -[calls]-> careerbot.platform.apolloKey 'Getting started: the Apollo key'
+  careerbot.ui.today -[calls]-> careerbot.platform.budgetsApi 'Getting started: the AI budget, Apollo credits and automated Apollo work'
+  careerbot.ui.today -[calls]-> careerbot.pursue.driveApi 'Getting started: status, connect (back to the step)'
+  careerbot.ui.today -[calls]-> careerbot.pursue.peopleApi 'Getting started: contacts found for the first pursuit, reveal'
+  careerbot.ui.today -[calls]-> careerbot.platform.watchRoles 'rate: Interested, Not for me with its reason'
+  careerbot.ui.today -[calls]-> careerbot.core.resumeApi 'updates, rewrite, keep, discard'
+  careerbot.ui.today -[calls]-> careerbot.core.narrativesApi 'the first story: create'
+  careerbot.ui.today -[calls]-> careerbot.ai.extract 'Done, read it'
+  careerbot.ui.reviewScreen -[calls]-> careerbot.core.reviewQueue 'summary, items'
+  careerbot.ui.reviewScreen -[calls]-> careerbot.core.reviewApi 'approve, reject with reason, edit, rewrites, orphans, undo'
+  careerbot.ui.reviewScreen -[calls]-> careerbot.core.goalsApi 'directions and limits, Add to a direction and its undo'
+  careerbot.ui.reviewScreen -[calls]-> careerbot.core.directionsApi 'approve positioning and criteria'
+  careerbot.ui.reviewScreen -[calls]-> careerbot.core.questionsApi 'answer, reopen'
+  careerbot.ui.reviewScreen -[calls]-> careerbot.core.followupsApi 'answer, Not now with its reason, reopen'
+  careerbot.ui.reviewScreen -[calls]-> careerbot.ai.followups 'Suggest questions'
+  careerbot.ui.reviewScreen -[calls]-> careerbot.core.skillsApi 'edit, merge, keep both, and their undo'
+  careerbot.ui.reviewScreen -[calls]-> careerbot.core.duplicatesApi 'merge, keep both, and their undo'
+  careerbot.ui.reviewScreen -[calls]-> careerbot.core.sameWorkApi 'connect, keep separate, and their undo'
+  careerbot.ui.reviewScreen -[calls]-> careerbot.core.resumeApi 'keep, discard with its reason, reopen'
+  careerbot.ui.reviewScreen -[calls]-> careerbot.platform.enrich 'rate: Target, Maybe, Not for me with its reason'
+  careerbot.core.reviewQueue -[reads]-> careerbot.data.tItems 'everything proposed or flagged'
+  careerbot.core.reviewQueue -[reads]-> careerbot.data.tCompanies 'companies still to rate'
+  careerbot.core.reviewQueue -[reads]-> careerbot.data.tResumes 'versions waiting'
+  careerbot.core.reviewQueue -[reads]-> careerbot.data.tNarratives 'the quotes a card rests on'
+  careerbot.core.todayApi -[reads]-> careerbot.data.tRoleRanks 'strong fits ranked in the last week'
+  careerbot.core.todayApi -[reads]-> careerbot.data.tApiKeys 'Getting started: whether the OpenRouter and Apollo keys are added'
+  careerbot.core.todayApi -[reads]-> careerbot.data.tBudgets 'Getting started: the AI budget and Apollo credits'
+  careerbot.core.todayApi -[reads]-> careerbot.data.tDriveConnections 'Getting started: Google Drive connected'
+  careerbot.core.todayApi -[reads]-> careerbot.data.tPursuits 'Getting started: the first pursuit, its path, answers, when it was contacted, applied and followed up'
+  careerbot.core.todayApi -[reads]-> careerbot.data.tResumes 'Getting started: the base resume; the first pursuit\u2019s tailored resume and its requirements'
+  careerbot.core.todayApi -[reads]-> careerbot.data.tLetters 'Getting started: the first pursuit\u2019s cover letter'
+  careerbot.core.todayApi -[reads]-> careerbot.data.tContacts 'Getting started: the first pursuit\u2019s contacts and the outreach messages sent to them'
+  careerbot.core.todayApi -[writes]-> careerbot.data.tWorkspaces 'Getting started put away; steps skipped'
+  careerbot.core.activityApi -[reads]-> careerbot.data.tJobs 'recent work'
+  careerbot.ui.pursuitScreen -[calls]-> careerbot.pursue.pursuitsApi 'setInterview, done'
+  careerbot.pursue.pursuitsApi -[reads]-> careerbot.data.tReminderSettings 'which reminders are on'
+  careerbot.pursue.pursuitsApi -[reads]-> careerbot.data.tContacts 'outreach reminders: each contact in group order, when they were last written to and whether they replied'
+  careerbot.pursue.pursuitsApi -[writes]-> careerbot.data.tReminderSettings 'a reminder switched on or off'
+  careerbot.ui.pursuitScreen -[calls]-> careerbot.pursue.peopleApi 'find, reveal, setGroup, add, markReplied, unmarkReplied, list, markSent'
+  careerbot.ui.pursuitScreen -[calls]-> careerbot.ai.outreach 'Draft a message'
+  careerbot.ui.pursuitScreen -[calls]-> careerbot.platform.apolloKey 'balance: Apollo credits left'
+  careerbot.pursue.peopleApi -[uses]-> careerbot.platform.metering 'Apollo people search (free) and email reveal (1 credit)'
+  careerbot.pursue.peopleApi -[reads]-> careerbot.data.tCompanies 'the company\u2019s Apollo id or website'
+  careerbot.pursue.peopleApi -[reads]-> careerbot.data.tPursuits 'the role title, to find the likely hiring manager'
+  careerbot.pursue.peopleApi -[writes]-> careerbot.data.tContacts 'people found; emails revealed; each message sent, kept as sent'
+  careerbot.pursue.peopleApi -[writes]-> careerbot.data.tPursuits 'Found, Revealed, Message sent on the timeline'
+  careerbot.ai.outreach -[reads]-> careerbot.data.tItems.facts 'approved roles, facts (with ids to cite), projects, context, insights, skills and directions that count' {
+    #approvedOnly
+    description 'Only what counts (recordContext.countedRecord): never proposed or rejected items or narrative text. Citations of anything else are dropped.'
+  }
+  careerbot.ai.outreach -[reads]-> careerbot.data.tContacts 'who it\u2019s to: name, title, group, likely hiring manager; the others already written to there'
+  careerbot.ai.outreach -[reads]-> careerbot.data.tPursuits 'the pursuit: role, company and when it was applied to'
+  careerbot.ai.outreach -[reads]-> careerbot.data.tPostingTexts 'the role\u2019s description as the AI reads it'
+  careerbot.ai.outreach -[reads]-> careerbot.data.tCompanies 'the company summary'
+  careerbot.ai.outreach -[reads]-> careerbot.data.tProfiles 'their name, to sign it'
+  careerbot.ai.outreach -[writes]-> careerbot.data.tContacts 'the draft, with the facts it rests on and what each part says'
+  careerbot.ai.outreach -[uses]-> careerbot.platform.metering 'AI call'
+
+  // ---- Follow-ups, notes, estimates (cutover 2) ----
+  careerbot.ai.followUpWriter -[reads]-> careerbot.data.tItems.facts 'approved roles, facts (with ids to cite), projects, context, insights, skills and directions that count' {
+    #approvedOnly
+    description 'Through pursuits.grounding (recordContext.countedRecord): never proposed or rejected items or narrative text. Citations of anything else are dropped.'
+  }
+  careerbot.ai.followUpWriter -[reads]-> careerbot.data.tPursuits 'where the application stands: status, dates, timeline'
+  careerbot.ai.followUpWriter -[reads]-> careerbot.data.tFollowUps 'follow-ups already sent'
+  careerbot.ai.followUpWriter -[reads]-> careerbot.data.tContacts 'who it\u2019s to, and outreach already sent to them'
+  careerbot.ai.followUpWriter -[reads]-> careerbot.data.tPostingTexts 'the role\u2019s description as the AI reads it'
+  careerbot.ai.followUpWriter -[reads]-> careerbot.data.tProfiles 'their name, to sign it'
+  careerbot.ai.followUpWriter -[writes]-> careerbot.data.tFollowUps 'the draft or a rewrite waiting, with the facts it rests on'
+  careerbot.ai.followUpWriter -[uses]-> careerbot.platform.metering 'AI call'
+  careerbot.ui.pursuitScreen -[calls]-> careerbot.ai.followUpWriter 'Write follow-up, Rewrite, Copy and open Mail, Mark as sent, Undo'
+  careerbot.ui.today -[calls]-> careerbot.ai.followUpWriter 'the follow-up on a reminder'
+  careerbot.ui.pursuitScreen -[calls]-> careerbot.pursue.notesApi 'Notes'
+  careerbot.ui.roleScreen -[calls]-> careerbot.pursue.notesApi 'Notes on a role not started'
+  careerbot.ui.companiesScreen -[calls]-> careerbot.pursue.notesApi 'Notes'
+  careerbot.ui.companiesScreen -[calls]-> careerbot.pursue.peopleApi 'atCompany: people found there'
+  careerbot.ui.companiesScreen -[calls]-> careerbot.pursue.pursuitsApi 'Start outreach: startAtCompany'
+  careerbot.ui.pursuitsScreen -[calls]-> careerbot.pursue.estimatesApi 'costs beside Rank again, Check roles again, Tailor, Write'
+  careerbot.pursue.notesApi -[writes]-> careerbot.data.tNotes
+  careerbot.pursue.estimatesApi -[reads]-> careerbot.data.tUsage 'what the same work has cost them'
+
+  // ---- Settings and Reports (round 4) ----
+  careerbot.ui.reportsScreen -[calls]-> careerbot.pursue.reportsApi
+  careerbot.pursue.reportsApi -[reads]-> careerbot.data.tSpendTotals
+  careerbot.pursue.reportsApi -[reads]-> careerbot.data.tTallies
+  careerbot.pursue.reportsApi -[reads]-> careerbot.data.tPursuits 'search, outcomes: pursuits active in the period, their path, timeline, first reply, closed reason and sent resume'
+  careerbot.pursue.reportsApi -[reads]-> careerbot.data.tResumes 'outcomes: the tailored resume sent and the direction resume version it was written from'
+  careerbot.pursue.reportsApi -[reads]-> careerbot.data.tContacts 'outcomes: the people written to on each pursuit, their group and whether they replied'
+  careerbot.platform.metering -[writes]-> careerbot.data.tSpendTotals 'each settled call'
+  careerbot.platform.crons -[calls]-> careerbot.platform.metering 'nightly: settle uncertain calls'
+  careerbot.platform.aiSettings -[reads]-> careerbot.data.tAiDefaults
+  careerbot.platform.aiSettings -[reads]-> careerbot.data.tUsage 'last 30 days, for a model\u2019s monthly cost'
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.enrich 'Companies: lens, Check all again, job postings from Apollo'
+  careerbot.ui.today -[calls]-> careerbot.platform.aiSettings 'Getting started: the main model'
+
+  // ---- Google Drive and ratings (M6 finish) ----
+  careerbot.ui.settingsScreen -[calls]-> careerbot.pursue.driveApi 'Google Drive: connect, folder, sync, disconnect'
+  careerbot.ui.resumeScreen -[calls]-> careerbot.pursue.driveApi 'In Drive: status and link'
+  careerbot.pursue.driveApi -[calls]-> googleDrive 'create and update Docs and folders'
+  careerbot.pursue.driveApi -[reads]-> careerbot.data.tResumes 'kept versions to write'
+  careerbot.pursue.driveApi -[reads]-> careerbot.data.tPursuits 'letters, answers, and whether it was sent'
+  careerbot.pursue.driveApi -[writes]-> careerbot.data.tDriveFiles
+  careerbot.pursue.driveApi -[writes]-> careerbot.data.tDriveConnections
+  careerbot.platform.discovery -[reads]-> careerbot.data.tCompanies 'Targets as lookalike seeds; Not for me never found again (while Learn from your ratings is on)'
+  careerbot.platform.enrich -[reads]-> careerbot.data.tCompanies 'companies they turned down, and why, as preferences' {
+    #rejectedAsGuard
+  }
+  careerbot.platform.rankRoles -[reads]-> careerbot.data.tPostings 'roles they turned down, and why, as preferences, never limits' {
+    #rejectedAsGuard
+  }
+  careerbot.ui.resumeScreen -[calls]-> careerbot.ai.lineCheck 'Check against facts on a line or summary in their words; Supported or Goes beyond with the words that do'
+  careerbot.ui.resumeScreen -[calls]-> careerbot.pursue.estimatesApi 'cost beside Check against facts'
+  careerbot.ai.lineCheck -[reads]-> careerbot.data.tItems.facts 'the approved facts the line (or the resume, for the summary) rests on that still count' {
+    #approvedOnly
+  }
+  careerbot.ai.lineCheck -[reads]-> careerbot.data.tResumes 'their words and where the line sits'
+  careerbot.ai.lineCheck -[writes]-> careerbot.data.tResumes 'the answer, with the words and the facts it checked'
+  careerbot.ai.lineCheck -[reads]-> careerbot.data.tJobs 'which lines are being checked'
+  careerbot.ai.lineCheck -[uses]-> careerbot.platform.metering 'AI call'
+
+  // ---- Fact changes flow to documents (M7) ----
+  careerbot.ui.resumeScreen -[calls]-> careerbot.ai.lineUpdate 'lines resting on changed facts; Update lines, Apply, Discard, Use the new line'
+  careerbot.ui.pursuitScreen -[calls]-> careerbot.ai.lineUpdate 'the tailored resume, letter and answers: lines resting on changed facts'
+  careerbot.ui.today -[calls]-> careerbot.ai.lineUpdate 'documents in use resting on changed facts, in the Resumes group'
+  careerbot.ui.resumeScreen -[calls]-> careerbot.pursue.estimatesApi 'cost beside Update lines'
+  careerbot.ai.lineUpdate -[reads]-> careerbot.data.tItems.facts 'the approved facts the lines cite that still count: as they read now and, from their history, as the lines were written' {
+    #approvedOnly
+  }
+  // Decision: a rejected fact a line cites is read too, so the new line can drop what rested on it; never as a source.
+  careerbot.ai.lineUpdate -[reads]-> careerbot.data.tItems.facts 'a rejected fact a line cites: its words, as what to take out' {
+    #rejectedAsGuard
+  }
+  careerbot.ai.lineUpdate -[reads]-> careerbot.data.tResumes 'the resume in use: its lines, their own words, what it was written from'
+  careerbot.ai.lineUpdate -[writes]-> careerbot.data.tResumes 'the updated lines, pins, hides and own words that follow them, the facts as they read'
+  careerbot.ai.lineUpdate -[reads]-> careerbot.data.tLetters 'the newest version of a letter not sent'
+  careerbot.ai.lineUpdate -[writes]-> careerbot.data.tLetters 'a new version with the updated paragraphs'
+  careerbot.ai.lineUpdate -[reads]-> careerbot.data.tPursuits 'answers, and whether it was sent (sent: left alone)'
+  careerbot.ai.lineUpdate -[writes]-> careerbot.data.tPursuits 'updated answers; the timeline'
+  careerbot.ai.lineUpdate -[writes]-> careerbot.data.tLineUpdates 'the new lines to apply or discard'
+  careerbot.ai.lineUpdate -[reads]-> careerbot.data.tJobs 'whether a document\u2019s lines are being updated'
+  careerbot.ai.lineUpdate -[uses]-> careerbot.platform.metering 'AI call'
+}

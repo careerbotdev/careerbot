@@ -1,0 +1,53 @@
+---
+title: Apollo keys and credits
+description: Apollo finds companies and people, on your own Apollo account, within the credits you set aside.
+nav: Apollo
+sources:
+  - src/app/today/steps.ts
+  - src/app/today/GettingStarted.tsx
+  - src/app/settings/Budgets.tsx
+  - src/app/settings/Keys.tsx
+  - convex/apolloKey.ts
+  - convex/apolloPricing.ts
+  - convex/budgets.ts
+---
+
+[Apollo](https://www.apollo.io) is where CareerBot finds companies that fit your directions and the people who work there. It runs on your own Apollo account and spends only the credits you set aside.
+
+## What you do
+
+On <Screen id="today" />, open **Add an Apollo key and a budget**. It asks for three things, saved together:
+
+<Steps>
+<Step title="Paste your Apollo key">
+Under **Apollo key**, paste a master key, or one with company search, organization enrichment and credit usage. No key yet? **Create one at apollo.io** opens Apollo's API settings.
+</Step>
+<Step title="Set the credits set aside each month">
+**Credits set aside each month** starts at 400. 0 lets CareerBot use whatever is left in your Apollo plan, never more than that.
+</Step>
+<Step title="Choose how automated Apollo work runs">
+**Automated Apollo work** is finding companies, their details and job postings on its own, within those credits: **On**, **Only when I ask**, or **Paused**.
+</Step>
+<Step title="Save and continue">
+**Save and continue** checks the key with Apollo and reads the credits left in your plan. It's free.
+</Step>
+</Steps>
+
+If the key won't do, you see: "Apollo didn't accept that key, or it can't read your credit usage. Use a master key, or give the key access to credit usage stats, company search and organization enrichment."
+
+## What costs credits
+
+| What | Credits |
+| --- | --- |
+| A company search (**Find companies**), per page of up to 100 | 1 |
+| Finding people at a company | Free |
+| Revealing one person's email | 1 |
+| Job postings for a company with no public job board | 1 |
+
+Every spend is checked against both your Apollo balance and the credits you set aside. If CareerBot can't read your balance, nothing is spent.
+
+For the full picture (the three modes, what happens when credits run out, the settings) see [Apollo](/docs/integrations/apollo).
+
+## Next
+
+[Finding companies](/docs/start/companies).

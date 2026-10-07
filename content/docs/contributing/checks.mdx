@@ -1,0 +1,99 @@
+---
+title: Checks before a pull request
+description: What each check does and what it catches, and the order CI runs them in.
+nav: Checks
+sources:
+  - package.json
+  - .github/workflows/ci.yml
+  - scripts/design-check.mjs
+  - scripts/explainer-audit.mjs
+  - scripts/tour-check.mjs
+  - scripts/arch-check.mjs
+  - scripts/docs-check.ts
+  - scripts/release.ts
+  - scripts/tokens.mjs
+  - scripts/share-card.tsx
+  - tests/rendered
+  - vitest.config.mts
+  - .dependency-cruiser.cjs
+  - scripts/upgrade-check.ts
+  - compose.build.yaml
+---
+
+Run these before you open a pull request. The quick set:
+
+```bash title="Terminal"
+pnpm typecheck && pnpm lint && pnpm test && pnpm arch:check
+```
+
+CI (`.github/workflows/ci.yml`) runs on every pull request, in this order: `pnpm typecheck`, the DESIGN.md check, `pnpm lint`, `pnpm arch:check`, `pnpm test`, `pnpm storybook:build`, then `pnpm check:rendered`. On a version tag it also runs `scripts/release.ts check-consistency`, which checks that the tag is the version `package.json`, `compose.yaml` and the release notes name (see [Change files](/docs/contributing/changes)).
+
+## pnpm typecheck
+
+`next typegen && tsc --noEmit`: generates Next.js's route types, then type-checks the whole project. Catches type errors, wrong props and links to routes that don't exist.
+
+## DESIGN.md and tokens
+
+CI runs `pnpm exec designmd lint DESIGN.md`, then `pnpm tokens`, and fails if `src/app/tokens.css`, `src/app/icon.svg` or `public/brand` changed. So a token change needs `pnpm tokens` run and its output committed.
+
+## pnpm lint
+
+Six checks in a row:
+
+| Check | What it catches |
+|---|---|
+| `eslint` | The usual code problems (`eslint.config.mjs`). |
+| `scripts/design-check.mjs` (`pnpm design:check`) | Code outside the design system: icons imported from `lucide-react` instead of `@/components/icons`; a native `select`, `option`, `datalist` or date, checkbox, radio, file, range, number or colour input in a screen; a `title` attribute (a browser tooltip); `confirm`, `alert` or `prompt`; hex colours; radii other than `rounded-none`, `rounded-sm` and `rounded-xs`; dark-only colour names; type sizes or line heights off the scale. |
+| `scripts/explainer-audit.mjs` | An action without its explainer: every `Button`, `CostAction`, menu item, row action, bulk action and review action needs `detail` (what it does) and `note` (what it costs, whether it can be undone), directly or through a `Tooltip`. An icon-only button needs a name. Menu triggers, choices and controls that only close or step back are exempt. `--list` prints every action with its words. |
+| `scripts/tour-check.mjs` | A guided tour pointing at nothing: every step's `target` in `src/app/tours/` must match a `data-tour` (or a part's `tour`) in a screen, and every tour must be started by some screen. |
+| `scripts/docs-check.ts` | Docs that drifted from the code (see [Writing docs](/docs/contributing/writing-docs#the-docs-check)). |
+| `scripts/release.ts check` (`pnpm changes:check`) | A releasable change with no change file, or one whose bump or self-hosting steps don't fit it (see [Change files](/docs/contributing/changes)). |
+
+## pnpm test
+
+`vitest run` over `convex/**/*.test.ts` and `src/**/*.test.ts`, in the edge runtime. Backend tests use `convex-test`, an in-memory Convex. Catches broken behaviour in functions and shared modules.
+
+## pnpm arch:check
+
+Three steps:
+
+1. `depcruise src convex` with `.dependency-cruiser.cjs`: the import rules (screens and parts import only Convex's generated API and the allowed shared modules, nothing pulls server code into the browser, no cycles).
+2. `likec4 validate docs/architecture`: the system map is a valid model.
+3. `scripts/arch-check.mjs`: every Convex function and table is in the map and the map names none that are gone. Functions are found with the TypeScript checker by their type, not by searching text; an export whose type can't be resolved fails the check.
+
+## pnpm storybook:build and pnpm check:rendered
+
+```bash title="Terminal"
+pnpm storybook:build && pnpm check:rendered
+```
+
+`storybook:build` builds Storybook to `storybook-static/`, which also catches a story that fails to build. `check:rendered` serves that build and runs the Playwright checks in `tests/rendered/` with Chromium (`pnpm exec playwright install chromium` the first time). The critical screens, the website's pages and parts, and Talk are opened at 320, 390, 800, 1280 and 1440 wide, in light and dark. They fail when:
+
+- a screen throws,
+- a visible control reaches past the screen's edge, or the page or a pane scrolls sideways,
+- the key action can't be reached with Tab, or doesn't work,
+- a website mock-up errors, overflows a phone's width, or with reduced motion doesn't show exactly its final frame.
+
+## pnpm build
+
+Draws the share image (`pnpm share:card`, written to `src/app/opengraph-image.png` and `twitter-image.png`), then runs `next build`. Catches anything that only fails in a production build, such as a server/client boundary mistake. Not part of CI's checks; run it when you change the build, routing or `next.config.ts`.
+
+## pnpm cf:build
+
+`opennextjs-cloudflare build`: the Cloudflare Workers build that careerbot.dev deploys (it runs `pnpm build` itself). Run it when you touch something that could behave differently on Workers, such as Node-only APIs in server code.
+
+## pnpm upgrade:check
+
+Proves a self-hosted copy of the previous release updates to this checkout without losing anything, in Docker on your
+own machine (`scripts/upgrade-check.ts`). It starts the previous release (the newest `v*` tag before this commit, or
+`--from <tag>`) with self-hosted Convex, makes the owner account with the setup code, adds Renata Alvarez's profile,
+goals and stories from `testdata/personas` and a second person, and exports every table. Then it runs this checkout's
+`compose.yaml` on the same data, building its two release images first when they aren't on the machine, and fails
+unless the setup step deploys the new functions onto the old data, the web app comes up, the old session still
+refreshes, both people sign in with their passwords, a wrong password is refused, everything seeded reads back the
+same and every exported row is still there. It uses ports 3390 to 3393 (`UPGRADE_CHECK_PORT` moves them) and removes
+its containers, data and the images it built at the end (`--keep` leaves them). CI runs it on every version tag, before
+careerbot.dev and the release images go out, and by hand from Actions.
+
+To run the copy from your checkout's code by hand instead of the release images:
+`docker compose -f compose.yaml -f compose.build.yaml up -d --build`.

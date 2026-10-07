@@ -1,0 +1,155 @@
+---
+title: Run it on Dokploy
+description: Deploy CareerBot's compose file on Dokploy, with self-hosted Convex beside it, click by click.
+nav: Dokploy
+sources:
+  - compose.yaml
+  - .env.example
+  - docker/convex-setup.sh
+---
+
+[Dokploy](https://dokploy.com) deploys a Docker Compose project from a Git repository and routes domains to it through
+Traefik. These steps were tested on Dokploy v0.30.8, deploying `compose.yaml` with self-hosted Convex in the same
+compose, end to end: setup code, owner account, sign out, sign in.
+
+<Callout title="What was tested">
+The test used sslip.io hostnames over plain HTTP on a test machine. The normal case is HTTPS on a real domain (turn on
+HTTPS for each domain); that, and Convex's cloud instead of self-hosted Convex, were not part of the test. Below,
+`example.com` stands for your domain. In the test, Dokploy built CareerBot's images on the server; `compose.yaml` now
+downloads the release images instead, which hasn't been tried on Dokploy yet.
+</Callout>
+
+## Before you start
+
+- A server with ports 80, 443 and 3000 free: Dokploy's installer needs them.
+- DNS records for the hostnames below, pointing at the server: `careerbot.example.com`, `convex.example.com`,
+  `convex-site.example.com`, and optionally `convex-dashboard.example.com`. See [DNS](/docs/self-hosting/vps#dns).
+
+## Install Dokploy
+
+```bash title="Terminal (on the server)"
+curl -sSL https://dokploy.com/install.sh | sudo sh
+```
+
+Open `http://<server address>:3000`. Register: First Name, Last Name, Email, Password, Confirm Password.
+
+Welcome wizard: Get started > Create project (Name: `CareerBot`) > "Ship something" > SKIP ALL > Skip anyway.
+
+## Deploy CareerBot
+
+<Steps>
+<Step title="Create the compose service">
+
+Projects > CareerBot > production > Create Service > Compose. Name: `CareerBot` (the App Name fills in by itself).
+Compose Type: Docker Compose. Create, then open it.
+
+</Step>
+<Step title="Point it at the repository">
+
+General > Provider. The GitHub tab needs a GitHub App set up in Dokploy's Settings; for the public repository, use the
+Git tab:
+
+| Field | Value |
+| --- | --- |
+| Repository URL | `https://github.com/careerbotdev/careerbot.git` |
+| Branch | `master` |
+| Compose Path | `./compose.yaml` (change it from `./docker-compose.yml`) |
+
+Save. Dokploy builds nothing: `compose.yaml` names CareerBot's release images, which it downloads.
+
+</Step>
+<Step title="Set the environment">
+
+Environment: click the eye to show the editor, paste these lines, Save.
+
+```bash title="Environment"
+COMPOSE_PROFILES=self-hosted
+SITE_URL=https://careerbot.example.com
+NEXT_PUBLIC_CONVEX_URL=https://convex.example.com
+CONVEX_SITE_ORIGIN=https://convex-site.example.com
+CONVEX_SELF_HOSTED_URL=http://convex-backend:3210
+WEB_PORT=3001
+```
+
+Dokploy writes them to a `.env` next to `compose.yaml` (Create Environment File is on). Add any other settings from
+[Configuration](/docs/self-hosting/configuration) here too, such as Google and GitHub sign-in keys.
+
+`WEB_PORT` is needed because Dokploy's own dashboard holds port 3000. Without it the first deploy failed with
+`Bind for 0.0.0.0:3000 failed: port is already allocated`. Traefik still sends traffic to the container's port 3000.
+
+</Step>
+<Step title="Add the domains">
+
+Domains > Add Domain. It says "Services not found" until you click the refresh button next to Service Name, which reads
+the services from the repository. Then, for each row, pick the Service, enter the Host, set the Container Port, and turn
+on HTTPS for a real domain:
+
+| Service | Host | Container Port |
+| --- | --- | --- |
+| `web` | `careerbot.example.com` | 3000 |
+| `convex-backend` | `convex.example.com` | 3210 |
+| `convex-backend` | `convex-site.example.com` | 3211 |
+| `convex-dashboard` (optional) | `convex-dashboard.example.com` | 6791 |
+
+Create. Dokploy adds Traefik labels and puts these services on both `dokploy-network` and the compose project's own
+network, so `convex-setup` still reaches `convex-backend`. Isolated Deployments isn't needed.
+
+</Step>
+<Step title="Deploy">
+
+General > Deploy > Confirm. Dokploy downloads the images and starts them. Progress shows under Deployments. On the
+server, the log is under `/etc/dokploy/logs/`.
+
+</Step>
+<Step title="Find the setup code">
+
+Logs > Select a container: the one ending in `-convex-setup-1` > type `Setup code` in Search logs.
+
+</Step>
+<Step title="Create the owner account">
+
+Open `https://careerbot.example.com` > **Create your account**: the setup code, a username, and a password twice. You
+land on <Screen id="today" />. Signing out (account menu, bottom left > **Sign out**) and in again worked in the test.
+
+</Step>
+</Steps>
+
+Deploying again prints a new setup code while there's no owner account yet, and the earlier one is refused. Tested: an
+older code got "That setup code doesn’t work. Check it in the install’s output, or make a new one.", and the newest one
+made the owner.
+
+## Commands on the server
+
+`new-setup-code` and `reset-password` run in the folder where Dokploy keeps the cloned code. On the server, as root:
+
+```bash title="Terminal (on the server)"
+cd /etc/dokploy/compose/<app name>/code
+docker compose run --rm convex-setup new-setup-code
+docker compose run --rm convex-setup reset-password <username>
+```
+
+`<app name>` is the service's App Name in Dokploy. The `.env` there carries `COMPOSE_PROJECT_NAME`, so the command finds
+the running project (tested).
+
+## Firewall
+
+`compose.yaml` publishes `WEB_PORT` (3001 here), 3210, 3211 and 6791 on the server's loopback address only
+(`BIND_ADDRESS`, default `127.0.0.1`), so they aren't reachable from the internet; Traefik reaches the containers over
+Docker's network. Keep it that way: [Firewall](/docs/self-hosting/vps#firewall).
+
+## Snags seen in the test
+
+From the test machine (an emulated amd64 machine on a Mac), not expected on a VPS:
+
+- Docker doesn't start after the installer restarted it: the old `dockerd` process was still running. Stop it, delete
+  `/var/run/docker.pid`, then `systemctl start docker`.
+- The installer sits at "overall progress: 0 out of 1 tasks", or every container fails with "unable to apply cgroup
+  configuration … Failed to determine whether process is a kernel thread": add
+  `"exec-opts": ["native.cgroupdriver=cgroupfs"]` to `/etc/docker/daemon.json`, restart Docker, and run the installer
+  again.
+
+## After this
+
+- Your keys: [Keys and accounts](/docs/self-hosting/keys).
+- Adding people: [Sign-in and who can join](/docs/self-hosting/sign-in).
+- Updating: [Updates, backups, export](/docs/self-hosting/updates).

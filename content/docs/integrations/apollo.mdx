@@ -1,0 +1,67 @@
+---
+title: Apollo
+description: Apollo finds companies and the people who work there, on your own Apollo account, within the credits you set aside.
+sources:
+  - src/app/settings/Keys.tsx
+  - src/app/settings/Budgets.tsx
+  - src/app/settings/Companies.tsx
+  - src/app/today/GettingStarted.tsx
+  - src/app/companies/Tools.tsx
+  - src/app/pursuits/People.tsx
+  - convex/apolloKey.ts
+  - convex/apolloPricing.ts
+  - convex/budgets.ts
+  - convex/discovery.ts
+  - convex/enrich.ts
+  - convex/people.ts
+---
+
+[Apollo](https://www.apollo.io) is a company and contact database. CareerBot uses it to find companies that fit your directions, to find people at a company you're applying to, and (if you turn it on) to get job postings for companies with no public job board. It runs on your own Apollo account, and Apollo bills you directly.
+
+## The key
+
+Add it in the Getting started step, or in Settings, **Keys**, under Apollo. It needs a master key, or one with company search, organization enrichment and credit usage. CareerBot checks the key and reads your credit balance before saving it; it needs the balance so every spend can be kept inside it.
+
+Once added, Keys shows the key by its last four characters and the credits left on your plan this cycle, with when they renew. **Replace** checks a new key before it takes the old one's place. **Remove** stops all Apollo work until you add a key again; credits already used stay spent.
+
+## What costs credits
+
+| What | When | Credits |
+| --- | --- | --- |
+| Company search | **Find companies** on <Screen id="companies" />, per search page of up to 100 | 1 |
+| Finding people at a company | **Find people at** a company, on a pursuit's People tab | Free |
+| Revealing an email | **Reveal email** beside one person | 1, once per person |
+| Job postings | For a company with no public job board, with **Job postings from Apollo** on | 1 per company |
+
+Reading a company's website and job board is free and doesn't use Apollo. **Find companies** shows each search with its credits and the total before you start.
+
+## Your monthly credit budget
+
+In Settings, **Budgets and spending**, under Apollo:
+
+- **Credits set aside each month**: the most CareerBot may use in a billing cycle. 0 lets it use whatever is left in your Apollo plan, never more than that.
+- The meter shows credits used this cycle and what's left in your plan.
+
+Every spend is checked against both your Apollo balance and the credits you set aside. If the balance can't be read, nothing is spent.
+
+## Automated or only when you ask
+
+**Automated Apollo work** decides whether Apollo is used for work that runs in the background:
+
+| Setting | What happens |
+| --- | --- |
+| **On** | Background work, such as getting job postings for companies with no public board, can spend credits on its own, within your budget. |
+| **Only when I ask** | Only what you start yourself spends credits: **Find companies**, finding people, **Reveal email**. Background work that needs Apollo says "Automated Apollo work is off." |
+| **Paused** | Nothing uses Apollo: "Apollo work is paused. Turn it on in Budgets." |
+
+## When credits run out
+
+Work that needs credits stops and says why:
+
+<Messages>
+<Message text="You've used the Apollo credits you set aside this cycle." where="Anything that spends Apollo credits">Raise **Credits set aside each month**, or wait for your Apollo plan to renew.</Message>
+<Message text="Your Apollo account doesn't have enough credits left this cycle." where="Anything that spends Apollo credits">Your Apollo plan itself is out. Add credits at Apollo, or wait for it to renew.</Message>
+<Message text="Couldn't read your Apollo credit balance, so nothing was spent." where="Anything that spends Apollo credits">Check the key in Settings, Keys; it needs access to credit usage.</Message>
+</Messages>
+
+See [Budgets and costs](/docs/ai/budgets) and [Job boards](/docs/integrations/job-boards).

@@ -1,0 +1,59 @@
+---
+title: Goals
+description: Say what you want next in your own words; CareerBot reads it into limits, which filter and rank roles, and directions, the kinds of work search looks for.
+sources:
+  - src/app/goals
+  - src/app/tours/goals.ts
+screen: goals
+---
+
+<ScreenFacts screen="goals" />
+
+Goals has three pages, under **Goals** in the sidebar: **Goals** (your goals story), **Limits** and **Directions**.
+
+## Goals: your goals story
+
+<Steps>
+<Step title="Write your goals">**Write your goals** opens the story. Say what you want next, in your own words: the work, the pay, where, and what to avoid. **Edit the story** (<Kbd>E</Kbd>) changes it; <Kbd>⌘↵</Kbd> saves and <Kbd>Esc</Kbd> cancels. Each save keeps a new version.</Step>
+<Step title="Read it">**Read my goals** reads this version for your limits and directions, at the cost shown beside it. What it proposes waits in <Screen id="review" />. Later, **Read my goals again** proposes only what's new; what you approved or rejected stays as it is.</Step>
+<Step title="See what it produced">The **Produced** tab lists the limits, directions and company goals that came from each read, what waits in Review, and what was rejected and why.</Step>
+</Steps>
+
+**Versions** lists every save, newest first. Open an earlier one to read it; **Restore as newest** brings it back.
+
+## Limits
+
+Rules that filter and rank roles. The list is grouped as **Firm**, **Preference**, **Proposed** and **Rejected**.
+
+- A **Firm** limit hides roles that fail it. A **Preference** keeps them, ranked lower.
+- The switch (**Switch off** / **Switch on**) turns a limit off without deleting it.
+- A limit shows its sentence, its **Rule** (the values it checks), **What it filters**, and **Roles it hides** or **Roles it ranks lower**, with **See them**.
+- If you change the sentence after the rule was set, it says **You changed the sentence after this rule was set**: **Update the rule** reads the rule again (uses your AI budget) or **Keep the rule**.
+- **Add a limit** adds one of your own: its kind, your sentence and its rule. It's approved as you save it. **Delete** removes a limit you added (asks first).
+- When two limits cover the same roles, the screen says **Clashes with** the other: keep one, or set **Only when** on one.
+
+**All your limits** says how many roles they hide and how many they show together.
+
+## Directions
+
+The kinds of work you're going for. Approved directions rank roles; proposed ones wait under **Proposed** with **Approve** and **Reject** on each row.
+
+A direction has tabs: **Overview** (what it includes, its fit with your record and its roles), **Criteria** (industries, company sizes, stages, keywords and seed companies search looks for), **Titles** (the **Title map**: the **Target titles** to aim at and the **Market vocabulary** to use) and **Resumes**. Its **Positioning** says how your record is told for it.
+
+- **Fill in** (or **Fill in again**) proposes the positioning, titles and criteria from your approved record. Positioning and criteria each need approving: **Approve positioning** before the direction's resume can be written, **Approve criteria** before company search runs for it.
+- **Show resume** (<Kbd>.</Kbd>) opens the direction's resume beside it. **Tailor a resume** there: paste a posting and get a resume for it.
+- **Suggest more** proposes kinds of work your approved record supports that you haven't considered. **Fill in directions missing detail** fills every approved direction that lacks it.
+- **Merge into…** folds one direction into another.
+
+## Keys
+
+<Kbd>J</Kbd> / <Kbd>K</Kbd> move through each list, <Kbd>E</Kbd> edits, <Kbd>A</Kbd> approves and <Kbd>R</Kbd> rejects a proposed item, <Kbd>⌘↵</Kbd> saves, <Kbd>Esc</Kbd> cancels, <Kbd>.</Kbd> shows or hides a direction's resume.
+
+## Related
+
+<Cards>
+<Card href="/docs/best-practices/goals" title="Writing your goals">What to say, and how.</Card>
+<Card href="/docs/how-it-works/goals-directions-limits" title="Goals, directions and limits">How they fit together.</Card>
+<Card href="/docs/ai/goals" title="Your goals">The AI steps that read them.</Card>
+<Card href="/docs/start/goals" title="Your goals, first time">The Getting started step.</Card>
+</Cards>

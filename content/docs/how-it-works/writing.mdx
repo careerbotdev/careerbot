@@ -1,0 +1,125 @@
+---
+title: Resumes, letters and outreach
+description: Everything CareerBot writes comes from your approved facts, shows what each line rests on, and follows when a fact changes.
+nav: Resumes, letters and outreach
+sources:
+  - convex/resume.ts
+  - convex/resumeDoc.ts
+  - convex/letters.ts
+  - convex/ask.ts
+  - convex/people.ts
+  - convex/followUpEmails.ts
+  - convex/lineCheck.ts
+  - convex/factChanges.ts
+  - convex/drive.ts
+  - convex/drivePaths.ts
+  - src/app/resumes
+  - src/app/pursuits
+  - src/app/goals/directions/Resume.tsx
+---
+
+Everything CareerBot writes is written from your approved record, and every line cites the approved facts it rests on.
+If a model cites anything else, the citation is dropped. Writing never adds a claim, number, tool or title your record
+doesn't have.
+
+## Three kinds of resume
+
+<Terms>
+  <Term title="Base resume">A neutral resume of your whole approved record: summary, experience, projects and skills.</Term>
+  <Term title="Direction resume">One for each approved direction, written with its approved positioning. It can't be written until the positioning is approved.</Term>
+  <Term title="Tailored resume">One for a single posting: a role from <Screen id="pursuits" /> or a posting you paste. It starts from the direction's resume; if there isn't one yet, that's written first in the same run.</Term>
+</Terms>
+
+Experience comes from your approved roles: employer, title and dates are taken from the role, never made up. A bullet
+counts only an approved fact of that same role. Approved career breaks are entries of their own, with bullets only from
+their own facts, and whether one shows is your choice. Where you've connected the same work in a project and a role, it's
+written as one line.
+
+### What a tailored resume adds
+
+A tailored resume comes with its requirements: each requirement of the posting, how strongly your record shows it
+(Strong, Some, Weak, or None when nothing in your record speaks to it) and the approved facts it rests on, summed up as,
+for example, "5 of 11 strong". For each role, it may suggest a title your facts support in the posting's own wording,
+as a suggestion you choose to use.
+
+A tailored resume is kept as written. **Tailor again** writes a new one; the earlier one stays.
+
+### Versions
+
+Every resume keeps every version. **Write again** writes a new version beside the one you have, to **Keep** or
+**Discard**. When your record has changed since, **Add what’s new** writes lines only for what you added or reworded, to
+add one by one. **Compare versions** shows two side by side, and History lists every version with **Restore**.
+
+## Lines tied to facts
+
+Click any line to see what it's built on: the approved facts behind it, with their sources. You can pin a line, hide it,
+or put it in your own words. A line in your words keeps the facts it rests on and shows Edited, with CareerBot's words a
+click away.
+
+### Check against facts
+
+**Check against facts** reads a line (or the summary) you put in your own words beside the facts it rests on, and says
+whether it says only what those facts support, marking any words that go beyond them. It runs only when you ask, with its
+estimate beside the button. The answer stays until you edit the words again, or until one of those facts changes.
+
+### When a fact changes
+
+When you edit or reject an approved fact, every line resting on it is marked on each document still in use: your base
+resume, each approved direction's current resume, and the tailored resume, cover letter and answers of any pursuit not
+yet sent. **Update lines** rewrites only those lines from the facts as they read now; a line left resting on no fact
+that counts is dropped. You see each new line first, then **Apply** puts them in place (the rest stays as it is, and
+Google Drive follows) or **Discard** keeps the old ones, still marked.
+
+## Cover letters
+
+**Write a letter** writes a cover letter for one role, in the first person, from your approved record, the resume tailored
+to that role and the posting, signed with your name. It needs a tailored resume first. Each paragraph cites approved
+facts. Every version is kept and the newest is used; editing it makes a new version. Once the application is sent, the
+letter is kept as sent.
+
+## Ask about this role
+
+**Ask about this role** opens a conversation kept with each pursuit. Paste an application question and get an answer in
+the first person to paste back, or ask anything about the role, the company, or how to present yourself. Answers rest on
+your approved record, the tailored resume and the posting, cite approved facts, and say when your record or the posting
+doesn't support something. Answers you keep go to the pursuit's Answers.
+
+When you tell it something new about yourself, your message, in your words, is sent to your record as a note. What it
+holds comes back as proposals in <Screen id="review" />; it's never used as approved before you approve it.
+
+## Outreach
+
+In a pursuit's People tab, CareerBot finds contacts at the company with free Apollo searches, in three groups: the
+hiring manager, the team and recruiting. Revealing someone's email costs 1 Apollo credit, only for the person you
+choose, and is never paid for twice.
+
+**Draft a message** writes an outreach message from you to that person, from your approved record and the role, in four
+parts: who you are, why this role, why you fit (with the facts it rests on), and one small ask that suits the person: a
+short call with a hiring manager, what the team needs from someone on it, a place in the process from a recruiter. A
+second person at the same company gets a new message, not a copy. **What it says** shows the four parts. You send it
+from your own email (**Copy and open Mail**; **Download resume** saves the tailored resume as a PDF to attach) and
+**Mark as sent**. CareerBot never sends email for you.
+
+## Follow-ups
+
+When an application has gone quiet, or after an interview, CareerBot writes a short follow-up email to the person you
+last wrote to (or else the likely hiring manager), from your approved record, the role and where the application stands.
+A rewrite waits beside the draft until you keep it. You send it yourself and mark it sent; it goes on the pursuit's
+timeline, and the reminder starts over.
+
+## Google Drive copies
+
+With Google Drive connected (in <Screen id="settings" />, under **Google Drive**), CareerBot keeps a Google Doc of each
+resume, cover letter and set of answers in a CareerBot folder in your Drive:
+
+```
+CareerBot/
+  Base resume
+  Directions/<Direction>/Resume
+  Tailored/<Company>/<Role>/Resume, Cover letter, Answers
+```
+
+A Doc is updated in place, so its link stays the same and Drive keeps earlier versions in its own history. Renaming a
+direction or company renames its folder. A tailored file is frozen once its pursuit moves past Preparing (Applied,
+Interviewing, Offer or Closed), so it stays as sent. CareerBot can see only the files it makes and the folder you choose.
+Disconnecting stops syncing; your files stay in Drive.

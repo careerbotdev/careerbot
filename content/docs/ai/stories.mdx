@@ -1,0 +1,85 @@
+---
+title: Reading your stories
+description: How CareerBot turns the stories you write into roles, facts and context you can approve.
+nav: Reading your stories
+sources:
+  - docs/architecture/model.c4
+  - convex/extract.ts
+  - convex/conflicts.ts
+  - convex/followups.ts
+  - src/app/record/story/StoryItem.tsx
+  - src/app/review/Review.tsx
+  - src/app/review/decisions.ts
+  - src/app/record/facts/actions.ts
+---
+
+Your record starts from your own words. You write a story about one job or project, and CareerBot reads it for roles,
+facts and context. Everything it finds comes back as a proposal you approve, edit or reject. Telling a story well takes
+time: 20 minutes or more for one job is normal. See [How to tell your story](/docs/best-practices/your-story).
+
+## The steps
+
+<AiStage stage="stories" />
+
+## Reading a story
+
+<AiStep id="extract" /> runs when you choose **Read** on a story in <Screen id="record" /> (or **Done, read it** on your
+first story in <Screen id="today" />). It reads that one story against your approved record and proposes roles, facts
+and context. Each fact carries the words it came from. What it proposes waits in <Screen id="review" />.
+
+<Shot id="story-read" alt="The Proposals tab of a story after it was read: 4 proposals from version 3, grouped as New facts, Roles and Context, each with its status and Built on." />
+
+It takes facts only from the story being read. Your other stories are there to help it understand, not as sources, and
+a fact whose quoted words can't be found in this story is flagged for you to look at. It is told never to invent a
+customer, number, result or skill.
+
+A role's title is the official one only when your story says it. When it doesn't, the role keeps what you call the
+job as another title, and resumes use that until you give the official title; the role and its card in Review say so.
+Time away from paid work (caring for someone, a move, study) is proposed as a career break, never as a job at an
+employer named after what you did; side projects from that time are named on the break, and their facts sit on it.
+A number you only guessed at ("I think it was about an hour") stays an estimate in the fact, and in every resume and
+letter written from it.
+
+A fact you already have in the same words, in the same role or project, isn't proposed twice: the existing fact gains
+this story as another source. Facts waiting in Review and facts you rejected are passed so it doesn't repeat them.
+
+<StoryToFact
+  story="At Brightwater the demand forecast lived in a 40-tab spreadsheet nobody trusted. I rebuilt it as a Python model, and now the demand team reruns it every Monday."
+  fact="Replaced a 40-tab spreadsheet forecast with a Python model the demand team reruns every Monday."
+/>
+
+## Reading the changes
+
+When you change a story that was read before and choose **Read** again, <AiStep id="revision" /> reads only what
+changed since the version it last read. It may propose new facts, suggest updates to facts the change affects, and flag
+facts the story no longer says. It touches only facts this story is a source of, and an approved fact changes only when
+you accept the update.
+
+To read a whole story again against your record as it is now, use **Read again**. Tick **Including what I rejected** to
+look past what you rejected from that story, for that read only.
+
+## Rewriting a fact
+
+<AiStep id="rework" /> runs when you choose **Add context or rewrite** on a fact, or **Ask for a rewrite** in Review.
+You say what to change or add; your note is the final word. It reads the fact, its history, its role's approved context
+and the story it came from, and suggests new wording. The suggestion waits beside the fact until you use it. Details
+from your note that don't fit the wording are kept as context on the fact.
+
+## Follow-up questions
+
+<AiStep id="followups" /> runs only when you choose **Suggest questions** in Review. It reads your approved record and
+asks a few short questions where an answer would sharpen it: a missing number, the scope of something you led, what
+came of a project.
+
+An answer about one fact becomes a rewrite suggestion on that fact. Any other answer becomes a short note, read like a
+story, so what it holds comes back as proposals. Choose **Not now** on a question and it isn't asked again.
+
+## Checking for disagreements
+
+<AiStep id="check" /> runs when you choose **Check for disagreements** in Record, or **Look for conflicts** in Review.
+It compares every story with your approved record and the answers you've given, and asks which is right wherever they
+differ: dates, titles, employers, numbers. It never picks for you. Your record doesn't change until you answer.
+
+Two jobs in your record at different employers whose dates overlap by three months or more are asked about too, without
+AI, whenever a role is approved or changed: **Both are right** when you held both (part-time, volunteer or freelance
+work beside a job), or fix one job's end or the other's start.

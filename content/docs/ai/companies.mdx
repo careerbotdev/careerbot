@@ -1,0 +1,74 @@
+---
+title: Companies
+description: How CareerBot screens the companies a search finds, fills in their details, and when it spends Apollo credits.
+nav: Companies
+sources:
+  - docs/architecture/model.c4
+  - convex/screening.ts
+  - convex/enrich.ts
+  - convex/discovery.ts
+  - convex/budgets.ts
+  - convex/metering.ts
+  - src/app/companies/Companies.tsx
+  - src/app/companies/Company.tsx
+  - src/app/settings/Companies.tsx
+  - src/app/settings/Budgets.tsx
+---
+
+A company search in <Screen id="companies" /> looks for companies that match your approved directions' search
+criteria, through Apollo. Two AI steps then work on what it found: one sorts out the companies that don't hire for
+themselves, the other fills in what each remaining company does and how well it fits.
+
+## The steps
+
+<AiStage stage="companies" />
+
+## Screening
+
+<AiStep id="screening" /> runs after each company search. It sorts the companies found into places to work and
+everything else: recruiters and staffing agencies, job boards, associations, government, schools, media and investors.
+Clear cases are sorted by rule first; the rest by a quick AI read of each company's name and website, and nothing more.
+
+Nothing is deleted. A company it sorts out moves to Set aside, under **Not a place to work**, where you can
+**Restore** it. You can also mark a company **Not a place to work** yourself. Screening costs no Apollo credits.
+
+## Filling in
+
+<AiStep id="enrich" /> runs after each search, and when you choose **Fill in details** or **Check again**. It fills in
+places to work from free sources first, in batches, strongest-sourced companies first:
+
+- What the company builds. One AI call per batch writes a one-sentence summary from the company's own website text
+  only. A site that turns away direct requests is read through a page reader that loads public pages. With no readable
+  site, a well-known company gets a summary from the model's general knowledge, labelled as such.
+- Its job board. In order: a board link you gave; a link on the company's site or careers page; a web search result
+  that names the company, if you added a Brave Search key; a guessed board, kept only if it links back to the company's
+  site; and last, only if you turned it on, Apollo's job postings. From the board it counts open roles, remote ones,
+  and roles matching your directions' titles inside your approved Location limit.
+- Fit. Once details are in, it judges each company against each direction that has approved criteria: strong,
+  some, weak or none, with a reason, from the summary, the roles, the direction and your approved limits.
+
+With **Check companies against your goals** set to **Rank** or **Hide** in Settings, the same call also checks each
+company against your approved company goals: fits, partly, doesn't, or can't tell, with a reason. It's a signal only.
+With **Hide**, ones that don't fit move to **Doesn’t fit your goals**; **Keep anyway** keeps one. Companies you named
+yourself are never set aside. **Check all again** in Settings checks every company again against your goals and
+directions after you change them.
+
+You decide which companies matter: rate each **Target**, **Maybe** or **Not for me**. Roles are read only from Targets
+and Maybe companies. See [Roles](/docs/ai/roles).
+
+## Apollo credits
+
+Apollo bills in credits, on your own Apollo plan. AI steps on this page are paid from your AI budget; Apollo credits are
+spent only for these:
+
+- Company searches. **Find companies** shows its estimate in credits before it runs.
+- Apollo's job postings for a company with no public job board, about 1 credit per company, only when **Job postings
+  from Apollo** is on in Settings.
+- Revealing a person's email in a pursuit, 1 credit each, only when you choose to. Finding people is free.
+
+Every Apollo call reads your Apollo balance first and sets aside its credits before it runs. It is refused when your
+Apollo plan doesn't have enough left this cycle, or when it would go past **Credits set aside each month** in
+**Budgets and spending** (0 means CareerBot may use whatever is left in your plan, never more).
+
+**Automated Apollo work** decides whether Apollo work runs on its own: **On**, **Only when I ask**, or **Paused**. See
+[Budgets and costs](/docs/ai/budgets).

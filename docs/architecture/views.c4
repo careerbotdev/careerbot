@@ -1,0 +1,269 @@
+views {
+  view index {
+    title 'CareerBot'
+    include person, operator, openrouter, oauth, githubApi, careerbot, careerbot.*
+  }
+
+  // What each AI step reads and writes, and how its inputs are filtered.
+  view aiFlows {
+    title 'AI steps: inputs and outputs'
+    include careerbot.ai.*, careerbot.data.tItems.*, careerbot.data.tNarratives, careerbot.data.tComparisons, careerbot.core.limitSchema
+    style element.tag = #operatorOnly {
+      color muted
+    }
+  }
+
+  view screens {
+    title 'Screens and what they call'
+    include person, careerbot.ui.*, careerbot.core.*, careerbot.ai.*, careerbot.pursue.*, careerbot.platform.keys, careerbot.platform.aiSettings, careerbot.platform.budgetsApi
+  }
+
+  view platform {
+    title 'Jobs, metering and keys'
+    include careerbot.platform.*, careerbot.ai, openrouter, githubApi, careerbot.data.tUsage, careerbot.data.tBudgets, careerbot.data.tJobs, careerbot.data.tApiKeys, careerbot.data.tAiSettings, careerbot.data.tGithubApp, careerbot.data.tGithubInstalls, careerbot.data.tGithubLinks
+  }
+
+  view data {
+    title 'Tables'
+    include careerbot.data.*, careerbot.core.*, careerbot.ai.*, careerbot.platform.*, careerbot.pursue.*
+  }
+
+  view step_extract of careerbot.ai.extract {
+    title 'AI step: Read a narrative'
+    include careerbot.ai.extract
+    include careerbot.ai.extract -> careerbot.data.**
+    include careerbot.ai.extract -> careerbot.data.** where tag is #unreviewedInput with {
+      color red
+    }
+    include careerbot.ai.extract -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.data.** -> careerbot.ai.extract
+    include careerbot.ui.* -> careerbot.ai.extract
+    include careerbot.core.* -> careerbot.ai.extract
+  }
+
+  view step_rework of careerbot.ai.rework {
+    title 'AI step: Rewrite a fact'
+    include careerbot.ai.rework
+    include careerbot.ai.rework -> careerbot.data.**
+    include careerbot.ai.rework -> careerbot.data.** where tag is #unreviewedInput with {
+      color red
+    }
+    include careerbot.ai.rework -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.data.** -> careerbot.ai.rework
+    include careerbot.ui.* -> careerbot.ai.rework
+    include careerbot.core.* -> careerbot.ai.rework
+  }
+
+  view step_goalsRead of careerbot.ai.goalsRead {
+    title 'AI step: Read my goals'
+    include careerbot.ai.goalsRead
+    include careerbot.ai.goalsRead -> careerbot.data.**
+    include careerbot.ai.goalsRead -> careerbot.data.** where tag is #unreviewedInput with {
+      color red
+    }
+    include careerbot.ai.goalsRead -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.data.** -> careerbot.ai.goalsRead
+    include careerbot.ui.* -> careerbot.ai.goalsRead
+    include careerbot.core.* -> careerbot.ai.goalsRead
+  }
+
+  view step_limitRule of careerbot.ai.limitRule {
+    title 'AI step: Filters from wording'
+    include careerbot.ai.limitRule
+    include careerbot.ai.limitRule -> careerbot.data.**
+    include careerbot.ai.limitRule -> careerbot.data.** where tag is #unreviewedInput with {
+      color red
+    }
+    include careerbot.ai.limitRule -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.data.** -> careerbot.ai.limitRule
+    include careerbot.ui.* -> careerbot.ai.limitRule
+    include careerbot.core.* -> careerbot.ai.limitRule
+  }
+
+  view step_check of careerbot.ai.check {
+    title 'AI step: Check for disagreements'
+    include careerbot.ai.check
+    include careerbot.ai.check -> careerbot.data.**
+    include careerbot.ai.check -> careerbot.data.** where tag is #unreviewedInput with {
+      color red
+    }
+    include careerbot.ai.check -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.data.** -> careerbot.ai.check
+    include careerbot.ui.* -> careerbot.ai.check
+    include careerbot.core.* -> careerbot.ai.check
+  }
+
+  view step_duplicatesStep of careerbot.ai.duplicatesStep {
+    title 'AI step: Find duplicates'
+    include careerbot.ai.duplicatesStep
+    include careerbot.ai.duplicatesStep -> careerbot.data.**
+    include careerbot.ai.duplicatesStep -> careerbot.data.** where tag is #unreviewedInput with {
+      color red
+    }
+    include careerbot.data.** -> careerbot.ai.duplicatesStep
+    include careerbot.ui.* -> careerbot.ai.duplicatesStep
+    include careerbot.core.* -> careerbot.ai.duplicatesStep
+  }
+
+  view step_compare of careerbot.ai.compare {
+    title 'AI step: Compare models'
+    include careerbot.ai.compare
+    include careerbot.ai.compare -> careerbot.data.**
+    include careerbot.ai.compare -> careerbot.data.** where tag is #unreviewedInput with {
+      color red
+    }
+    include careerbot.ai.compare -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.data.** -> careerbot.ai.compare
+    include careerbot.ui.* -> careerbot.ai.compare
+    include careerbot.core.* -> careerbot.ai.compare
+  }
+
+  view step_readProject of careerbot.ai.readProject {
+    title 'AI step: Read a project'
+    include careerbot.ai.readProject, githubApi
+    include careerbot.ai.readProject -> careerbot.data.**
+    include careerbot.ai.readProject -> careerbot.data.** where tag is #unreviewedInput with {
+      color red
+    }
+    include careerbot.ai.readProject -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.ai.readProject -> githubApi
+    include careerbot.data.** -> careerbot.ai.readProject
+    include careerbot.ui.* -> careerbot.ai.readProject
+    include careerbot.core.* -> careerbot.ai.readProject
+  }
+  view step_insights of careerbot.ai.insights {
+    title 'AI step: Insights'
+    include careerbot.ai.insights
+    include careerbot.ai.insights -> careerbot.data.**
+    include careerbot.ai.insights -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.data.** -> careerbot.ai.insights
+    include careerbot.ui.* -> careerbot.ai.insights
+    include careerbot.core.* -> careerbot.ai.insights
+  }
+
+  view step_followups of careerbot.ai.followups {
+    title 'AI step: Follow-up questions'
+    include careerbot.ai.followups
+    include careerbot.ai.followups -> careerbot.data.**
+    include careerbot.ai.followups -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.data.** -> careerbot.ai.followups
+    include careerbot.ui.* -> careerbot.ai.followups
+    include careerbot.core.* -> careerbot.ai.followups
+  }
+
+  view step_resume of careerbot.ai.resume {
+    title 'AI step: Resume'
+    include careerbot.ai.resume
+    include careerbot.ai.resume -> careerbot.data.**
+    include careerbot.ai.resume -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.data.** -> careerbot.ai.resume
+    include careerbot.ui.* -> careerbot.ai.resume
+    include careerbot.core.* -> careerbot.ai.resume
+  }
+
+  view step_revision of careerbot.ai.revision {
+    title 'AI step: Read the changes'
+    include careerbot.ai.revision
+    include careerbot.ai.revision -> careerbot.data.**
+    include careerbot.ai.revision -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.data.** -> careerbot.ai.revision
+    include careerbot.ui.* -> careerbot.ai.revision
+    include careerbot.core.* -> careerbot.ai.revision
+  }
+
+  view step_directionsStep of careerbot.ai.directionsStep {
+    title 'AI step: Directions and search criteria'
+    include careerbot.ai.directionsStep
+    include careerbot.ai.directionsStep -> careerbot.data.**
+    include careerbot.ai.directionsStep -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.data.** -> careerbot.ai.directionsStep
+    include careerbot.ui.* -> careerbot.ai.directionsStep
+  }
+
+  view step_rankRoles of careerbot.platform.rankRoles {
+    title 'AI step: Rank roles'
+    include careerbot.platform.rankRoles, careerbot.platform.watchRoles
+    include careerbot.platform.rankRoles -> careerbot.data.**
+    include careerbot.platform.rankRoles -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.platform.watchRoles -> careerbot.platform.rankRoles
+  }
+
+  view step_sortRoles of careerbot.platform.sortRoles {
+    title 'AI step: Sort roles'
+    include careerbot.platform.sortRoles, careerbot.platform.watchRoles, operator
+    include careerbot.platform.sortRoles -> careerbot.data.**
+    include careerbot.platform.sortRoles -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.platform.watchRoles -> careerbot.platform.sortRoles
+    include operator -> careerbot.platform.sortRoles
+  }
+
+  view step_letter of careerbot.ai.letter {
+    title 'AI step: Cover letter'
+    include careerbot.ai.letter
+    include careerbot.ai.letter -> careerbot.data.**
+    include careerbot.ai.letter -> careerbot.data.** where tag is #unreviewedInput with {
+      color red
+    }
+    include careerbot.ai.letter -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.data.** -> careerbot.ai.letter
+    include careerbot.ui.* -> careerbot.ai.letter
+    include careerbot.core.* -> careerbot.ai.letter
+  }
+  view step_ask of careerbot.ai.ask {
+    title 'AI step: Ask about this role'
+    include careerbot.ai.ask
+    include careerbot.ai.ask -> careerbot.data.**
+    include careerbot.ai.ask -> careerbot.data.** where tag is #unreviewedInput with {
+      color red
+    }
+    include careerbot.ai.ask -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.data.** -> careerbot.ai.ask
+    include careerbot.ui.* -> careerbot.ai.ask
+    include careerbot.core.* -> careerbot.ai.ask
+  }
+  view step_outreach of careerbot.ai.outreach {
+    title 'AI step: Outreach'
+    include careerbot.ai.outreach
+    include careerbot.ai.outreach -> careerbot.data.**
+    include careerbot.ai.outreach -> careerbot.data.** where tag is #unreviewedInput with {
+      color red
+    }
+    include careerbot.ai.outreach -> careerbot.data.** where tag is #approvedOnly with {
+      color green
+    }
+    include careerbot.data.** -> careerbot.ai.outreach
+    include careerbot.ui.* -> careerbot.ai.outreach
+    include careerbot.core.* -> careerbot.ai.outreach
+  }}

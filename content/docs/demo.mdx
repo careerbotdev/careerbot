@@ -1,0 +1,45 @@
+---
+title: The demo
+description: Look around CareerBot with a made-up person's search, with no account. What's in it, what you can do there, and how it's made.
+nav: Demo
+sources:
+  - src/app/demo
+  - src/app/shell/DemoBanner.tsx
+  - src/app/site/words.ts
+  - convex/demo.ts
+  - convex/functions.ts
+  - convex/demoSeed.ts
+  - scripts/demo.ts
+  - testdata/demo/renata-alvarez.json
+---
+
+The demo is CareerBot itself, with a made-up person's search already in it. It needs no account and nothing to set up. Open it from **Open the demo** on careerbot.dev's home page or its Questions page, or go straight to demo.careerbot.dev.
+
+## Whose search it is
+
+Renata Alvarez is made up. She's an ICU nurse in Denver, finishing a data analytics certificate, who wants to move into clinical implementation or clinical operations at a virtual care company. Her stories were written the way people really talk, half-remembered and out of order. CareerBot wrote everything else from them with the same AI steps you'd use; her choices, what to approve, which roles to go after and who to write to, were made for her:
+
+- her record: the roles and facts she approved, a project, a question about when she became a charge nurse (two of her stories disagree), and insights waiting for her review
+- her goals: directions with their positioning and criteria, two more suggested, and her limits (pay, place, travel)
+- three roles at companies she named, ranked for each direction, one set apart because it's on-site in San Francisco
+- a base resume, a resume for each direction and one tailored to each role, and a cover letter
+- two pursuits, one on each path: an application with its resume and letter, sent, and a follow-up written for it; and, at a company she writes to without applying, an outreach message to a director of clinical operations, marked sent
+- Reports, with what her search cost
+
+The companies, the roles, the people she writes to and their example.com addresses are all made up.
+
+## What you can do there
+
+Look at anything: every screen, every resume and letter, what each line is built on, and Reports. Nothing in the demo can be changed. Choose an action and it tells you "This is a demo, so nothing can be changed", with **Get notified** to hear when the hosted version opens. That holds on the server too, not just on the screen: nothing you do there is saved, so the next visitor sees the same search.
+
+Her search is shown as it stood on the day it was made: what's new, due or this month's is counted from that day, so it reads the same whenever you open it. Her roles came with it; the demo doesn't read job boards or company websites, and it holds no keys, so nothing in it calls out to OpenRouter, Apollo or anyone else.
+
+**Leave the demo** at the top signs you out and takes you back to careerbot.dev. Opening it again later works the same way.
+
+If many people open it at once, the page may say "The demo is busy. Try again in a minute."
+
+## Your privacy in the demo
+
+You don't sign up and give nothing: no name, no email. Your browser keeps the sign-in until you leave, and the server deletes it after a day. Nothing is measured inside the demo. careerbot.dev's [privacy page](https://careerbot.dev/privacy) says the same.
+
+How the demo is made and kept up to date is in [Local development](/docs/contributing#the-demo).

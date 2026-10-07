@@ -1,0 +1,144 @@
+---
+title: Companies and roles
+description: How CareerBot finds and screens companies, reads their job boards, and sorts and ranks every role for your directions.
+nav: Companies and roles
+sources:
+  - convex/discovery.ts
+  - convex/screening.ts
+  - convex/enrich.ts
+  - convex/roles.ts
+  - convex/roleRubric.ts
+  - convex/today.ts
+  - convex/crons.ts
+  - docs/architecture/model.c4
+  - src/app/companies
+  - src/app/pursuits
+  - src/app/today/Today.tsx
+---
+
+Companies come first, because roles come from companies' own job boards. CareerBot searches wide, screens and fills in
+for free, and spends Apollo credits only where they're worth it. You decide which companies to watch; their roles are
+then read, sorted and ranked for each of your directions.
+
+## Finding companies
+
+**Find companies** in <Screen id="companies" /> runs a search through Apollo, with an estimate of the credits it will
+use. It needs at least one direction with approved criteria ("Approve a direction’s search criteria first." otherwise).
+
+One search:
+
+1. Looks up the companies you listed under **Companies you’d name** (added to every search) and any new websites under
+   **Seed companies**.
+2. For each direction with approved criteria, runs four Apollo searches: its criteria (keywords and company sizes),
+   large companies (1,001 people or more), companies hiring now for its target titles, and companies like its seed
+   companies (the direction's own, or your defaults).
+3. Drops your past employers and the employers you excluded, and never searches industries you avoid. With
+   **Learn from your ratings** on, your Targets seed searches too, and companies you said **Not for me** aren't found
+   again.
+4. Screens what it found.
+
+A search never spends past your Apollo account's balance, and stops if it can't read it. Each finished part is saved, so
+a search that pauses and picks up again never pays twice. How your wanted industries shape these searches is a setting:
+see [Industries you want](/docs/how-it-works/goals-directions-limits#industries-you-want).
+
+## Screening
+
+Not everything Apollo returns hires for itself. Screening sorts found companies into places to work and the rest:
+staffing agencies, job boards, associations, government, schools, media and investors. Rules go first, then a low-cost
+AI read of the name and website. Nothing is deleted. The rest go under **Set aside**, in **Not a place to work**, and you
+can move any of them back.
+
+## Filling in
+
+Each place to work is filled in with free details, the most promising first, 40 companies at a time:
+
+- A one-sentence summary written from its own website. A site that turns away automated requests is read through a
+  reader service; with no readable site, a summary from general knowledge is written only for companies the model knows,
+  and labelled as such.
+- Its job board, found in this order: a board link you gave; a link on its website or careers page; a Brave Search result
+  (if you added a Brave key); a likely board address, kept only if the board links back to the company's site; last, only
+  if **Job postings from Apollo** is on, Apollo's postings (about 1 credit).
+- How many roles are open, how many are remote, and how many match your directions' titles, counted only inside the area
+  your Location limit allows.
+- How it fits each direction: strong, some, weak or none, with a reason, from the summary, its roles, the direction and
+  your approved limits.
+- With **Check companies against your goals** on, whether it fits your goals, with a reason
+  ([how that ranks or hides](/docs/how-it-works/goals-directions-limits#check-companies-against-your-goals)).
+
+**Fill in details** fills in companies that aren't yet. **Check again**, on one company or a selection, clears its
+details and reads it again first. **Edit website and job board** fixes a wrong site or board; a board link has to be a
+board CareerBot can read. See [Job boards](/docs/integrations/job-boards) for the ones it reads.
+
+## Rating companies
+
+Companies sit in four tabs: **Targets**, **Maybe**, **Found** and **Set aside**. You rate each one:
+
+| Rating | Key | What it does |
+|---|---|---|
+| **Target** | <Kbd>T</Kbd> | Reads its roles and ranks them first. |
+| **Maybe** | <Kbd>M</Kbd> | Reads its roles too. |
+| **Not for me** | <Kbd>R</Kbd> | Sets it aside with your reason and stops reading its roles. |
+
+Ratings are free and can be undone. A company with no rating stays in Found, and its roles aren't read. New companies to
+rate also come to <Screen id="review" /> as **Company to rate** cards.
+
+## Reading roles
+
+Roles are read from the job boards of your Targets and Maybe companies. Every morning at 9:00 UTC, each workspace with
+Targets or Maybe companies is checked for new and closed roles. **Check roles again** in <Screen id="pursuits" /> does
+the same at once.
+
+- Boards are read directly and for free. Apollo is asked for postings only for a company whose board was found that way,
+  and only while **Job postings from Apollo** is on.
+- A role listed twice at one company is one role.
+- A role gone from a complete read of its board is closed. A partial or failed read closes nothing.
+- Each company shows how much of its board was read and when. A board that couldn't be read shows
+  "Couldn’t read its board" with the date.
+- What the board itself states (pay, work setup, employment type, locations) is kept with the role and wins over what
+  the description says.
+
+Roles that name only countries outside your Location limit aren't listed.
+
+## Sorting and ranking
+
+Each new role's full description is read, without the text its company repeats on every posting.
+
+1. Sorting. The role is sorted into the approved directions it could plausibly be, leaning toward including. A role
+   sorted into none goes under **Other roles** ("Not the work of your directions") and isn't ranked. What sorts is a
+   setting: see [Sorting roles](/docs/how-it-works/goals-directions-limits#sorting-roles).
+2. Ranking. The role is read against each direction it was sorted into, with your approved record and limits. For
+   each one it gets a level (strong, some, weak or none), a score from 0 to 100 and one plain sentence of reason.
+
+Each ranked role also gets a brief: the job in two or three neutral sentences from the posting, and "For you": why it
+fits and what's thin, from your approved record only. Details the description states (pay, setup, locations, seniority,
+years asked, employment type, travel, clearance, visa) are picked out; nothing is guessed.
+
+A score isn't a prediction of being hired. A role that fails a firm limit is ranked none.
+
+### The stretch
+
+With **Count how big a stretch a role is** on (the default), the level says only how well the work fits, and the score is
+lowered for how big a stretch the role is for you: years asked beyond yours (worked out from your approved roles' dates,
+overlaps counted once, career breaks left out), seniority well above yours, core requirements your record lacks, and
+preferences it misses. The stretch is listed with the role in a few plain words. It lowers a score, and never hides a
+role.
+
+### Ranking again
+
+Nothing is ranked again by itself. When you change a direction after its roles were ranked, the list says so;
+**Rank again** ranks every open role for what your directions say now, with its cost shown first.
+
+## The list
+
+<Screen id="pursuits" /> lists ranked roles for one direction or all of them (each role at its best direction), best
+score first, then newest. Roles against a preference come after the rest. Under the list:
+
+- **Against your limits**: roles set apart for a firm limit they state they fail.
+- **Other roles**: roles not the work of any of your directions.
+
+You mark a role **Interested** or **Not for me** (with a reason). Filters narrow the list without changing the ranking.
+
+## New strong roles on Today
+
+<Screen id="today" /> shows **New strong roles**: roles ranked strong in the last week that you haven't rated or started
+yet, best score first. On a busy day it shows the best three, with the rest a click away.

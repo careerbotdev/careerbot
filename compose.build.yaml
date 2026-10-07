@@ -1,0 +1,15 @@
+# Builds the web app and the setup step from this checkout instead of pulling CareerBot's release images, for working
+# on CareerBot itself:
+#
+#   docker compose -f compose.yaml -f compose.build.yaml up -d --build
+#
+# The images built are named after the compose project (the folder's name, or -p), not after the release images, so a
+# build never stands in for a release on the same Docker host, and two checkouts don't overwrite each other's images.
+# Needs Compose v2.24 or later (`!reset`).
+services:
+  web:
+    image: !reset null
+    build: { context: ., target: web }
+  convex-setup:
+    image: !reset null
+    build: { context: ., target: convex-setup }

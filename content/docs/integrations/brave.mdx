@@ -1,0 +1,29 @@
+---
+title: Brave Search
+description: An optional Brave Search key lets CareerBot find a company's job board when its website doesn't link one.
+nav: Brave
+sources:
+  - src/app/settings/Keys.tsx
+  - convex/braveKey.ts
+  - convex/enrich.ts
+---
+
+Many companies don't link their job board from their website, or embed it in a way CareerBot can't follow. With a [Brave Search](https://brave.com/search/api/) key, CareerBot searches the web for the company's careers page and reads the board it finds there. It's optional: without a key, those companies may show **No board found**.
+
+## What it's used for
+
+Only this: when a company's own site doesn't link a job board CareerBot can read, it searches Brave for the company's name with "careers jobs" and its website. A board link counts only from a result that names the company or its website, so another company's board isn't picked up. A board found this way is treated like one linked from the company's site.
+
+Nothing else goes to Brave: no part of your record, stories or goals.
+
+## Add the key
+
+In Settings, **Keys**, under Brave Search, choose **Add key**, paste your key and choose **Save key**. CareerBot checks it with Brave first. If Brave refuses it, you see "Brave didn't accept that key."
+
+**Replace** swaps in a new key; the old one keeps working until the new one is checked. **Remove** stops job boards being looked up by search until you add a key again.
+
+## What it costs
+
+Brave bills the key's owner directly, for each search. CareerBot runs one search per company whose board it couldn't find otherwise, when it fills in that company's details or you choose **Check again**. It isn't counted in your AI budget or your Apollo credits.
+
+See [Job boards](/docs/integrations/job-boards).

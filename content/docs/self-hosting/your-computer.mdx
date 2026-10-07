@@ -1,0 +1,122 @@
+---
+title: On your own computer
+description: Run CareerBot with Docker Desktop or OrbStack on your own computer, at localhost addresses.
+nav: Your own computer
+sources:
+  - compose.yaml
+  - .env.example
+  - docker/web-start.sh
+---
+
+A copy on your own computer is just for you: nothing to pay for hosting, and with self-hosted Convex your data never
+leaves the machine (apart from what the AI and the services you add keys for are sent). It runs while the computer and
+Docker are on.
+
+## What you need
+
+- Docker with Compose v2.20 or later: [OrbStack](https://orbstack.dev) or Docker Desktop on a Mac, Docker Desktop on
+  Windows, Docker Engine on Linux. Tested with OrbStack on an Apple silicon Mac. CareerBot's images come for both Apple
+  silicon and Intel or AMD machines (arm64 and amd64).
+- Git.
+- About 2.5 GB of disk for the images (the web app, the setup step, the Convex backend and dashboard), plus your data.
+
+## Install
+
+<Steps>
+<Step title="Get the code">
+
+```bash title="Terminal"
+git clone https://github.com/careerbotdev/careerbot.git
+cd careerbot
+cp .env.example .env
+```
+
+</Step>
+<Step title="Keep the defaults">
+
+`.env.example` is set up for this computer with self-hosted Convex. Leave it as it is:
+
+```bash title=".env"
+SITE_URL=http://localhost:3000
+COMPOSE_PROFILES=self-hosted
+NEXT_PUBLIC_CONVEX_URL=http://localhost:3210
+CONVEX_SITE_ORIGIN=http://localhost:3211
+CONVEX_SELF_HOSTED_URL=http://convex-backend:3210
+```
+
+For Convex's cloud instead, see [Run it with Docker](/docs/self-hosting/docker#install).
+
+</Step>
+<Step title="Start it">
+
+```bash title="Terminal"
+docker compose up -d
+```
+
+</Step>
+<Step title="Create your account">
+
+```bash title="Terminal"
+docker compose logs convex-setup
+```
+
+Copy the setup code, open `http://localhost:3000`, and use **Create your account**.
+
+</Step>
+</Steps>
+
+## The addresses
+
+| Address | What |
+| --- | --- |
+| `http://localhost:3000` | CareerBot |
+| `http://localhost:3210` | Convex's API (the browser talks to it) |
+| `http://localhost:3211` | Convex's HTTP actions: Google and GitHub sign-in callbacks, Google Drive |
+| `http://localhost:6791` | Convex's dashboard; sign in with the key from `docker compose exec convex-backend ./generate_admin_key.sh` |
+
+## When a port is taken
+
+Each port has a setting in `.env`. Uncomment the one you change, and change the address that uses it to match:
+
+| Setting | Default | Change with it |
+| --- | --- | --- |
+| `WEB_PORT` | 3000 | `SITE_URL=http://localhost:<WEB_PORT>` |
+| `CONVEX_PORT` | 3210 | `NEXT_PUBLIC_CONVEX_URL=http://localhost:<CONVEX_PORT>` |
+| `CONVEX_SITE_PORT` | 3211 | `CONVEX_SITE_ORIGIN=http://localhost:<CONVEX_SITE_PORT>` |
+| `CONVEX_DASHBOARD_PORT` | 6791 | Nothing |
+
+For example, CareerBot on port 3300:
+
+```bash title=".env"
+SITE_URL=http://localhost:3300
+WEB_PORT=3300
+```
+
+Then `docker compose up -d` again.
+
+## Two copies on one computer
+
+Compose names a copy after its folder (or `-p <name>`), and its containers and data volume after it too, so two clones
+in two folders keep their data apart. Give the second one different ports, as above, for all four settings (and the
+addresses that use them to match).
+
+## Stopping and starting
+
+```bash title="Terminal"
+docker compose stop      # stop; everything stays
+docker compose up -d     # start again (the setup step runs again, quickly)
+docker compose down      # remove the containers; the convex-data volume and your data stay
+```
+
+`web` and the Convex services restart on their own after the computer or Docker restarts (`restart: unless-stopped`).
+
+<Callout title="Careful" type="caution">
+`docker compose down -v` deletes the `convex-data` volume, and your data with it.
+</Callout>
+
+## Reaching it from your phone or elsewhere
+
+`localhost` only works on this computer: compose publishes its ports on this computer's loopback address only
+(`BIND_ADDRESS`, default `127.0.0.1`). To open your copy from elsewhere, put it on a domain with HTTPS: a tunnel (a
+Cloudflare Tunnel to `WEB_PORT` was tested, with two more hostnames to 3210 and 3211 for self-hosted Convex) or a
+server. Then `SITE_URL`, `NEXT_PUBLIC_CONVEX_URL` and `CONVEX_SITE_ORIGIN` become those https addresses.

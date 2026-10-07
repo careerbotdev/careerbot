@@ -1,0 +1,18 @@
+{
+  "title": "Run your own copy",
+  "pages": [
+    "index",
+    "docker",
+    "coolify",
+    "dokploy",
+    "vps",
+    "your-computer",
+    "cloudflare",
+    "convex",
+    "keys",
+    "sign-in",
+    "configuration",
+    "updates",
+    "check-it-works"
+  ]
+}

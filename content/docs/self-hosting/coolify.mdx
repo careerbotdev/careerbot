@@ -1,0 +1,172 @@
+---
+title: Run it on Coolify
+description: Deploy CareerBot's compose file on Coolify, with self-hosted Convex beside it, click by click.
+nav: Coolify
+sources:
+  - compose.yaml
+  - .env.example
+  - docker/convex-setup.sh
+---
+
+[Coolify](https://coolify.io) deploys a Docker Compose project from a Git repository, gives each service a domain and
+handles HTTPS. These steps were tested on Coolify v4.3.23, deploying `compose.yaml` with self-hosted Convex in the same
+compose, end to end: setup code, owner account, sign out, sign in.
+
+<Callout title="What was tested">
+The test used sslip.io hostnames over plain HTTP on a test machine. The normal case is HTTPS on a real domain, which
+Coolify sets up for you; that, and Convex's cloud instead of self-hosted Convex, were not part of the test. Below,
+`example.com` stands for your domain. In the test, Coolify built CareerBot's images on the server; `compose.yaml` now
+downloads the release images instead, which hasn't been tried on Coolify yet.
+</Callout>
+
+## Before you start
+
+- A server with Coolify installed, or one you're about to install it on. A VPS with Coolify ready to install skips the
+  next section: [A VPS with Coolify](/docs/self-hosting/vps).
+- DNS records for the hostnames below, pointing at the server: `careerbot.example.com`, `convex.example.com`,
+  `convex-site.example.com`, and optionally `convex-dashboard.example.com`.
+
+## Install Coolify
+
+```bash title="Terminal (on the server)"
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | sudo bash
+```
+
+Open `http://<server address>:8000`. Register the root account: Name, Email, and Password twice (Coolify's own rule:
+upper and lower case, a number and a symbol).
+
+Onboarding: Continue > This machine > Create "My First Project". In the test, its last button, Go to dashboard, failed
+with a 500 error ("Attempt to read property name on null"). Skip setup reached the dashboard, with the server and the
+project already made.
+
+## Deploy CareerBot
+
+<Steps>
+<Step title="Add the repository">
+
+Projects > My first project > production > Add Resource > Public Git Repository. Repository URL:
+
+```text title="Repository URL"
+https://github.com/careerbotdev/careerbot.git
+```
+
+Check Repository.
+
+</Step>
+<Step title="Build configuration">
+
+| Field | Value |
+| --- | --- |
+| Branch | `master` |
+| Build pack | Docker Compose (change it from Railpack) |
+| Base directory | `/` |
+| Compose file | `/compose.yaml` (change it from `/docker-compose.yaml`) |
+
+Continue. Coolify builds nothing: `compose.yaml` names CareerBot's release images, which it downloads.
+
+</Step>
+<Step title="Load the compose file">
+
+On the resource page, General > Load Compose. Until you do, the compose box is empty.
+
+</Step>
+<Step title="Add the domains">
+
+Domains > Add Domain, one row per hostname:
+
+| Service | Protocol | Domain | Port |
+| --- | --- | --- | --- |
+| `web` | https | `careerbot.example.com` | 3000 |
+| `convex-backend` | https | `convex.example.com` | 3210 |
+| `convex-backend` | https | `convex-site.example.com` | 3211 |
+| `convex-dashboard` (optional) | https | `convex-dashboard.example.com` | 6791 |
+
+The port is the container's port. Server > Wildcard domain isn't needed.
+
+</Step>
+<Step title="Set the environment">
+
+Environment Variables > Developer View. Set these, then Save changes:
+
+```bash title="Environment Variables"
+COMPOSE_PROFILES=self-hosted
+SITE_URL=https://careerbot.example.com
+NEXT_PUBLIC_CONVEX_URL=https://convex.example.com
+CONVEX_SITE_ORIGIN=https://convex-site.example.com
+CONVEX_SELF_HOSTED_URL=http://convex-backend:3210
+```
+
+Coolify lists every variable in `compose.yaml`, and fills `NEXT_PUBLIC_CONVEX_URL` with the compose file's error text
+(`Set NEXT_PUBLIC_CONVEX_URL in .env`) as its value. Replace it. Leave the others empty unless you need them
+([Configuration](/docs/self-hosting/configuration)); Google and GitHub sign-in keys go here too.
+
+Coolify honours `COMPOSE_PROFILES`: with `self-hosted`, it runs the Convex backend, dashboard and admin-key services.
+
+`CAREERBOT_VERSION` is in the list too, filled with the release `compose.yaml` names when Coolify first loads it. Coolify
+keeps that value when it loads a newer `compose.yaml`, so updating means changing it:
+[Updates, backups, export](/docs/self-hosting/updates#updating).
+
+</Step>
+<Step title="Deploy">
+
+Actions (top right) > Deploy. Coolify downloads the images and starts them.
+
+</Step>
+<Step title="Find the setup code">
+
+Runtime Logs > expand the `convex-setup` service (its name starts with `convex-setup-`) > `Setup code: XXXX-XXXX`.
+It is not in the Deployment Logs.
+
+</Step>
+<Step title="Create the owner account">
+
+Open `https://careerbot.example.com` > **Create your account**: the setup code, a username, and a password twice. You
+land on <Screen id="today" />. To check, sign out from the account menu (bottom left, your username) > **Sign out**,
+and sign in again with the username and password.
+
+</Step>
+</Steps>
+
+## Commands on the server
+
+`new-setup-code` and `reset-password` run in the folder where Coolify keeps the deployed compose project. On the
+server, as root:
+
+```bash title="Terminal (on the server)"
+cd /data/coolify/applications/<uuid>
+docker compose run --rm convex-setup new-setup-code
+docker compose run --rm convex-setup reset-password <username>
+```
+
+`<uuid>` is the part after `/application/` in the resource's address in Coolify. Tested: `new-setup-code` answered
+that the copy already has its owner account.
+
+Deploying again (Redeploy) also prints a new setup code while there's no owner account yet; the earlier code then stops
+working.
+
+## Firewall
+
+`compose.yaml` publishes 3000 (`WEB_PORT`), 3210, 3211 and 6791 on the server's loopback address only (`BIND_ADDRESS`,
+default `127.0.0.1`), so they aren't reachable from the internet; Coolify's proxy reaches the containers over Docker's
+network. Keep it that way, and let your provider's firewall allow only 22, 80 and 443:
+[Firewall](/docs/self-hosting/vps#firewall).
+
+## Snags seen in the test
+
+These came from the test machine (an emulated amd64 machine on a Mac), not from CareerBot. They're not expected on a
+VPS, but if you hit one:
+
+- Docker doesn't start after the installer: the old `dockerd` process was still running. Stop it, delete
+  `/var/run/docker.pid`, then `systemctl start docker`.
+- Every container fails with "unable to apply cgroup configuration … Failed to determine whether process is a kernel
+  thread": add `"exec-opts": ["native.cgroupdriver=cgroupfs"]` to `/etc/docker/daemon.json`, restart Docker, and run
+  the installer again.
+- The first deploy (which built the images on the server then) hung until Coolify's one-hour job timeout: restart
+  Docker and click Deploy again.
+- "Git repository URL contains IP address": Coolify wants a hostname in the Git URL, not an IP address.
+
+## After this
+
+- Your keys: [Keys and accounts](/docs/self-hosting/keys).
+- Adding people: [Sign-in and who can join](/docs/self-hosting/sign-in).
+- Updating: [Updates, backups, export](/docs/self-hosting/updates).

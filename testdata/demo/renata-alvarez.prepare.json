@@ -1,0 +1,56 @@
+{
+  "preparedAt": "2026-10-06T12:18:03.974Z",
+  "deployment": "test-deployment",
+  "from": "r17d0qhkfez07gp6ebm4j8jccx8fhwrh",
+  "workingCopy": {
+    "workspaceId": "r17bp9amkvdd3tv9aqb7g7nxxh8fs5bn",
+    "userId": "qh7cjmam8f79hjy0kwe23jfrad8fst3p"
+  },
+  "aiSpentUsd": {
+    "before": 0.9375780149999999,
+    "after": 0.9938555549999999,
+    "added": 0.05627753999999996
+  },
+  "steps": [
+    {
+      "step": "Copied the persona run",
+      "note": "r17d0qhkfez07gp6ebm4j8jccx8fhwrh into r17bp9amkvdd3tv9aqb7g7nxxh8fs5bn (user qh7cjmam8f79hjy0kwe23jfrad8fst3p)"
+    },
+    {
+      "step": "AI",
+      "note": "key set, outreach and follow-ups on anthropic/claude-sonnet-5.5, new spending capped at $1 (spent before: $0.9376)"
+    },
+    {
+      "step": "Apply pursuit",
+      "note": "Clinical Implementation Specialist (RN) at Quillfield Health, path Apply"
+    },
+    {
+      "step": "Outreach pursuit",
+      "note": "Clinical Implementation at Fennel & Finch (pd744rd26h0ynpzkkawexvske58fs4gr)"
+    },
+    {
+      "step": "People added by hand",
+      "note": "Dana Whitfield, Marcus Oyelaran, Priya Raman, Tom Kessler"
+    },
+    {
+      "step": "Apply pursuit marked Applied",
+      "note": "the resume and cover letter kept as sent"
+    },
+    {
+      "step": "Outreach message",
+      "note": "written for Priya Raman and marked sent"
+    },
+    {
+      "step": "Follow-up",
+      "note": "drafted to Dana Whitfield"
+    },
+    {
+      "step": "Note and next step",
+      "note": ""
+    },
+    {
+      "step": "AI key removed, budget back",
+      "note": "new AI spending $0.0563"
+    }
+  ]
+}

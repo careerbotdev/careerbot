@@ -1,0 +1,17 @@
+{
+  "title": "Docs",
+  "pages": [
+    "index",
+    "demo",
+    "self-hosting",
+    "start",
+    "how-it-works",
+    "ai",
+    "using",
+    "integrations",
+    "best-practices",
+    "troubleshooting",
+    "contributing",
+    "reference"
+  ]
+}

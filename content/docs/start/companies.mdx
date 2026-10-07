@@ -1,0 +1,55 @@
+---
+title: Finding companies
+description: Find companies for your directions, rate the ones you'd like to work at, and their open roles are read and ranked.
+nav: Companies
+sources:
+  - src/app/today/steps.ts
+  - src/app/companies/Companies.tsx
+  - src/app/companies/Tools.tsx
+  - src/app/companies/Company.tsx
+  - src/app/review/decisions.ts
+  - convex/discovery.ts
+  - convex/enrich.ts
+  - convex/crons.ts
+  - convex/today.ts
+---
+
+CareerBot doesn't trawl every job board on the internet. It watches the companies you choose, reads their own job boards, and ranks their open roles against your directions. This step is where you choose them.
+
+The step is done once you've rated a company as a target, or roles have been ranked.
+
+## Before you start
+
+A direction needs approved search criteria before it can be searched. If one doesn't have them yet, Companies says so ("needs search criteria first") with a link to review them.
+
+## What you do
+
+<Steps>
+<Step title="Find companies">
+The step's button, **Open Companies**, opens <Screen id="companies" />. Choose **Find companies**. It lists the searches it will run for each direction, each with its Apollo credits, and the total before you start, with what's left in your plan this cycle.
+</Step>
+<Step title="Let it fill in details">
+New companies land under **Found**. CareerBot reads each one's website and job board and judges how it fits your directions. Reading is free; judging fit uses a little of your AI budget.
+</Step>
+<Step title="Rate them">
+For each company: **Target** (<Kbd>T</Kbd>), **Maybe** (<Kbd>M</Kbd>), or **Not for me** (<Kbd>R</Kbd>, with why if you like). New companies also wait in Review with the same choices.
+</Step>
+</Steps>
+
+## What happens next
+
+The open roles at your **Targets** and **Maybe** companies are read from their job boards every day, then sorted and ranked against each direction. The strongest new ones show on Today every morning. Roles at Maybe companies rank after your targets'.
+
+Before your first search, you can also add **Companies you’d name** (ones you already want, added to every search) and **Seed companies** (ones you'd love to work at, so searches find ones like them).
+
+Companies you said Not for me, and your past employers, never come back in a search.
+
+## If a company has no roles
+
+A company says **No board found** when CareerBot couldn't find a job board it can read. You can paste the board's address in its **Job board** detail. See [Job boards](/docs/integrations/job-boards).
+
+See [Companies](/docs/using/companies) and [Companies and roles](/docs/how-it-works/companies-and-roles).
+
+## Next
+
+[Google Drive](/docs/start/google-drive), or skip it and go to your first pursuit.

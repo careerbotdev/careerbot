@@ -1,0 +1,89 @@
+---
+title: Background work and Activity
+description: What runs in the background, what runs on its own schedule, and what happens when a budget is reached.
+nav: Background work and Activity
+sources:
+  - convex/jobs.ts
+  - convex/activity.ts
+  - convex/crons.ts
+  - convex/budgets.ts
+  - convex/metering.ts
+  - src/components/Activity.tsx
+  - src/app/settings/Budgets.tsx
+  - docs/architecture/model.c4
+---
+
+Most of what CareerBot does takes minutes: reading a story, filling in a few hundred companies, ranking every open role,
+writing a tailored resume. It all runs in the background, so you can keep working or close the tab. What it produces
+appears as it's ready.
+
+## Activity
+
+**Activity** sits at the bottom of the sidebar (in **More** on a phone). It shows how many things are running, with a
+thin progress bar, and opens into a list:
+
+- Running work, with how far along it is where that's known ("24 of 38").
+- What failed, with what failed ("Couldn’t read your Brightwater story", "Couldn’t check roles") and the reason under it.
+  **Try again** starts it again where that's possible, at about what the first try cost.
+- What finished in the last day.
+
+Under the list is this month's spending against your budgets. Waiting work shows why: "Waiting to start",
+"Paused until your AI budget allows" or "Paused until your Apollo budget allows".
+
+An AI reply that comes back unreadable, or so long it's cut off, is asked for once more. That second call is paid
+like any other and counts in your spending under the same task. If it fails too, the work fails with "The model's reply
+wasn't readable. Try again." (or "…was too long and got cut off. Try again.").
+
+## Budgets pause work, they don't fail it
+
+You set a monthly AI budget and the Apollo credits you set aside in <Screen id="settings" />, under
+**Budgets and spending**. No AI work runs until an AI budget is set.
+
+Before each paid call, CareerBot reserves what the call could cost. If that would go past what's left, the call doesn't
+run and the work pauses. Paused work isn't a failure: it picks up where it left off when you raise the budget, and on
+the 1st of each month (UTC), when budgets start again. Nothing that already finished is paid for twice.
+
+Apollo has three modes, under **Automated Apollo work**:
+
+| Mode | What it does |
+|---|---|
+| **On** | Finding companies, their details and job postings runs on its own, within the credits you set aside. |
+| **Only when I ask** | Apollo is used only for what you start yourself. |
+| **Paused** | No Apollo work runs. |
+
+An Apollo call is never made past your Apollo account's balance, and nothing is spent when the balance can't be read.
+
+## What runs on a schedule
+
+<Terms>
+  <Term title="Every morning, 9:00 UTC">The job boards of every workspace with Targets or Maybe companies are read again for new and closed roles, and new roles are sorted and ranked.</Term>
+  <Term title="Every ten minutes">With Google Drive connected, your CareerBot folder is compared with what it should hold, and synced only when something differs. Each change also syncs soon after it's made.</Term>
+  <Term title="Every five minutes">Work cut off by an update or a crash is picked up again quietly, up to three tries. After that it fails with "This kept getting interrupted. Try again."</Term>
+  <Term title="Every hour">Model prices are read again from OpenRouter, so what a call reserves follows the providers' prices.</Term>
+  <Term title="Every night">Paid calls whose final cost wasn't known at the time are settled from OpenRouter's and Apollo's own figures, so your spending adds up.</Term>
+  <Term title="The 1st of each month">Budgets start again, and work paused for a budget picks up again.</Term>
+</Terms>
+
+## What starts on its own, and what waits for you
+
+Some steps follow from what you do; the rest run only when you ask.
+
+On its own:
+
+- After a company search, new companies are screened and then filled in.
+- When a story or project has nothing left to review, insights are looked for again.
+- When you rate a company or approve, change or switch a limit, the list of roles is brought in step at once (no new AI
+  calls).
+- The daily roles pass, and Google Drive syncing.
+
+Only when you ask, each with its estimate shown first:
+
+- Reading a story, reading it again, and reading a project.
+- **Read my goals**, filling in a direction's positioning and criteria, and **Suggest more**.
+- **Find companies**, **Check again** on a company, and **Check all again**.
+- **Check roles again** and **Rank again**.
+- Writing resumes, letters, answers, messages and follow-ups; **Check against facts** and **Update lines**.
+- Gathering skills, finding duplicates and finding the same work.
+
+Only one company search, one fill-in pass and one roles pass run at a time in a workspace. A company you ask to check
+again while a roles pass is running is read before that pass ends.

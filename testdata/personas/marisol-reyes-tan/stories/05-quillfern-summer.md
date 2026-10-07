@@ -1,0 +1,17 @@
+This one's short-ish but it's important because it's the closest thing I've done to the job I want. Summer 2022, I worked with an ed-tech startup called Quillfern Learning. They make interactive science lessons for middle school, the kids do them on Chromebooks, little simulations and questions that adapt a bit.
+
+How it happened, Quillfern was doing a pilot with our district, and someone in the curriculum office knew about my Canvas units and gave them my name. They wanted a teacher to write lessons. I couldn't take it as a side contract because of my visa, the H-1B is only for the district, so the district set it up as a summer curriculum writing stipend, and the district and Quillfern had an agreement. Kind of complicated but it worked. It was ten weeks, June to August.
+
+So what I actually did. I basically designed their whole middle school product that summer, that's how it felt, I was in every meeting. Okay, to be honest about it, I wrote 14 lessons for their forces and motion module, that's one module in their physical science course. Each lesson was maybe 20 to 25 minutes for a kid. For each one I wrote the storyboard, screen by screen, in Google Slides, the script for the narration, the questions, the hints, what feedback the kid sees when they get it wrong, which wrong answers mean which misconception. Then the designer and the engineers built it in their own authoring tool and I reviewed the builds.
+
+The team was small. A product designer, two engineers, and the founder who was a former teacher. I worked mostly with the designer. That was really eye-opening for me, seeing how she thought about a screen, like how many things a kid can look at at once. I learned a little Figma from her, enough to leave comments and move things around, I wouldn't say I can design in Figma.
+
+The part I liked the most was the playtests. We did two rounds with kids, 12 students total from a summer program, and I sat next to them while they did the lessons and wrote down every time they got stuck or confused. One lesson about balanced and unbalanced forces, almost every kid picked the same wrong answer on the second question, and it turned out it was the picture, not the physics, the arrow looked like it was pointing the other way. So we redrew it. Small thing, but that's the job, right? That's the part I want to do every day.
+
+The misconception stuff was my real contribution I think. I came in with a list of the common wrong ideas kids have about force and motion, from years of teaching it, like "if it's moving there must be a force pushing it," and every wrong answer option in my lessons was tied to one of those, so the feedback could actually address it. The founder said that was the best part of the module. They used that approach for the next module after I left, that's what she told me.
+
+Results, I don't really know the numbers. It went into their pilot that fall, I think in our district and some others. I didn't get the data. I know teachers used it because a couple of teachers at my school used it with their classes and said the kids liked it.
+
+I would have loved to keep going with them but I went back to teaching in August, and then that February I had my son and I was out on leave, so that was that. But it's the thing that made me think, okay, this is a real job, people do this full time, and I could do it.
+
+One more thing, the pay was just the district stipend rate, it was not a lot, I'm not putting that anywhere.

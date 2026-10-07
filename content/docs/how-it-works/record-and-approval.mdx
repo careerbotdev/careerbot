@@ -1,0 +1,104 @@
+---
+title: The record and approval
+description: What your record holds, how proposals become part of it, and what counts when CareerBot writes for you.
+nav: Record and approval
+sources:
+  - src/app/review
+  - src/app/record
+  - src/app/shell/Shortcuts.tsx
+  - convex/recordContext.ts
+  - convex/extract.ts
+  - convex/insights.ts
+  - docs/architecture/model.c4
+---
+
+Your record is the approved account of your career that everything else is built from. CareerBot proposes; you decide.
+Nothing enters the record, and nothing is written from it, until you approve it.
+
+## What the record holds
+
+<Terms>
+  <Term title="Stories">What you write or say about each job, in your own words. Each save is a version; the record keeps every version. A note (a short story, such as "One more thing about Ironbridge") is read the same way.</Term>
+  <Term title="Roles">Employer, title, dates, location and team, one per job. Facts and context are filed under their role.</Term>
+  <Term title="Facts">One thing you did or achieved, in one sentence: "Kept the case fill rate above 98% for eight straight quarters while the product line grew by a third." Resume lines, letter paragraphs and answers cite facts.</Term>
+  <Term title="Context">Background that helps a fact read right, such as what a company makes or why a number mattered. Context sharpens later rewrites and writing; it isn't a claim of its own.</Term>
+  <Term title="Projects">Work in your GitHub repositories, read once you connect GitHub and choose them. A project gives its own facts, stack and skills, and can be linked to the role it was part of.</Term>
+  <Term title="Skills">Skills, tools and certifications, gathered from your approved roles, projects and facts when you ask, each named the way resumes and postings write it.</Term>
+  <Term title="Career breaks">Time between jobs, with its months and, if you like, a reason. A break can carry facts of its own. Whether it shows on a resume is your choice.</Term>
+  <Term title="Insights">What's true of you across roles and projects, each citing the approved facts behind it. They're proposed after a story or project is fully reviewed, and when you ask.</Term>
+</Terms>
+
+## Review
+
+Everything proposed waits in <Screen id="review" />, one card at a time. A card says what it is (**New fact**,
+**New role**, **Rewrite**, **Question**, **Insight**, **Said twice** and so on), where it came from, and what approving it
+does. Facts show the passage of your story they came from.
+
+| Key | Action |
+|---|---|
+| <Kbd>A</Kbd> | **Approve** |
+| <Kbd>E</Kbd> | **Edit**: your wording, approved as you save it |
+| <Kbd>R</Kbd> | **Reject**, with a reason if you like |
+| <Kbd>U</Kbd> | **Undo** the last decision |
+| <Kbd>J</Kbd> / <Kbd>K</Kbd> | Next and previous |
+
+Every decision is free and can be undone. Approving or rejecting shows a toast with **Undo**; <Kbd>U</Kbd> does the same.
+
+### Rejecting with a reason
+
+When you reject, you can pick a reason or write your own (for a fact: "Overstates my part", "Wrong role", "Not true").
+A reason is kept with the item. It steers later reads, so the same thing isn't proposed again, and later insights learn
+from it. A rejected fact stays in your record's lists, marked rejected; **Restore** puts it back to review.
+
+### Other cards
+
+- **Rewrite**: a new wording for a fact you already have. **Use this** takes it, **Edit** puts it in your words, and
+  **Keep current** leaves the fact as it is. The other wording stays in the fact's history.
+- **Question**: your story and your record disagree (a date, a title, a number). Choose **Story is right**,
+  **Record is right** or **Neither** and give the right value. When two jobs at different employers overlap, choose
+  **Both are right** if you held both, or fix one job's end or the other's start.
+- **Follow-up question**: a question whose answer would sharpen the record. **Answer** it, and your answer becomes a
+  rewrite to review or a note read into your record; or choose **Not now**.
+- **Said twice**: two facts in one role that say the same thing. Keep one wording, with both facts' sources and history,
+  or **Keep both**.
+- **Same work?**: a project fact and a role fact that describe the same work. Connected, they're written as one line.
+
+## Approved, then changed
+
+You can change your mind at any time. **Undo approval** takes an item back to review: it stops counting everywhere at
+once, and resumes stop using it. Editing an approved fact keeps its earlier wording in its history and marks the lines
+written from the old wording (see [Update lines](/docs/how-it-works/writing#when-a-fact-changes)).
+
+## Sources and history
+
+Each fact has **Sources**, the stories or project it came from with the passages it rests on, and **History**, every
+wording it has had and how it got there: read from a story, edited by you, or rewritten. A role lists the stories its
+facts rest on.
+
+## Reading again
+
+A story is read when you choose **Read**. Once you change it, **Read** reads only what changed since the last read: new
+facts, suggested updates to facts already in your record, and facts the story no longer says.
+
+**Read again** reads a story afresh against your record as it is now. It asks what you think was missed first, and only
+proposes what isn't in your record yet. You can let it look past what you rejected, for that read only. A project has
+**Read again** too, and **Read again with rejected facts**.
+
+Every read uses your AI budget; its estimate shows beside the button.
+
+## What counts
+
+An approved item counts as long as what it rests on still stands:
+
+- A fact or piece of context counts while at least one story it came from isn't rejected. One you added yourself always
+  counts.
+- A project's facts count only while the project is approved.
+- An insight rests on the facts it cites.
+- A skill, tool or certification counts while an approved role, project or fact that counts still shows it.
+
+Reject a story and everything that came only from it stops counting at once, everywhere: resumes, letters, ranking and
+insights. Restore it and they count again. Deleting a story is different: its facts stay in your record, each marked for
+you to **Keep it** or **Reject it**.
+
+Only approved items that count are used to write, rank or position you. Proposals waiting in Review are never used as if
+approved.

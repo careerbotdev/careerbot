@@ -1,0 +1,74 @@
+---
+title: Signing in and your account
+description: How you sign in on careerbot.dev and on a copy you run yourself, and what Settings, Account shows.
+nav: Sign in
+sources:
+  - src/app/SignIn.tsx
+  - src/app/SelfHostedSignIn.tsx
+  - src/app/signInParts.tsx
+  - src/app/site/words.ts
+  - src/app/settings/Account.tsx
+  - convex/account.ts
+  - convex/auth.ts
+  - convex/allowlist.ts
+---
+
+Signing in gives you a workspace that's yours alone: your stories, your record and your search. This step is done as soon as you're in. It's free.
+
+How you sign in depends on where CareerBot runs.
+
+## On careerbot.dev
+
+The hosted version is invite-only while it's tested. The sign-in page says so: "The hosted version of CareerBot is invite-only while we test it. Sign in with the account you were invited with."
+
+<Shot id="sign-in" alt="The careerbot.dev sign-in page: an Invite only label, the Sign in heading, and the buttons Continue with Google and Continue with GitHub, with a link to get notified when it opens." />
+
+1. Choose **Continue with Google** or **Continue with GitHub**, whichever account you were invited with.
+2. Approve CareerBot on Google's or GitHub's screen. You come back to the page you asked for, signed in.
+
+If the account you used isn't invited, you see **This account isn’t invited yet**, with a waitlist form that has the account's email filled in. Join it, or choose **Try another account** to sign in with a different one.
+
+If the sign-in itself fails, the page says "Sign-in didn’t work. Try again."
+
+## On a copy you run yourself
+
+A self-hosted copy signs in with a username and a password. There's no email involved, so accounts work like this:
+
+### The first account: the owner
+
+The first person to open a new copy sees **Create your account**: "The first account here owns this copy of CareerBot, and decides who else can sign in."
+
+<Shot id="create-account" alt="Create your account on a self-hosted copy: the Setup code field with where to find the code and the command that makes a new one, then Username, Password (at least 8 characters) and Confirm password." />
+
+1. Enter the **Setup code**. It's a one-time code printed when CareerBot was installed, so the first account belongs to whoever set the copy up, not whoever finds the page first. It's in the logs of the setup service; the form tells you where to look. Lost it? The form shows the command that makes a new one. See [Sign-in and who can join](/docs/self-hosting/sign-in).
+2. Choose a **Username** and a **Password** (at least 8 characters), and type it again under **Confirm password**.
+3. Choose **Create account**. You're signed in as the owner. After this, only the owner can add people.
+
+### Everyone else: added by the owner
+
+The owner adds people in Settings, Account, under **People**, with **Add a person**. The owner chooses the username and gets a temporary password to give that person.
+
+When you sign in with a temporary password for the first time, you see **Choose a new password**. Enter it twice and choose **Save and sign in**. The temporary password stops working.
+
+### Forgot your password
+
+Choose **Forgot password?** on the sign-in form. Passwords on a self-hosted copy are reset by its owner:
+
+- If someone else runs the copy, ask them to reset it in Settings, Account. You'll sign in with the temporary password they give you, then choose your own.
+- If you run it, the page shows a command to run where you set CareerBot up. It prints a temporary password for you.
+
+### Google or GitHub on your own copy
+
+A self-hosted copy can also offer **Continue with Google** and **Continue with GitHub**, if whoever runs it sets them up. Those buttons only let in the email addresses the owner has listed. If yours isn't listed, you see **This account can’t sign in to this copy**; ask the owner to add you. See [Sign-in and who can join](/docs/self-hosting/sign-in).
+
+## Your account in Settings
+
+The step's link, **Change**, opens Settings, **Account**. It shows your name or username, your email, what you **Signed in with**, and your **Workspace**.
+
+- **Sign out** signs you out on this device and clears anything you were writing here that isn't saved.
+- On a self-hosted copy with a password, **Change password** asks for your current password and a new one. Your other devices are signed out.
+- The owner of a self-hosted copy also sees **People**: who can sign in, each with a workspace of their own. From there the owner can **Reset password** for someone (they get a new temporary password and are signed out everywhere) or **Remove** them, which deletes their account and their workspace: stories, record, resumes and pursuits. Both can't be undone.
+
+## Next
+
+[OpenRouter keys and your AI budget](/docs/start/openrouter).

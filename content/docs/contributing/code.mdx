@@ -1,0 +1,48 @@
+---
+title: How the code is organised
+description: Where screens, parts, the backend, the system map and the docs live in the repository.
+nav: The code
+sources:
+  - src/app
+  - src/components
+  - convex
+  - docs/architecture
+  - docs/BUILD.md
+  - content/docs
+  - scripts
+  - tests/rendered
+  - DESIGN.md
+  - .dependency-cruiser.cjs
+---
+
+## The folders
+
+| Path | What's there |
+|---|---|
+| `src/app/` | The Next.js app: one folder per screen (`today`, `review`, `pursuits`, `companies`, `resumes`, `record`, `goals`, `reports`, `settings`, …), the frame around them (`shell/`: sidebar, ⌘K, shortcuts), guided tours (`tours/`), the careerbot.dev website (`site/`) and these docs (`docs/`). |
+| `src/components/` | The parts every screen is built from: buttons, menus, dialogs, tables, the review card and so on, each with its `.stories.tsx`. `icons.tsx` is the only place icons come from. |
+| `convex/` | The backend: schema, queries, mutations and actions, sign-in, budgets, background work and the AI steps. Tests sit beside the code as `*.test.ts`. |
+| `docs/PRD.md`, `docs/BUILD.md` | What CareerBot is and why; the standing rules for building it. |
+| `docs/architecture/` | The system map (below). |
+| `content/docs/` | These docs (see [Writing docs](/docs/contributing/writing-docs)). |
+| `scripts/` | The checks run by `pnpm lint` and `pnpm arch:check`, token generation, the share image, `sync-convex-env.sh`, `with-secrets.sh` and the persona runner. |
+| `tests/rendered/` | Playwright checks that open the built Storybook (see [Checks](/docs/contributing/checks)). |
+| `testdata/personas/` | Fictional people for end-to-end AI runs. |
+| `docker/`, `Dockerfile`, `compose.yaml` | The self-hosted copy. |
+| `DESIGN.md`, `brand/` | Design tokens and the logo masters. |
+
+## The system map
+
+`docs/architecture/` is a [LikeC4](https://likec4.dev) model: every screen, AI step, service and table, what each reads and writes, and how each AI input is filtered (`#approvedOnly`, `#unreviewedInput`, `#rawNarrative`, `#rejectedAsGuard`). `pnpm arch` opens the diagrams.
+
+A change that adds, removes or rewires a Convex function, table, screen or AI step updates the map in the same commit; `pnpm arch:check` fails when they disagree. The same check enforces the import rules in `.dependency-cruiser.cjs`: screens and parts import only Convex's generated API and a short list of shared pure modules from `convex/`, parts never import screens or Convex, and there are no import cycles.
+
+## Design
+
+Three tools share the work (`docs/BUILD.md`, "How design happens"):
+
+- `DESIGN.md` holds the tokens: colours, type, spacing, radii. `pnpm tokens` generates `src/app/tokens.css`, `src/app/tokens.json` and the coloured logos in `public/brand/` from it. Edit `DESIGN.md`, never the generated files.
+- Paper is where screens and parts are designed first, at desktop and phone widths, before code.
+- Storybook is the library of parts. Screens use these parts rather than restyling them; something new becomes a part or a variant first. A part is done when its stories match its Paper board in light and dark, at desktop and phone widths.
+
+Every control is one of the themed parts, never a browser default, and every action carries an explainer: what it does, what it costs, and whether it can be undone.

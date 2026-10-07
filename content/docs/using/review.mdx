@@ -1,0 +1,77 @@
+---
+title: Review
+description: Every decision waiting for you, one at a time or several at once, each with what it rests on and a reason when you say no.
+sources:
+  - src/app/review
+  - src/components/ReviewCard.tsx
+  - src/app/tours/review.ts
+  - convex/review.ts
+screen: review
+---
+
+<ScreenFacts screen="review" />
+
+CareerBot proposes; you decide. Everything it reads or works out (a fact from your story, a limit from your goals, a company to rate, a new resume version) waits here until you approve it, change it or turn it down. Nothing reaches your resumes until you approve it. The sidebar, the bottom bar and Today all show the same count of what waits.
+
+## The groups
+
+The left side lists the groups, each with how many wait and a preview. The groups that unlock other work come first, under **Unlocks work**:
+
+<Shot id="review" alt="Review with its groups on the left, Limits and Direction criteria under Unlocks work and the rest under Then, and a Limit card open: Base pay at least $135k, built on a line from the goals story, with Approve, Edit and Reject." />
+
+1. **Directions**: kinds of work to go for.
+2. **Limits**: rules that filter and rank roles.
+3. **Direction criteria**: what company search looks for in a direction.
+4. **Positioning**: how your record is told for a direction.
+
+Then, under **Then**: **Companies to rate**, **Facts**, **Rewrites**, **Questions**, **Insights**, **Skills**, **Same work** and **Resume updates**. Open a group to go through it.
+
+## Cards or List
+
+**Show as** switches between two ways of working:
+
+- **Cards** shows one decision at a time, with **Built on** (the approved facts it rests on, or the story words and when they were written), its actions, and the next one waiting.
+- **List** shows the whole group as rows. **Select** (or **Select all**) in the group's ⋯ menu, <Kbd>X</Kbd> on a row, or <Kbd>⇧</Kbd>- or <Kbd>⌘</Kbd>-click shows checkboxes; check several and use **Approve** or **Reject** on all of them together, and **Done** or <Kbd>Esc</Kbd> stops (see [Selecting several](/docs/using/keyboard#selecting-several)). Under **Turned down** you see what you rejected in this group, with your reason, and **Restore** brings one back.
+
+## Decide a card
+
+<Steps>
+<Step title="Read what it rests on">The card says what it is ("New fact", "Limit", "Company to rate" and so on) and shows **Built on**.</Step>
+<Step title="Approve, change or turn it down">Each kind has its own words. A fact has **Approve**, **Edit** (approved in your words) and **Reject**. A rewrite has **Use this**, **Edit** and **Keep current**. A company to rate has **Target**, **Maybe** and **Not for me**. A pair said twice has **Keep this wording**, **Keep the other** and **Keep both**. Same work has **Connect** and **Keep separate**. A question has **Answer** and **Not now**. A new resume version has **Keep** and **Discard**.</Step>
+<Step title="Say why, if you like">Every no asks **Why?** with a few quick reasons ("Not true", "Overstates it", "Too vague" and others) or your own words. The reason is optional; it is saved with the decision and steers what is proposed next.</Step>
+<Step title="Move on or undo">The next card appears. **Skip for now** in the card's menu leaves one waiting. <Kbd>U</Kbd> or **Undo** in the message reverses the last decision.</Step>
+</Steps>
+
+A fact card also offers **Ask for a rewrite**: say what to change or add ("It was a team of three and I led it") and a rewrite comes back under **Rewrites**. Each card can open where the thing lives (**Open in Record**, **Open in Limits**, **Open in Companies** and so on).
+
+## Keys
+
+| Key | Does |
+| --- | --- |
+| <Kbd>A</Kbd> | Approve (or the card's yes: **Target**, **Use this**, **Keep**) |
+| <Kbd>E</Kbd> | Edit, where the card can be edited |
+| <Kbd>R</Kbd> | Reject (or the card's no) |
+| <Kbd>J</Kbd> / <Kbd>K</Kbd> | Next / previous card |
+| <Kbd>U</Kbd> | Undo the last decision |
+
+Some cards have more letters, shown on their buttons: <Kbd>M</Kbd> for **Maybe**, <Kbd>O</Kbd> for **Keep the other**.
+
+## Look for more to decide
+
+**More for Review** (the ⋯ menu) has three searches that use your AI budget. What they find waits here.
+
+- **Suggest questions**: questions whose answers would sharpen your record.
+- **Look for conflicts**: places your record and your stories disagree.
+- **Find facts said twice**: pairs to merge or keep both.
+
+## On a phone
+
+The groups come first; a group opens full screen. The card swipes: right approves, left rejects. Its actions sit in the bottom bar, and **Why?** opens above the keyboard. See [On a phone](/docs/using/phone).
+
+## Related
+
+<Cards>
+<Card href="/docs/how-it-works/record-and-approval" title="The record and approval">Why nothing counts until you approve it.</Card>
+<Card href="/docs/start/review" title="Reviewing facts">Your first review, step by step.</Card>
+<Card href="/docs/ai/record" title="Keeping the record clean">The AI steps that put cards here.</Card>
+</Cards>

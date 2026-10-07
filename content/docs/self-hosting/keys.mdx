@@ -1,0 +1,165 @@
+---
+title: Keys and accounts
+description: Which outside accounts CareerBot uses, what each key is for, and where you enter it.
+nav: Keys and accounts
+sources:
+  - .env.example
+  - compose.yaml
+  - src/app/settings/Keys.tsx
+  - convex/auth.ts
+  - convex/drive.ts
+  - convex/githubApp.ts
+  - convex/http.ts
+---
+
+Keys go in one of two places:
+
+- In the app, under <Screen id="settings" />, **Keys**: OpenRouter, Apollo and Brave Search. Each workspace has its own,
+  saved encrypted (with `MASTER_KEY_V1`). Nothing to redeploy.
+- In the copy's settings (`.env`, or Coolify's or Dokploy's environment), pushed to the Convex deployment by the setup
+  step: Google and GitHub sign-in, the Google Picker key. They're the same for everyone on the copy. After changing
+  them, run `docker compose up -d` (or Redeploy).
+
+| Key | What it's for | Needed | Where it goes |
+| --- | --- | --- | --- |
+| OpenRouter | Pays for every AI task | Yes, for anything AI | Settings > **Keys** |
+| Apollo | Finds companies, their details and job postings | No | Settings > **Keys** |
+| Brave Search | Finds a company's job board when its website doesn't link one | No | Settings > **Keys** |
+| Google OAuth client | Google sign-in, and Google Drive | For either | `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` |
+| Google Picker key | Choosing a Google Drive folder | For Choose a folder | `GOOGLE_PICKER_KEY` |
+| GitHub OAuth app | GitHub sign-in | No | `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET` |
+| CareerBot's GitHub App | Reading your repositories into projects | No | Made once from the command line, stored in Convex |
+
+## OpenRouter
+
+[OpenRouter](https://openrouter.ai) passes CareerBot's AI requests to the models it uses. Create an account, add
+credit, and create a key. In CareerBot: Settings > **Keys** > OpenRouter > **Add key**. The key is checked before it's
+saved.
+
+Every request to OpenRouter names the app: your copy's `SITE_URL` (or https://careerbot.dev without one) and the
+title CareerBot, so OpenRouter counts the use toward CareerBot. Nothing about you goes with them.
+
+Set a monthly limit on the key at OpenRouter too, as a second cap on AI spending, beside CareerBot's own budget under
+**Budgets and spending**. More: [OpenRouter](/docs/start/openrouter).
+
+## Apollo
+
+Optional. [Apollo](https://www.apollo.io) finds companies, their details and job postings. It needs a master key, or
+one with company search, organization enrichment and credit usage. Settings > **Keys** > Apollo. More:
+[Apollo](/docs/integrations/apollo).
+
+## Brave Search
+
+Optional. Finds a company's job board when its website doesn't link one. Create a key at Brave's Search API, then
+Settings > **Keys** > Brave Search. More: [Brave Search](/docs/integrations/brave).
+
+## Google: sign-in and Drive
+
+One Google OAuth client serves both Google sign-in and Google Drive.
+
+<Steps>
+<Step title="Create the client">
+At [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials): Create credentials >
+OAuth client ID, application type Web application.
+</Step>
+<Step title="Add the redirect URIs">
+
+Under Authorized redirect URIs, add your Convex HTTP actions address plus these paths:
+
+```text title="Authorized redirect URIs"
+https://convex-site.example.com/api/auth/callback/google
+https://convex-site.example.com/google/drive/callback
+```
+
+The address is `CONVEX_SITE_ORIGIN` with self-hosted Convex on a server, `http://localhost:3211` on your own computer,
+and `https://your-deployment.convex.site` with Convex's cloud. The first URI is for sign-in, the second for Drive.
+
+</Step>
+<Step title="Turn on the APIs">
+For Drive, enable the Google Drive API in the same Google Cloud project, and the Google Picker API for choosing a
+folder. CareerBot asks only for the `drive.file` scope: the files it makes, and the folder you pick.
+</Step>
+<Step title="Add the keys to the copy">
+
+```bash title=".env"
+AUTH_GOOGLE_ID=…apps.googleusercontent.com
+AUTH_GOOGLE_SECRET=…
+GOOGLE_PICKER_KEY=…
+```
+
+`GOOGLE_PICKER_KEY` is a browser API key (Credentials > Create credentials > API key), best restricted to the Picker API
+and your site's address. Then `docker compose up -d`.
+
+</Step>
+</Steps>
+
+Once both Google keys are set, the sign-in screen offers Google, but only for the emails in `SIGNUP_ALLOWLIST`
+([Sign-in and who can join](/docs/self-hosting/sign-in#google-and-github)). Drive needs only the client, and anyone
+signed in can connect it: [Google Drive](/docs/integrations/google-drive).
+
+While your Google project's OAuth consent screen is in testing, only the test users you list there can use it.
+
+## GitHub sign-in
+
+<Steps>
+<Step title="Create an OAuth App">
+At [github.com/settings/developers](https://github.com/settings/developers): New OAuth App. Homepage URL: your
+`SITE_URL`. Authorization callback URL: your Convex HTTP actions address plus `/api/auth/callback/github`:
+
+```text title="Authorization callback URL"
+https://convex-site.example.com/api/auth/callback/github
+```
+
+</Step>
+<Step title="Add the keys to the copy">
+
+```bash title=".env"
+AUTH_GITHUB_ID=…
+AUTH_GITHUB_SECRET=…
+```
+
+Then `docker compose up -d`. The sign-in screen offers GitHub for the emails in `SIGNUP_ALLOWLIST`.
+
+</Step>
+</Steps>
+
+## GitHub repositories (CareerBot's GitHub App)
+
+Reading repositories into projects (<Screen id="record" />, Projects) uses a GitHub App of the copy's own, separate
+from GitHub sign-in. Until it exists, **Connect GitHub** says "Not available yet". You create it once, through GitHub's
+app manifest flow; its keys are stored encrypted in Convex, not in `.env`.
+
+<Steps>
+<Step title="Get a one-time link">
+
+Run the internal function `githubApp:setupLink`. In Convex's dashboard ([Convex](/docs/self-hosting/convex#the-dashboard)):
+Functions > `githubApp:setupLink` > Run. Or with the Convex CLI, where it's set up (Convex's cloud, or the
+[Cloudflare way](/docs/self-hosting/cloudflare)):
+
+```bash title="Terminal"
+npx convex run githubApp:setupLink
+```
+
+To create the app under a GitHub organization: `npx convex run githubApp:setupLink '{"org": "your-org"}'`. The link is
+good for a day, used once.
+
+</Step>
+<Step title="Create the app">
+Open the link. The page "Create CareerBot's GitHub App" has a Continue to GitHub button; GitHub then shows the app it's
+about to make (named after your site, read-only access to repository contents and metadata). Create it there. GitHub
+sends you back to a page saying "CareerBot's GitHub App is ready", with a link to Open Projects. An expired or used link
+says "This link has expired": make a new one.
+</Step>
+<Step title="Connect">
+Each person connects their own repositories from Projects with **Connect GitHub**. More:
+[GitHub](/docs/integrations/github).
+</Step>
+</Steps>
+
+The app's webhook and callbacks go to `CONVEX_SITE_ORIGIN`, so GitHub must be able to reach it: a public https
+address. On `localhost` it won't work. This flow wasn't part of the self-hosting tests.
+
+## Made for you
+
+`JWT_PRIVATE_KEY`, `JWKS` (sign-in) and `MASTER_KEY_V1` (encrypts the keys saved in Settings) are made by the first
+`docker compose up` and kept in the Convex deployment. Losing `MASTER_KEY_V1` means everyone enters their keys again.

@@ -1,0 +1,59 @@
+---
+title: GitHub
+description: Connect GitHub and CareerBot reads the repositories you choose into projects and facts for your record.
+sources:
+  - src/app/record/projects/GitHub.tsx
+  - src/app/record/projects/ProjectItem.tsx
+  - src/app/record/projects/words.ts
+  - src/app/settings/Contact.tsx
+  - convex/github.ts
+  - convex/githubApp.ts
+  - convex/repoReader.ts
+  - convex/auth.ts
+  - docs/architecture/model.c4
+---
+
+If you've built things on GitHub, CareerBot can read the repositories themselves into projects for your record, each with facts that cite the files they rest on. Like a story, everything it proposes waits for your review.
+
+## Connect and choose repositories
+
+1. Open <Screen id="record" />, Projects, and the GitHub row under the list (or Settings, **Contact and GitHub**, **Open Projects**; or **Connect GitHub** under your first story on Today).
+2. Choose **Connect GitHub**. GitHub asks you to install CareerBot's GitHub app with read-only access, on all your repositories or only the ones you choose.
+3. Back in CareerBot: "GitHub is connected. Pick repositories to read."
+
+**Choose repositories** takes you back to GitHub to change which repositories CareerBot can see.
+
+## Read repositories into projects
+
+Pick the repositories you want, then choose **Read** (it says how many, such as "Read 3 repositories"). The cost shows first. Each repository is read on its own and becomes a proposed project (name, summary, stack, dates and commit count) with up to six facts, waiting in <Screen id="review" />. Approve, edit or reject them like any other.
+
+A project's **Read again** reads it again and adds only new facts; it can also look past facts you rejected, for that read only.
+
+## What is read
+
+The repository is read whole, not just its code, with a token made for that one repository:
+
+- the README, docs, product and planning documents, architecture maps, design and brand files (images by name only), in-repo trackers and changelogs;
+- the files that name its stack, and a small sample of its code;
+- its commit history: the span, how many commits, commits per month, who committed, and the commit subjects.
+
+Large repositories are read up to a size cap, in parts.
+
+## What is never read
+
+- Files that look like they hold secrets: `.env` files, keys and certificates, credential files, anything named like a key or password.
+- Dependencies, build output, lockfiles and binaries.
+
+Anything that looks like a credential inside a file that is read (a key or token, a private key block, a password in a URL) is replaced with `[redacted]` before anything is sent. File contents are sent to the AI model you chose.
+
+## What it costs
+
+Connecting is free. Reading a repository uses your AI budget, about the same per repository each time; a large one takes a few calls. The estimate shows before you start.
+
+## Disconnecting
+
+**Disconnect** forgets the connection for this workspace. Your projects and their facts stay in your record; Read again stops working until you connect again. The app stays installed on GitHub: to remove CareerBot's access entirely, uninstall it in GitHub's settings.
+
+## Signing in with GitHub
+
+Connecting repositories is separate from signing in. On careerbot.dev you can sign in with **Continue with GitHub** if you were invited with that account. On a copy you run yourself, GitHub sign-in is optional: it appears once whoever runs the copy adds GitHub's sign-in keys and lists the emails allowed to use it. See [Signing in and your account](/docs/start/sign-in) and [Sign-in and who can join](/docs/self-hosting/sign-in).

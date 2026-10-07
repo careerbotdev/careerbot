@@ -1,0 +1,91 @@
+---
+title: Choose a way
+description: CareerBot runs anywhere Docker runs, or on Cloudflare Workers; pick where it runs and where its database lives.
+nav: Choose a way
+sources:
+  - compose.yaml
+  - .env.example
+  - Dockerfile
+  - wrangler.jsonc
+  - src/app/mode.ts
+---
+
+CareerBot is open source. You can run your own copy: for yourself, or for a few people you add. A copy has two parts:
+
+- The web app: the screens you use. In Docker it's a Node server; on Cloudflare it's a Worker.
+- Convex: the database, which also runs the background work (AI steps, syncing, reminders) and sign-in. It runs in
+  Convex's cloud or on your own machine.
+
+A copy you run yourself is a *self-hosted* copy: `/` is the app, people sign in with a username and password, and the
+first account (made with a setup code) owns the copy and adds everyone else. Google and GitHub sign-in are optional.
+
+## Where the web app runs
+
+<Choices>
+<Choice title="Docker on a server" note="The usual way for a copy others can reach">
+A server with [Coolify](/docs/self-hosting/coolify) or [Dokploy](/docs/self-hosting/dokploy), which run the repository's
+`compose.yaml`, give it a domain and handle HTTPS. Or plain [Docker Compose](/docs/self-hosting/docker) behind your own
+proxy.
+</Choice>
+<Choice title="A VPS with Coolify ready to install" note="The shortest way to a server">
+Hetzner and other providers offer a server with Coolify ready to install. Then follow the Coolify page. See
+[A VPS with Coolify](/docs/self-hosting/vps).
+</Choice>
+<Choice title="Your own computer" note="Just for you, nothing to pay for hosting">
+Docker Desktop or OrbStack on a Mac, or Docker on Linux or Windows. CareerBot opens at `http://localhost:3000`. See
+[Your own computer](/docs/self-hosting/your-computer).
+</Choice>
+</Choices>
+
+There's also a fourth way: [Cloudflare Workers](/docs/self-hosting/cloudflare), the way careerbot.dev itself runs, with
+Convex's cloud as the database. It takes more steps and parts of it are untested for anyone but the maintainer.
+
+## Where Convex runs
+
+<Choices>
+<Choice title="Convex’s cloud" note="The easy choice for a copy just for you">
+Convex's free plan, with nothing extra to run. Create a project at dashboard.convex.dev and copy its URL and a
+production deploy key into `.env`.
+</Choice>
+<Choice title="Self-hosted Convex" note="What .env.example is set up for">
+Runs in the same compose file, on the same machine (`COMPOSE_PROFILES=self-hosted`). Your data stays in a Docker volume
+called `convex-data`.
+</Choice>
+</Choices>
+
+More on both, the dashboard and upgrades: [Convex](/docs/self-hosting/convex).
+
+## What you need
+
+| What | Why | Roughly what it costs |
+| --- | --- | --- |
+| Docker with Compose v2.20 or later | Runs the app (and self-hosted Convex) | Free |
+| Git | Gets the code | Free |
+| A server, or your own computer | Somewhere to run it | Your computer: nothing. A small VPS: a few euros or dollars a month |
+| A domain (on a server) | Three or four hostnames, one per part | A domain you already have works |
+| Convex | The database | The free cloud plan, or nothing extra when self-hosted |
+| An OpenRouter key | Pays for every AI task | Pay as you go at OpenRouter; you set CareerBot's monthly AI budget |
+| An Apollo key (optional) | Finds companies, their details and job postings | Apollo's own plans and credits |
+| A Brave Search key (optional) | Finds a company's job board when its website doesn't link one | Brave's own plans |
+| A Google OAuth client (optional) | Google sign-in and Google Drive | Free |
+| A GitHub OAuth app (optional) | GitHub sign-in | Free |
+
+CareerBot's images come ready-made from each release, for amd64 and arm64 machines: the server downloads them and builds
+nothing. On a VPS, pick one with at least 4 GB of memory.
+
+Keys and where each one goes: [Keys and accounts](/docs/self-hosting/keys).
+
+## The code
+
+```bash title="Terminal"
+git clone https://github.com/careerbotdev/careerbot.git
+```
+
+## Next
+
+<Cards>
+<Card href="/docs/self-hosting/docker" title="Run it with Docker">The compose file, both Convex choices, the first run.</Card>
+<Card href="/docs/self-hosting/coolify" title="Coolify">Click by click, tested on Coolify v4.3.23.</Card>
+<Card href="/docs/self-hosting/dokploy" title="Dokploy">Click by click, tested on Dokploy v0.30.8.</Card>
+<Card href="/docs/self-hosting/your-computer" title="Your own computer">Docker Desktop or OrbStack, on localhost.</Card>
+</Cards>

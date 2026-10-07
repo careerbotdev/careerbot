@@ -1,0 +1,129 @@
+---
+title: How to tell your story
+description: Everything CareerBot writes about you grows from your stories. Here's how to give it plenty to work with.
+nav: Your story
+sources:
+  - src/app/today/steps.ts
+  - src/app/today/GettingStarted.tsx
+  - src/app/record/story/Story.tsx
+  - src/app/record/story/StoryItem.tsx
+  - src/app/record/story/words.ts
+  - src/components/Talk.tsx
+  - src/app/review/decisions.ts
+  - src/app/record/facts/actions.ts
+  - src/app/record/breaks/Breaks.tsx
+  - src/app/record/fixtures.ts
+  - convex/breaks.ts
+---
+
+CareerBot starts from your own words. It reads your stories into roles and facts, you approve them, and every resume, letter and note is written from what you approved. A good story gives it plenty to work with.
+
+Be ready to give it real time. 20 minutes or more for one job is normal, and a job you did for years can take longer. That time is the whole point: it's where the results you've forgotten to mention come back.
+
+## One story for each job
+
+Write one story for each employer, and one for each project you want on your record. Tell it the way you'd tell a friend: what you owned, what was hard, what changed. Rough is fine. Out of order, repetitive and half-remembered all work. Start with any job, the latest or the first.
+
+Your first story is written right on <Screen id="today" />, in the step **Write your first story**. Give it a title, write, and choose **Done, read it**. What you write is kept in this browser as you go, so you can leave and come back.
+
+After that, stories live in <Screen id="record" />, under Story. Choose **New story** (<Kbd>N</Kbd>) and name it after the employer or project. It saves when you leave the text, or with <Kbd>⌘S</Kbd>.
+
+## The shape of a good story
+
+Tell each piece of work in the order you'd tell it in an interview. Most of the detail belongs in what you did.
+
+<Terms>
+<Term title="The situation">Where things stood when you arrived: the team, the customers, what was broken or missing. A sentence or two is enough. CareerBot keeps this as context, which sharpens your facts without becoming one.</Term>
+<Term title="What you owned">What was yours to deliver or decide, including work outside your title. If you drove it, say you drove it.</Term>
+<Term title="What you did">The steps you took, the tools and methods you used, and who you worked with. This is where most of your words should go.</Term>
+<Term title="What came of it">The result, with a number if you have one: money, time, customers, people, the size of the thing. Two results are worth two sentences.</Term>
+</Terms>
+
+## What to cover for each role
+
+Beside your first story, Getting started shows the app's own short list, **What to cover**: what you did and what you owned; results, with numbers; tools and methods you used; the people and the setting; what was hard; why you moved on. In full:
+
+<Checklist>
+<Check title="Employer, title and dates">Dates said in passing, like “I joined in February 2020”, become proper dates on the role.</Check>
+<Check title="Your official title, and what the work really was">If the title undersells the work, say what it really was. CareerBot keeps both.</Check>
+<Check title="Where you worked, and the team">The place, the team's size, who you reported to and who reported to you.</Check>
+<Check title="What you did, and what you owned">Including what you took on beyond your title.</Check>
+<Check title="Each result, with a number">Revenue, time saved, customers kept, people hired, volume handled. A rough number (“about 180”) beats none.</Check>
+<Check title="The tools and methods you used">The ones you used day to day, by name.</Check>
+<Check title="The people and the setting">Who you worked with, for and alongside: customers, other teams, vendors.</Check>
+<Check title="What was hard">The constraint, the deadline, the thing that went wrong and what you did about it.</Check>
+<Check title="Why you moved on">Kept as context, not as a fact.</Check>
+</Checklist>
+
+## What to cover for each project
+
+A project might be something you built, a volunteer role, or a big piece of work you want on its own line. Name the story after it and cover:
+
+<Checklist>
+<Check title="What it was, and why it existed">The problem, who it was for, and when.</Check>
+<Check title="Your part">What you built, decided or ran, and what others did.</Check>
+<Check title="What came of it">Who used it, how much, what changed. Numbers where you have them.</Check>
+<Check title="The tools and methods">What you built it with, and how.</Check>
+<Check title="What was hard">What made it difficult, and how you got past it.</Check>
+<Check title="Where it fits">The job it was part of, if any. You can link a story to a role from its ⋯ menu, **Link to a role**.</Check>
+</Checklist>
+
+If the project is on GitHub, connect GitHub too: CareerBot can read the repository itself. See [GitHub](/docs/integrations/github).
+
+### Career breaks
+
+Time between jobs is fine to mention in a story, but a break is added on its own: in Record, Breaks, choose **Add a break** with its months and, if you want, a reason. You choose how it shows on resumes. A gap is never turned into a break for you.
+
+## Say it at full strength
+
+Most people describe their work more modestly than it deserves. Skip “helped with” and “supported” for work you drove. CareerBot writes in the strongest terms your story supports, and it won't invent a customer, a result or a skill you didn't mention. The more you say, the stronger it can be.
+
+<StoryToFact
+  story="I joined Ironbridge Logistics in February 2020 to run network operations for its Pittsburgh terminals, a month before grocery volume doubled. I led the switch to a new transportation management system for about 180 dispatchers and planners."
+  fact="Led the move to a new transportation management system for about 180 dispatchers and planners at four terminals."
+/>
+
+That's from the record of Wren Castellano, a fictional person used throughout these docs.
+
+Every line has a root. Each fact keeps the words from your story it came from, so you can always see where a line on your resume came from, and talk to it in an interview.
+
+## Talk instead of typing
+
+You can tell your story out loud. Choose **Talk** (or press <Kbd>⇧T</Kbd> when you're not in a text box) and speak. Your words appear in the story as you talk, with the words still being heard greyed at the end, and they save like typing. Choose **Stop** (<Kbd>⇧T</Kbd> again) when you're done; it says how many words went in.
+
+- It uses your browser's own speech recognition. CareerBot records nothing and keeps no audio; only the words end up in your story.
+- Tell it like you'd tell a friend, one job at a time, with the names and numbers.
+- Fix a misheard word by typing over it. Names, products and numbers are the usual ones to check.
+- Each time you press Talk, your words start a new paragraph after what's there.
+- On a phone, listening stops when the screen locks or you switch apps. What was heard is already in the story.
+- Where the browser can't listen (Firefox), there's no Talk button. Use your device's own dictation instead: the mic on a phone's keyboard, <Kbd>Fn</Kbd> <Kbd>Fn</Kbd> on a Mac, or <Kbd>Win</Kbd> <Kbd>H</Kbd> on Windows.
+
+If the microphone is blocked, the browser's speech service can't be reached, or nothing was heard, CareerBot says so in plain words and you press Talk again. For example: "The microphone is blocked for this site. Allow it in your browser’s site settings, then press Talk again."
+
+## Tips for getting the best out of it
+
+<Terms>
+<Term title="One job per story">Mixing several jobs makes it harder to tell which result belongs where.</Term>
+<Term title="Name things">Employers, teams, products, systems, kinds of customer. Named tools and skills end up on your record.</Term>
+<Term title="Count things">People, money, time, volume, percentages. If you only know roughly, say “about”.</Term>
+<Term title="Say who did what">“We” hides your part. Say “I” for what you did.</Term>
+<Term title="Include the hard parts">What went wrong and how you handled it often makes the best line.</Term>
+<Term title="Don't polish">CareerBot does the wording; your job is the facts.</Term>
+<Term title="From memory, in your own words">CareerBot starts from what you tell it, not from text written for another purpose.</Term>
+</Terms>
+
+## After you write
+
+Choose **Read** (<Kbd>R</Kbd>). The cost shows beside it first; it uses your AI budget. CareerBot reads the story into roles, facts and context, and what it proposes waits in <Screen id="review" />. Approve what's right, edit what's close, reject what's wrong. Only what you approve is used. See [Reviewing facts](/docs/start/review).
+
+If a fact misses something, choose **Add context or rewrite** on it in Record (or **Ask for a rewrite** in Review). Say what it leaves out (“a team of three, and I led it”) or how to say it (“lead with the savings”). The new wording comes back for you to accept.
+
+## Coming back later
+
+Remembered something? Add it to the same story and save. Each save keeps a version: **Versions** (<Kbd>⇧V</Kbd>) lets you compare two or restore one. Read it again and CareerBot proposes only what changed: new facts, updates to facts you approved, and any the story no longer says. Nothing approved changes without your okay.
+
+**Read again…** asks what it missed first (“The plant move, the safety award”), and can look past what you rejected, for that read only.
+
+For something small, a **Quick note** (<Kbd>⇧N</Kbd>) works too: one more thing about a role, a project or a result.
+
+CareerBot may also ask follow-up questions in Review, only where an answer would add or change a line. **Answer** it, or choose **Not now** and that question isn't asked again.

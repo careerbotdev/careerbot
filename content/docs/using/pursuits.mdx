@@ -1,0 +1,100 @@
+---
+title: Pursuits
+description: Your ranked roles and the pursuits you've started, in one inbox, with the tailored resume, letter, answers, contacts and follow-ups for each, on the Apply path, the Outreach path or both.
+sources:
+  - src/app/pursuits
+  - src/app/tours/pursuits.ts
+  - convex/pursuitSteps.ts
+  - convex/contactGroups.ts
+screen: pursuits
+---
+
+<ScreenFacts screen="pursuits" />
+
+Pursuits is the main screen of a job search. A **role** is an open job CareerBot found and ranked for your directions. A **pursuit** is a role you decided to go after: it keeps the status, tailored resume, cover letter, answers, contacts, outreach messages and follow-ups for that one role together.
+
+## Layout
+
+On a large screen there are three parts: the list on the left, the open role or pursuit beside it, and, when you ask for it, a third pane with the tailored resume, **Ask about this role** or a message. On a medium screen the third pane slides over as a drawer; on a phone it is a sheet.
+
+The address keeps what is open, so a link to a role opens it again.
+
+With nothing open, the item side shows **By direction**: for each direction, how many pursuits were started, contacted, applied to (a pursuit can be both), interviewed, got offers and closed (and why), **What stands out**, and **Where roles come from** with each company's job board and **Check again**.
+
+## The list
+
+The tabs:
+
+- **All roles**: every ranked role, best first.
+- **Interested**: roles you marked, until you start them.
+- **Pursuing**: what's under way. With no tab chosen, this one opens when you have any.
+- **Closed**: pursuits that ended.
+
+On a narrow screen tabs fold into **More**. Above the list, **Direction** shows one direction's roles. On **All roles** and **Interested**, **+ Filter** adds role filters (score, pay, place, work setup, posted within, company, seniority, years asked, employment type, rating, travel, clearance and visa sponsorship); most can also **Include roles that don’t say**. **Clear** puts them back.
+
+Each row shows the fit score, title, company and place, its status or next step, and when it was posted. A role listed in several places is one row. At the end, folded: **Against your limits** (roles that state pay, a place, a level, travel, a schedule, an employer, a clearance or a visa against a firm limit, each saying which) and **Other roles** (not the work of your directions).
+
+## Decide on a role
+
+<Steps>
+<Step title="Open it">Read **About the job**, **For you** (fit for each direction, with **Built on**), what it misses of your limits, the **Full description** and **Details**.</Step>
+<Step title="Choose">**Start** (<Kbd>S</Kbd>) begins a pursuit. It's free. **Interested** (<Kbd>I</Kbd>) keeps it on your Interested list. **Not for me** (<Kbd>R</Kbd>) sets it aside and asks why.</Step>
+</Steps>
+
+<Shot id="role" alt="Pursuits with All roles listed by score, and a role open beside the list: Solutions Consultant, Demand Planning at Orchard Forecasting, with Start, Interested and Not for me, About the job, For you, and its fit for each of Wren’s directions." />
+
+The role's ⋯ menu also has **Tailor a resume**, **Write a letter**, **Ask about this role**, **Open the posting** (<Kbd>O</Kbd>), **Copy link** and rating its company.
+
+## Work a pursuit
+
+A pursuit shows its **Status** at the top: Preparing, Contacted, Applied, In conversation, Interviewing, Offer or Closed. Contacted and Applied are one step: a pursuit can be both, and each keeps its own date. Setting **Closed** asks for the reason (Rejected, Withdrawn, No response or Declined). **Undo** takes a change back. Reminders due show here with **Snooze**.
+
+### Two paths
+
+There are two ways into a role, and they carry equal weight:
+
+- **Apply**: send your tailored resume, letter and answers through the posting, then mark it Applied.
+- **Outreach**: write to the people who hire (the hiring manager, someone on the team or a recruiter) with a short outreach message from your record, sent from your own email.
+
+While a pursuit is Preparing and its resume is tailored, the Overview shows both as check boxes. Tick one or both. The choice only changes the next steps CareerBot suggests: **Open the posting** and **Find contacts** stay on every pursuit, and an outreach message marked sent or **Applied** counts on its path whatever you ticked.
+
+A pursuit started with **Start outreach** on a company has no open role: it's titled with what you're after, says No open role in the list, is on the Outreach path, and has only Overview, Role, People and Notes. Its **Role** tab shows what the company does and the direction the pursuit is for, and is left out when neither is known.
+
+Its tabs:
+
+<Terms>
+<Term title="Overview">The next step (from the path), **Outreach** and **Apply** while it's being prepared, the interview date, the follow-up draft when one is due, and the **Timeline** of everything that happened.</Term>
+<Term title="Role">The role as it showed before you started it: **About the job**, **For you**, the fit for each direction with its stretch, the **Full description**, your notes on the role, and its **Details** beside (under it on smaller screens).</Term>
+<Term title="Resume">The tailored resume. **Tailor a resume** writes one for this posting from your direction's resume, with **Requirements** showing how you cover each one. Once you apply, it's **Kept as sent**.</Term>
+<Term title="Letter">**Write a cover letter** from your approved record and the tailored resume. **Write it again** keeps earlier versions.</Term>
+<Term title="Answers">Answers to the application's questions you kept from Ask, or added with **Add an answer**.</Term>
+<Term title="People">**Find contacts** at the company (free), in three groups: **Hiring manager**, **Team** and **Recruiting**. A person's ⋯ menu moves them to another group. **Add a contact** adds someone you know, with the email you type (free). When someone answers, **Mark a reply** (in their ⋯ menu or under the message) records it and moves the pursuit to In conversation if it's behind. Revealing an email costs **1 Apollo credit**. **Draft a message** writes an outreach message; **Copy and open Mail** opens it in your email, and you mark it sent. The first one marked sent moves the pursuit to Contacted. While outreach is quiet, the step due leads the tab, and the person it's for is marked **Follow up** or **Next contact**.</Term>
+<Term title="Notes">Your own dated notes.</Term>
+</Terms>
+
+<Shot id="role-tab" alt="The Role tab of a pursuit at Loadstar Systems, now Interviewing: the role as it showed before it was started, with About the job, For you, its fit for each of Wren’s directions and its stretch." />
+
+**Ask about this role** (<Kbd>/</Kbd>) opens beside the pursuit. Paste an application question or ask anything; answers come from your approved record, the resume and the posting. **Keep** saves an answer to Answers.
+
+## Go in and follow up
+
+<Steps>
+<Step title="Write to someone, apply, or both">On the Outreach path, **Find contacts** opens People: write to one person and mark the message sent. On the Apply path, **Apply** opens the posting. Apply there with your tailored resume and letter, then set **Status** to Applied (Getting started's step has **Mark Applied**). CareerBot keeps a copy of the resume and letter you sent.</Step>
+<Step title="Follow up">An application with no reply for 7 days brings a reminder, and another at 14 days. An outreach message works one person at a time: 7 days with no reply, **Follow up with** that person; 7 days after the follow-up, **Next contact** names the next person in group order you haven't written to. After three people with no reply, it suggests applying, if you haven't, or closing it as No response. A reply from anyone there stops these reminders. **Write the follow-up** drafts one to the last person you wrote to, **Copy and open Mail** sends it from your own email, and **Mark as sent** records it.</Step>
+</Steps>
+
+## The list's ⋯ menu
+
+**More for Pursuits** holds **By direction**, **Select** (on All roles and Interested: checkboxes to mark many roles **Interested** or **Not for me** at once; **Done** or <Kbd>Esc</Kbd> stops), **Rank again** and **Check roles again** (each shows its cost first), **Count how big a stretch a role is** and **Reminders**. <Kbd>X</Kbd> on a role, or <Kbd>⇧</Kbd>- or <Kbd>⌘</Kbd>-click, also starts selecting with that role checked (see [Selecting several](/docs/using/keyboard#selecting-several)).
+
+## Keys
+
+<Kbd>J</Kbd> / <Kbd>K</Kbd> move through the list, <Kbd>Esc</Kbd> closes the open item. On a role: <Kbd>S</Kbd> **Start**, <Kbd>I</Kbd> **Interested**, <Kbd>R</Kbd> **Not for me**, <Kbd>O</Kbd> **Open the posting**, <Kbd>L</Kbd> **Write a letter**, <Kbd>/</Kbd> **Ask about this role**.
+
+## Related
+
+<Cards>
+<Card href="/docs/start/first-pursuit" title="Your first pursuit">From a role to an application.</Card>
+<Card href="/docs/how-it-works/companies-and-roles" title="Companies and roles">How roles are found and ranked.</Card>
+<Card href="/docs/ai/roles" title="How roles are ranked">The AI steps behind the score.</Card>
+</Cards>

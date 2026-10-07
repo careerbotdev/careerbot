@@ -1,0 +1,102 @@
+---
+title: Configuration
+description: Every setting a Docker copy reads from .env, and what the important ones do.
+nav: Configuration
+sources:
+  - .env.example
+  - compose.yaml
+  - scripts/sync-convex-env.sh
+  - docker/web-start.sh
+  - convex/auth.ts
+---
+
+A Docker copy reads its settings from `.env` next to `compose.yaml` (copied from `.env.example`). On Coolify and Dokploy
+they go in the deployment's environment instead. After a change, run `docker compose up -d` (or Redeploy): compose makes
+new containers, and the setup step pushes the backend's settings to Convex again.
+
+## Every setting
+
+<Configuration />
+
+## The ones that matter most
+
+### SITE_URL
+
+Where people open CareerBot, as the browser sees it: `http://localhost:3000` on your own computer,
+`https://careerbot.example.com` on a server. It's fixed into the web container when it starts (the image is built with a
+stand-in that the start script swaps), and sign-in sends people back to it. A wrong `SITE_URL` breaks Google and GitHub
+sign-in.
+
+### NEXT_PUBLIC_CONVEX_URL and CONVEX_SITE_ORIGIN
+
+Where the browser reaches Convex: its API, and (self-hosted only) its HTTP actions, where Google and GitHub send people
+back after signing in. Both must be addresses the browser can open, never `convex-backend`. On a server, two https
+hostnames of their own. Compose stops with "Set NEXT_PUBLIC_CONVEX_URL in .env" when it's missing.
+
+Neither may contain `|`, `\` or `&`.
+
+### COMPOSE_PROFILES
+
+`self-hosted` runs Convex in the same compose file. Leave it out for Convex's cloud. See [Convex](/docs/self-hosting/convex).
+
+### CONVEX_DEPLOY_KEY, CONVEX_SELF_HOSTED_URL
+
+Which Convex the setup step deploys to. A deploy key means Convex's cloud; otherwise `CONVEX_SELF_HOSTED_URL`
+(`http://convex-backend:3210`) means self-hosted. With neither, the setup step stops: "Set CONVEX_DEPLOY_KEY (Convex's
+cloud) or CONVEX_SELF_HOSTED_URL (self-hosted Convex); see .env.example."
+
+### SIGNUP_ALLOWLIST
+
+Who may sign in with Google or GitHub: emails, comma-separated. Empty: nobody. Password accounts don't need it. An empty
+value doesn't clear the list on the deployment; delete it in Convex's dashboard. See
+[Sign-in and who can join](/docs/self-hosting/sign-in#google-and-github).
+
+### AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET, AUTH_GITHUB_ID, AUTH_GITHUB_SECRET, GOOGLE_PICKER_KEY
+
+Google and GitHub sign-in, Google Drive, and Drive's folder picker. Each sign-in button shows once both of its keys are
+set. See [Keys and accounts](/docs/self-hosting/keys).
+
+### JWT_PRIVATE_KEY, JWKS, MASTER_KEY_V1
+
+Made by the first run and kept in the Convex deployment. Set them only to bring keys from another copy.
+`MASTER_KEY_V1` encrypts the API keys people save in CareerBot; losing it means entering those again.
+
+### WEB_PORT, CONVEX_PORT, CONVEX_SITE_PORT, CONVEX_DASHBOARD_PORT
+
+The ports compose publishes on the machine: 3000, 3210, 3211 and 6791. Change one when it's taken, and the localhost
+address that uses it. On Dokploy, set `WEB_PORT=3001` (Dokploy's dashboard holds 3000). See
+[Your own computer](/docs/self-hosting/your-computer#when-a-port-is-taken).
+
+### BIND_ADDRESS
+
+The address compose publishes those ports on. Default `127.0.0.1`: they open from this machine only, and a proxy in
+Docker (Coolify, Dokploy) doesn't need them. `0.0.0.0` opens them to other machines too; use it only on a private
+network without a proxy, never on a server facing the internet ([Firewall](/docs/self-hosting/vps#firewall)).
+
+### CAREERBOT_VERSION
+
+Which CareerBot release the web app and the setup step run, such as `0.8.0`. Unset, the release `compose.yaml` came
+with; `latest`, the newest release each time `docker compose pull` runs. See
+[Updates, backups, export](/docs/self-hosting/updates#releases).
+
+### CONVEX_RELEASE
+
+The Convex backend and dashboard image tag for self-hosted Convex. Unset, `compose.yaml`'s pinned release. See
+[Upgrading self-hosted Convex](/docs/self-hosting/convex#upgrading-self-hosted-convex).
+
+## Settings that aren't in .env
+
+- `CAREERBOT_MODE=self-hosted`: compose sets it on the Convex deployment, and the Docker image is built with it. It's
+  what makes a copy yours: the app at `/`, username and password sign-in, the owner adds people. Only the
+  [Cloudflare way](/docs/self-hosting/cloudflare) sets it by hand. Without it on the deployment, the sign-in screen says
+  "This copy’s Convex isn’t set up for username and password sign-in: set CAREERBOT_MODE=self-hosted in its
+  environment."
+- `AUTH_REDIRECT_ORIGINS`: more addresses, comma-separated, that sign-in may send people back to besides `SITE_URL`.
+  `scripts/sync-convex-env.sh` sets it when it's in the environment; compose doesn't pass it, so set it with
+  `npx convex env set` or in Convex's dashboard if you need it.
+- `LIQUIDAI_API_KEY`: in `.env.example` under Optional, for an experiment in sorting roles. You don't need it.
+- `UPDATE_CHECK=off`: in `.env.example` under Optional. Once a day a self-hosted copy asks
+  `https://careerbot.dev/releases.json` whether there's a newer version, and its owner sees it in Settings, Updates.
+  The request carries no account, personal data or anything about the copy or the people on it, but like any web
+  request it shows careerbot.dev the IP address of the server the copy runs on. `off` stops it; the owner can also turn
+  it off with **Check for updates** in Settings, Updates.

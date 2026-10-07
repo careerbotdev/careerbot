@@ -1,0 +1,39 @@
+{
+  "slug": "daniel-okonkwo",
+  "name": "Daniel Okonkwo",
+  "oneLine": "Senior backend engineer, about 14 years in (defense, payments, HR SaaS), back after two years caring for his dad and aiming for senior or staff backend work on payments and ledger infrastructure, remote or Atlanta.",
+  "workspaceName": "Daniel Okonkwo (test persona)",
+  "profile": {
+    "name": "Daniel Okonkwo",
+    "email": "daniel.okonkwo@example.com",
+    "phone": "+1 555 010 4417",
+    "location": "Atlanta, GA",
+    "links": ["https://example.com/dokonkwo-dev"]
+  },
+  "budgets": { "aiMonthlyUsd": 25, "apolloMonthlyCredits": 0, "apolloMode": "paused" },
+  "settings": { "resumeLength": "two" },
+  "stories": [
+    { "file": "stories/01-shiftwell.md", "title": "Shiftwell" },
+    { "file": "stories/02-tallyline.md", "title": "Tallyline" },
+    { "file": "stories/03-caregiving-break.md", "title": "Time off to care for my dad (and open source)" },
+    { "file": "stories/04-redstone.md", "title": "Redstone Ridge Systems" },
+    { "file": "stories/05-lumenrent-contract.md", "title": "Lumenrent (contract)" }
+  ],
+  "goals": "goals.md",
+  "projects": [
+    { "file": "projects/pgledger/README.md", "repo": "https://example.com/dokonkwo-dev/pgledger", "title": "pgledger" },
+    { "file": "projects/tollgate/README.md", "repo": "https://example.com/dokonkwo-dev/tollgate", "title": "tollgate" }
+  ],
+  "companies": [
+    { "name": "Brickyard Pay", "domain": "brickyardpay.example", "why": "Payments and ledgers are the whole business there, which is exactly the work I loved at Tallyline.", "fictional": true },
+    { "name": "Cartwheel Commerce", "domain": "cartwheelcommerce.example", "why": "Big payments and platform problems, remote by default, and they take writing and developer tooling seriously.", "fictional": true },
+    { "name": "Saltbox", "domain": "saltboxpos.example", "why": "Restaurant payments plus payroll and scheduling, which is basically Tallyline and Shiftwell in one company.", "fictional": true },
+    { "name": "Edgewarden", "domain": "edgewarden.example", "why": "Developer infrastructure at real scale; rate limiting is the kind of problem I built tollgate to understand.", "fictional": true },
+    { "name": "Kestrel Ridge Federal", "domain": "kestrelridgefederal.example", "why": "A recruiter keeps reaching out; it's payments work in Alpharetta and pays fine, but it's cleared federal work, so probably not.", "fictional": true }
+  ],
+  "postings": [
+    { "file": "postings/01-brickyard-ledger.md", "company": "Brickyard Pay", "title": "Senior Software Engineer, Ledger Platform", "location": "Remote (US)", "url": "https://example.com/jobs/daniel-okonkwo-1", "expect": "fits", "why": "Double-entry ledger, migrations, idempotency and reconciliation are his core record; remote US, base $192k-$288k, travel under 5%, no clearance." },
+    { "file": "postings/02-cartwheel-platform.md", "company": "Cartwheel Commerce", "title": "Staff Platform Engineer, Core Services", "location": "Remote (US)", "url": "https://example.com/jobs/daniel-okonkwo-2", "expect": "fits", "why": "Monolith-to-services extraction and rate limiting match Shiftwell and tollgate; IC staff role, remote US, base $213k-$266k, travel under 10%." },
+    { "file": "postings/03-kestrel-ridge-disbursement.md", "company": "Kestrel Ridge Federal", "title": "Senior Backend Engineer, Disbursement Systems (TS/SCI)", "location": "Alpharetta, GA", "url": "https://example.com/jobs/daniel-okonkwo-3", "expect": "filtered", "why": "Requires an active TS/SCI clearance on day one; his Secret clearance lapsed and he won't take roles needing an active clearance (pay and Atlanta-area hybrid would otherwise pass)." }
+  ]
+}

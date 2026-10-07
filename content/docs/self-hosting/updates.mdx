@@ -1,0 +1,222 @@
+---
+title: Updates, backups, export
+description: Which release your copy runs, how to move it to a new one, how to back up its data, and how to take your work out.
+nav: Updates, backups, export
+sources:
+  - compose.yaml
+  - compose.build.yaml
+  - .env.example
+  - docker/convex-setup.sh
+  - .github/workflows/ci.yml
+  - scripts/upgrade-check.ts
+  - src/app/resumes/Export.tsx
+  - src/app/settings/YourData.tsx
+---
+
+## Releases
+
+CareerBot comes out in numbered releases, such as 0.8.0. Each one has notes in plain words at
+[careerbot.dev/changelog](https://careerbot.dev/changelog). A release that needs something from you, such as a new
+setting in `.env`, is marked “Read before updating” and lists the steps.
+
+A Docker copy runs CareerBot's release images, made from each release for amd64 and arm64 machines:
+`ghcr.io/careerbotdev/careerbot-web` (the web app) and `ghcr.io/careerbotdev/careerbot-setup` (the setup step). Your server
+downloads them; it doesn't build anything. `compose.yaml` names them at the version in `CAREERBOT_VERSION`:
+
+| `CAREERBOT_VERSION` | Runs |
+| --- | --- |
+| Not set | The release your `compose.yaml` came with. The repository's `compose.yaml` names the newest release |
+| A version, such as `0.8.0` | That release, until you change it |
+| `latest` | The newest release, fetched by `docker compose pull` |
+
+Before each release goes out, it's checked against the one before: a copy of the previous release, with test data and
+accounts in it, is updated the way this page says, and its data and sign-in must still be there.
+
+## Updating
+
+<Steps>
+<Step title="Read the release notes">
+Every release since yours, at [careerbot.dev/changelog](https://careerbot.dev/changelog). Do what any marked “Read
+before updating” ask, in the order they say.
+</Step>
+<Step title="Back up">
+The data and the deployment's settings: [Backups](#backups), below.
+</Step>
+<Step title="Update">
+
+<Tabs labels={["Docker Compose", "Coolify", "Dokploy", "Cloudflare"]}>
+<Tab label="Docker Compose">
+
+In the folder you cloned:
+
+```bash title="Terminal"
+git pull
+docker compose pull && docker compose up -d
+```
+
+`git pull` brings the new `compose.yaml`, which names the new release. If you set `CAREERBOT_VERSION` in `.env`, change
+it to the new version first. If the new `.env.example` has settings your `.env` lacks, the release notes say which.
+
+</Tab>
+<Tab label="Coolify">
+
+If you set `CAREERBOT_VERSION` in Environment Variables, change it to the new version. Then deploy again: Actions (top
+right) > Redeploy. Coolify fetches the repository's newest `compose.yaml`, and the new version's images with it.
+
+Use a version number there, or leave it unset, rather than `latest`: a new version number is what makes the server fetch
+new images.
+
+</Tab>
+<Tab label="Dokploy">
+
+If you set `CAREERBOT_VERSION` in Environment, change it to the new version. Then open the compose service: General >
+Deploy > Confirm. Dokploy fetches the repository's newest `compose.yaml`, and the new version's images with it.
+
+Use a version number there, or leave it unset, rather than `latest`: a new version number is what makes the server fetch
+new images.
+
+</Tab>
+<Tab label="Cloudflare">
+
+No images: you build from the code. See [Cloudflare Workers](/docs/self-hosting/cloudflare#updating).
+
+</Tab>
+</Tabs>
+
+</Step>
+<Step title="Check it">
+`docker compose ps -a`: `convex-setup` exited with `0` and `web` is healthy. More: [Check it works](/docs/self-hosting/check-it-works).
+</Step>
+</Steps>
+
+What happens: the new setup step deploys the new version's functions to Convex (adding any new indexes), and only once
+that has worked does compose start the new web app. Your data and accounts stay, and people stay signed in.
+
+If something's wrong after an update, the backup from before it is the way back: set `CAREERBOT_VERSION` to the version
+you had, restore the backup, and run `docker compose up -d`.
+
+### Self-hosted Convex is a separate step
+
+Updating CareerBot doesn't upgrade Convex's own backend and dashboard. They stay at the release in `CONVEX_RELEASE`
+until you change it: [Upgrading self-hosted Convex](/docs/self-hosting/convex#upgrading-self-hosted-convex). When a
+CareerBot release moves `compose.yaml` to a newer Convex release, its notes say so, marked “Read before updating”. Back
+up first: a copy of the volume belongs to the Convex release that wrote it.
+
+### Why updates don't happen on their own
+
+Tools that update containers by themselves whenever a new image appears, such as Watchtower, don't fit CareerBot:
+
+- Each version's setup step has to deploy its functions to Convex before its web app starts. Compose does that, in
+  order; an image updater only swaps containers, so the web app can run against functions from another version.
+- A release may need something from you first, which only its notes say.
+- You want a backup from just before.
+
+So an update is always one you start. Leave CareerBot's containers out of any such tool you run.
+
+### Building from the code
+
+For working on CareerBot itself, `compose.build.yaml` builds the two images from your checkout instead of downloading
+them (Docker Compose v2.24 or later):
+
+```bash title="Terminal"
+docker compose -f compose.yaml -f compose.build.yaml up -d --build
+```
+
+The images it builds are named after the compose project, so they never stand in for a release on the same machine.
+
+## Backups
+
+What to keep safe:
+
+- The data: Convex's tables and files.
+- The deployment's settings, above all `MASTER_KEY_V1` (it decrypts the keys saved in Settings), `JWT_PRIVATE_KEY` and
+  `JWKS`. A data export doesn't include them.
+- Your `.env`.
+
+### Copy the settings
+
+Self-hosted: in Convex's dashboard, Settings > Environment Variables. With the Convex CLI (cloud, with
+`CONVEX_DEPLOY_KEY` set in your shell):
+
+```bash title="Terminal"
+npx convex env list
+```
+
+Keep them somewhere safe, such as a password manager. To restore onto a new deployment, put `JWT_PRIVATE_KEY`, `JWKS`
+and `MASTER_KEY_V1` in the new copy's `.env` before its first run, so it doesn't make new ones.
+
+### Export the data with Convex
+
+Convex's CLI exports a deployment to a ZIP file and imports one back.
+
+<Tabs labels={["Self-hosted Convex", "Convex’s cloud"]}>
+<Tab label="Self-hosted Convex">
+
+From the machine running compose (it needs Node.js; port 3210 is published there). Get the admin key with
+`docker compose exec convex-backend ./generate_admin_key.sh`, then:
+
+```bash title="Terminal"
+export CONVEX_SELF_HOSTED_URL=http://localhost:3210
+export CONVEX_SELF_HOSTED_ADMIN_KEY='<the admin key>'
+npx convex export --path careerbot-backup.zip --include-file-storage
+```
+
+</Tab>
+<Tab label="Convex’s cloud">
+
+```bash title="Terminal"
+export CONVEX_DEPLOY_KEY='prod:your-deployment|…'
+npx convex export --path careerbot-backup.zip --include-file-storage
+```
+
+Convex's dashboard also makes backups of a cloud deployment.
+
+</Tab>
+</Tabs>
+
+Restoring, with the same variables pointing at the deployment to restore into:
+
+```bash title="Terminal"
+npx convex import --replace-all careerbot-backup.zip
+```
+
+`--replace-all` replaces every table in that deployment with the backup's. These commands are Convex's own; they weren't
+part of CareerBot's self-hosting tests.
+
+### Copy the volume
+
+With self-hosted Convex, the `convex-data` volume is the whole database. Stop the backend, archive the volume, start
+again:
+
+```bash title="Terminal"
+docker compose stop convex-backend
+docker volume ls                     # find it: <project>_convex-data, such as careerbot_convex-data
+docker run --rm -v careerbot_convex-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/convex-data.tgz -C /data .
+docker compose up -d
+```
+
+To restore, stop compose, extract the archive into an empty volume of the same name the same way
+(`tar xzf /backup/convex-data.tgz -C /data`), and start again. A volume copy belongs to the Convex release that wrote
+it: restore it with the same `CONVEX_RELEASE`.
+
+<Callout title="Careful" type="caution">
+`docker compose down -v` deletes the volume. Never run it on a copy you want to keep.
+</Callout>
+
+## Taking your work out
+
+Each person can take their own workspace out, whole, in **Settings**, **Your data**: **Export** makes one ZIP with
+everything in it, readable copies of it, and a file another copy imports. **Import** brings such a ZIP into an empty
+workspace, on this copy, another copy you run, or careerbot.dev, and the other way round. Keys, Google Drive and GitHub
+connections and passwords stay behind; add them again after an import. What's in the file, and its limits:
+[Your data](/docs/using/your-data).
+
+Smaller ways out:
+
+- Each resume: **Export** on a resume, as a PDF or Word file, or copied for Google Docs or as text.
+- With Google Drive connected, CareerBot keeps copies of your resumes in your Drive folder:
+  [Google Drive](/docs/integrations/google-drive).
+
+For the whole copy, every workspace at once, use the Convex export above (a ZIP of every table, as JSON lines): that's
+a backup of the copy to restore, not something one person imports.

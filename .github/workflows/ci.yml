@@ -1,0 +1,127 @@
+name: CI
+
+# The checks for pull requests, master and version tags. Nothing here deploys, publishes or reads a secret, and the token
+# can only read the repository. A pull request from a fork runs only after a maintainer approves it (the repository's
+# Actions setting "Require approval for all external contributors"), and runs as pull_request, never
+# pull_request_target, so its code never gets a write token.
+on:
+  pull_request:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  # Run by hand (Actions > CI > Run workflow) for the screen and upgrade checks on any branch.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The whole history and tags: the change-file check compares a pull request with its base.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - name: DESIGN.md is valid and generated files are current
+        run: |
+          pnpm exec designmd lint DESIGN.md > /dev/null
+          pnpm tokens
+          git diff --exit-code -- src/app/tokens.css src/app/icon.svg public/brand
+      - run: pnpm lint
+        env:
+          # On a pull request, the change-file check looks at the pull request's own changes: a releasable change needs
+          # a change file of its own.
+          CHANGES_BASE: ${{ github.event.pull_request.base.sha }}
+      - name: System map and import rules match the code
+        run: pnpm arch:check
+      - run: pnpm test
+      # The history here is exports, not the change files a release consumed, so a version tag is checked against the
+      # release it should carry instead of recomputed.
+      - name: The version tag is the release package.json, compose.yaml and the release notes name
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: pnpm exec tsx scripts/release.ts check-consistency "$GITHUB_REF_NAME"
+
+  # The screen checks (Storybook built, then Playwright at every width): slow, so they run on pull requests, on a
+  # version tag and by hand, not on every push to master.
+  screens:
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm storybook:build
+        env:
+          STORYBOOK_DISABLE_TELEMETRY: "1"
+      - name: Critical screens render and work at every width
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          pnpm check:rendered
+
+  # The upgrade check (scripts/upgrade-check.ts): the previous release, with a test persona's data, is updated to this
+  # commit's release images the way the docs say, and its data and sign-in must survive. The images are built here,
+  # into the runner's own image store; nothing is pushed.
+  upgrade:
+    needs: check
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The previous release's files come from its tag.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The version and images compose.yaml runs
+        id: version
+        run: |
+          version=$(sed -nE 's/.*careerbot-web:\$\{CAREERBOT_VERSION:-([^}]+)\}.*/\1/p' compose.yaml)
+          if [[ "$GITHUB_REF" == refs/tags/v* && "v$version" != "$GITHUB_REF_NAME" ]]; then
+            echo "::error::compose.yaml runs $version, but the tag is $GITHUB_REF_NAME. pnpm release:prepare sets both."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "web=$(sed -nE 's/^ *image: *([^:]+careerbot-web):.*/\1/p' compose.yaml)" >> "$GITHUB_OUTPUT"
+          echo "setup=$(sed -nE 's/^ *image: *([^:]+careerbot-setup):.*/\1/p' compose.yaml)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v4
+      - name: Build careerbot-web
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: web
+          load: true
+          tags: ${{ steps.version.outputs.web }}:${{ steps.version.outputs.version }}
+      - name: Build careerbot-setup
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: convex-setup
+          load: true
+          tags: ${{ steps.version.outputs.setup }}:${{ steps.version.outputs.version }}
+      - name: The previous release updates to this one with its data and sign-in
+        run: pnpm upgrade:check

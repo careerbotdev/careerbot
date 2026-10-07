@@ -1,0 +1,124 @@
+---
+title: Your data
+description: Export everything in your workspace as one ZIP, to keep or to bring into another copy of CareerBot, and import such a ZIP into an empty workspace. What the file holds, what it leaves out, and its limits.
+sources:
+  - src/app/settings/YourData.tsx
+  - convex/yourData.ts
+  - convex/yourDataRun.ts
+  - convex/exportFormat.ts
+  - convex/exportRules.ts
+  - convex/readableExport.ts
+  - convex/workspaceCopy.ts
+---
+
+Your workspace is yours to take with you. **Settings**, **Your data** makes one ZIP of everything in it, to keep, to
+read anywhere, or to bring into another copy of CareerBot: careerbot.dev, a copy you run yourself, or back again.
+
+## Export
+
+**Export** makes the ZIP in the background, with how far along it is. When it's done, **Download** saves it; the file
+is named for the day, like `careerbot-export-2026-10-06.zip`. The download works for an hour, then the file is deleted
+from the server; **Export again** makes a new one as things are now. Exporting changes nothing in your workspace and
+costs nothing.
+
+What's in it:
+
+- Your stories and every saved version of them.
+- Your record: roles, facts, projects, skills, tools and certifications, insights, and the questions and conflicts
+  you answered, approved or not, with their history.
+- Your goals: directions, limits and their criteria.
+- Companies and their roles, with your ratings, notes and how each fits.
+- Pursuits, with their timeline, people, outreach messages, cover letters, follow-ups, answers and the conversation
+  about each role.
+- Resumes, every version, and the line updates waiting on them.
+- Notes.
+- Settings: models, budgets, reminders, company search, resume layout and your contact details.
+- Spending and reports: every paid call and the totals Reports reads, so your history adds up the same.
+- Finished background work, so what each step was based on can still be explained.
+
+What isn't, and why:
+
+- Keys for OpenRouter, Apollo and Brave: they're secrets. Add them again in **Settings**, **Keys** after an import.
+- Google Drive and GitHub connections: each belongs to the copy it was made on. Connect them again after an import.
+- Your password and sign-ins: each copy has its own accounts.
+- Work still running when you exported: it isn't finished, so it isn't kept. Anything that only that work needed is
+  left out with it.
+
+## The ZIP
+
+| In the ZIP | What it is |
+|---|---|
+| `careerbot-export.json` | Everything, in the format CareerBot imports. |
+| `README.md` | What's in the ZIP. |
+| `Record.md` | Your approved record: experience with its facts, projects, skills, tools, certifications and insights. |
+| `Goals.md` | Your goals story, approved directions and limits. |
+| `Companies.md` | Your companies, by rating, with your reasons. |
+| `Stories/` | Each story as you last wrote it, one Markdown file each. |
+| `Pursuits/` | Each pursuit: status, timeline, people and what you sent them, follow-ups, cover letter, answers and notes. |
+| `Notes.md` | Notes on anything other than a pursuit. |
+| `Resumes and letters/` | Your current base and direction resumes, and each tailored resume, cover letter and set of answers, as Word and Markdown files, in the same folders Google Drive gets. |
+| `files/` | Files stored in CareerBot, if any. |
+
+The readable files hold what you approved and wrote. Proposals, rejected items and the rest are in
+`careerbot-export.json`.
+
+### careerbot-export.json
+
+One JSON object:
+
+| Field | What it holds |
+|---|---|
+| `format` | The file's own version, a whole number (now 1). It goes up whenever a file from an older CareerBot would no longer import as it is. |
+| `careerbotVersion` | The version of CareerBot that exported it, like `0.8.0`. |
+| `exportedAt` | When it was exported (ISO 8601, UTC). |
+| `workspace` | The workspace's own settings: `name`, `began` (when your search began, in milliseconds), and whether Getting started was put away and which tours were offered. |
+| `tables` | Every kind of data, by its table's name, each a list of rows, oldest first. Each row keeps its `_id` and `_creationTime` from the copy it came from; rows point to each other by those ids. |
+| `outside` | Ids the rows name that the file doesn't carry (work that was still running), with the table each was in. |
+| `files` | Stored files by id: where each is in the ZIP (`path`), its type and size. |
+
+The tables are the ones CareerBot keeps your search in, row for row. Their fields are described in CareerBot's code
+(`convex/schema.ts`), and which tables an export carries, and why the others stay behind, in `convex/workspaceCopy.ts`.
+
+## Import
+
+Import brings an export into this workspace. It works only in an empty workspace, like a new account or a fresh copy:
+nothing in it yet but settings. A budget, models or contact details you set first are replaced by the file's.
+
+1. In **Settings**, **Your data**, choose the ZIP, or drop it on the page.
+2. CareerBot checks it and shows what it holds: which CareerBot exported it and when, and how many stories, record
+   items, companies, roles, pursuits, people, resumes, cover letters and notes. If some rows, or parts of rows, can't
+   come in because they point to something the file doesn't hold (work that hadn't finished when it was exported, say),
+   the preview lists them by kind (a row's link to that work shows as, say, Links in resumes), and the button reads
+   **Import without them**. A file that would lose a story, record item, company, role, pursuit, person, resume,
+   letter, follow-up or note this way is refused instead, as is one that would lose text you wrote or the lines of
+   **Add what's new** you were going through on a resume.
+3. **Import** puts it all in, with how far along it is. Every row gets a new id here, and everything that pointed to
+   it points to the new one. When it's done, it says what was left out, if anything.
+4. Add your keys again, and connect Google Drive and GitHub again if you used them.
+
+**Choose another file** puts a checked file aside. Importing makes no AI, Apollo or email calls and costs nothing.
+Nothing runs on its own until you add your keys again. An import can't be undone.
+
+If an import stops partway (the server restarted, say), **Continue** picks it up where it stopped, without putting
+anything in twice.
+
+## Limits
+
+- A file up to 100 MB (it uploads in pieces of 8 MB). A larger one is refused: "This file is over 100 MB." Export
+  never makes one an import couldn't take: a workspace that would export more fails with a plain message. Inside, `careerbot-export.json` up to 64 MB
+  unpacked, everything up to 256 MB unpacked, 10,000 files and 250,000 rows: past any of those it's refused before
+  more of it is read.
+- A file from a newer CareerBot than this copy is refused: "This file is from CareerBot 0.10.0, newer than this copy
+  (0.8.0). Update this copy, then import it." One in a newer export format is refused the same way. A file from an
+  older CareerBot is brought up to date as it's read.
+- The file is uploaded to your own copy's Convex, signed in as you, and becomes your import there and then: no one
+  else can point an import at it.
+- A ZIP without `careerbot-export.json`, or one that doesn't read as an export, is refused: "This isn't a CareerBot
+  export."
+- Only into an empty workspace. To bring two workspaces together, there's no merge: import into a fresh account.
+- The demo can't export or import, like any change there.
+
+## A whole copy
+
+**Your data** is one person's workspace. To back up or move a whole self-hosted copy, every person on it, use the
+Convex export and import: [Updates, backups, export](/docs/self-hosting/updates).

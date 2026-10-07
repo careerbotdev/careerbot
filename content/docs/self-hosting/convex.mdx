@@ -1,0 +1,136 @@
+---
+title: Convex
+description: Convex is CareerBot's database and background worker; run it in Convex's cloud or yourself in the same compose file.
+nav: Convex
+sources:
+  - compose.yaml
+  - .env.example
+  - docker/convex-setup.sh
+---
+
+Convex holds everything in a copy: accounts, stories, the record, resumes, pursuits, saved keys (encrypted). It also runs
+the background work (every AI step, syncing, reminders) and sign-in. The web app is only the screens.
+
+## Cloud or self-hosted
+
+<Choices>
+<Choice title="Convex’s cloud" note="The easy choice for a copy just for you">
+Convex runs it. The free plan covers a copy for one person or a few. Nothing to back up or upgrade yourself; you sign
+in to Convex's dashboard at dashboard.convex.dev. Needs: the deployment URL and a production deploy key, from the
+project's Settings > URL & Deploy Key.
+</Choice>
+<Choice title="Self-hosted Convex" note="Everything on your machine">
+`compose.yaml` runs Convex's open-source backend and its dashboard (`COMPOSE_PROFILES=self-hosted`). Your data stays in
+the `convex-data` Docker volume. You back it up and upgrade it. This is what `.env.example` is set up for, and what
+the Coolify and Dokploy tests used.
+</Choice>
+</Choices>
+
+### The settings for each
+
+<Tabs labels={["Convex’s cloud", "Self-hosted, on your computer", "Self-hosted, on a server"]}>
+<Tab label="Convex’s cloud">
+
+```bash title=".env"
+NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
+CONVEX_DEPLOY_KEY=prod:your-deployment|…
+```
+
+No `COMPOSE_PROFILES`, `CONVEX_SITE_ORIGIN` or `CONVEX_SELF_HOSTED_URL`. Sign-in callbacks go to
+`https://your-deployment.convex.site`.
+
+</Tab>
+<Tab label="Self-hosted, on your computer">
+
+```bash title=".env"
+COMPOSE_PROFILES=self-hosted
+NEXT_PUBLIC_CONVEX_URL=http://localhost:3210
+CONVEX_SITE_ORIGIN=http://localhost:3211
+CONVEX_SELF_HOSTED_URL=http://convex-backend:3210
+```
+
+</Tab>
+<Tab label="Self-hosted, on a server">
+
+```bash title=".env"
+COMPOSE_PROFILES=self-hosted
+NEXT_PUBLIC_CONVEX_URL=https://convex.example.com
+CONVEX_SITE_ORIGIN=https://convex-site.example.com
+CONVEX_SELF_HOSTED_URL=http://convex-backend:3210
+```
+
+Your proxy sends `convex.example.com` to port 3210 (with websockets) and `convex-site.example.com` to port 3211.
+
+</Tab>
+</Tabs>
+
+| Setting | What it is |
+| --- | --- |
+| `NEXT_PUBLIC_CONVEX_URL` | Convex's API, as the browser reaches it |
+| `CONVEX_SITE_ORIGIN` | Self-hosted: Convex's HTTP actions, as the browser reaches them. Google and GitHub send people back here after signing in, and Google Drive after connecting |
+| `CONVEX_SELF_HOSTED_URL` | Self-hosted: where the setup step reaches Convex inside compose. Stays `http://convex-backend:3210` |
+| `CONVEX_DEPLOY_KEY` | Cloud: the production deploy key the setup step deploys with |
+| `CONVEX_SELF_HOSTED_ADMIN_KEY` | Self-hosted: the admin key. Leave it out; the `convex-admin-key` service hands it to the setup step |
+
+## The data volume
+
+With self-hosted Convex, everything lives in the `convex-data` Docker volume (Convex's own database files, on SQLite).
+
+- `docker compose down` removes the containers and keeps the volume.
+- `docker compose down -v` deletes the volume, and every account and story with it.
+- On Coolify and Dokploy the volume is named after the deployment; it survives redeploys.
+
+Backing it up: [Updates, backups, export](/docs/self-hosting/updates#backups).
+
+With Convex's cloud, the data lives in your Convex project.
+
+## The dashboard
+
+Self-hosted Convex comes with Convex's dashboard: `http://localhost:6791` on your own computer, or the hostname you gave
+`convex-dashboard` on a server. It shows the tables, logs, functions and environment variables. Sign in with the admin
+key:
+
+```bash title="Terminal"
+docker compose exec convex-backend ./generate_admin_key.sh
+```
+
+Run it in the folder with `compose.yaml` (on Coolify and Dokploy, the folders in [Coolify](/docs/self-hosting/coolify#commands-on-the-server)
+and [Dokploy](/docs/self-hosting/dokploy#commands-on-the-server)).
+
+<Callout title="Careful" type="caution">
+The admin key can read and change everything in the copy. Port 6791 is published on the machine's loopback address
+only; give the dashboard a hostname on a server only if you need it ([Firewall](/docs/self-hosting/vps#firewall)).
+</Callout>
+
+In the dashboard, Functions lets you run CareerBot's internal functions, such as `account:resetPassword` with
+`{"username": "wren"}`, and Settings > Environment Variables shows the deployment's settings.
+
+## Upgrading self-hosted Convex
+
+`compose.yaml` pins Convex's backend and dashboard to one release, the image tag in `CONVEX_RELEASE`. CareerBot is
+tested against that release. Updating CareerBot leaves Convex itself alone unless a new CareerBot release moves that
+pin, and its release notes then say so, marked “Read before updating”. Upgrading Convex is a step of its own, with a
+backup first. To pick a release yourself:
+
+<Steps>
+<Step title="Read Convex's upgrade notes">
+Convex's self-hosting guide, [github.com/get-convex/convex-backend/tree/main/self-hosted](https://github.com/get-convex/convex-backend/tree/main/self-hosted),
+says how to upgrade between releases and lists the image tags.
+</Step>
+<Step title="Back up first">
+Export the data, or copy the volume: [Backups](/docs/self-hosting/updates#backups).
+</Step>
+<Step title="Set the release and restart">
+
+```bash title=".env"
+CONVEX_RELEASE=<image tag>
+```
+
+```bash title="Terminal"
+docker compose up -d
+```
+
+</Step>
+</Steps>
+
+Leave `CONVEX_RELEASE` unset to use the release `compose.yaml` pins.

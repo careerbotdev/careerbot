@@ -1,0 +1,91 @@
+---
+title: Record
+description: What's true about your career, which every resume is written from. Your stories, roles, projects, skills, tools, certifications, breaks and insights.
+sources:
+  - src/app/record
+  - src/app/tours/record.ts
+  - src/components/Sidebar.tsx
+  - src/components/Talk.tsx
+screen: record
+---
+
+<ScreenFacts screen="record" />
+
+The Record is the ground truth of your career. You tell your stories in your own words; CareerBot reads them into roles and facts; you approve what's right. Only what you approve goes on resumes.
+
+Record has eight pages, under **Record** in the sidebar: **Story**, **Roles**, **Projects**, **Skills**, **Tools**, **Certifications**, **Breaks** and **Insights**. They share one layout: tabs that split the list by kind or status, the list, and the open item beside it. A rejected tab (**Removed** on Breaks) keeps what you turned down, with why, so you can restore it. On a phone the list shows alone and an item opens full screen.
+
+## Story
+
+Your stories and quick notes. The tabs are **All**, **Stories** and **Notes**.
+
+<Steps>
+<Step title="Start one">**New story** (<Kbd>N</Kbd>) opens a story to write in. **Quick note** (<Kbd>⇧N</Kbd>) is for something smaller: one more thing about a role, a project or a result.</Step>
+<Step title="Write or talk">Write in place; it saves when you stop. **Talk** (<Kbd>⇧T</Kbd>) types as you speak, with your browser's own speech recognition; nothing is recorded. Where the browser can't listen, the screen points to your device's dictation.</Step>
+<Step title="Read it">**Read** reads the story for roles, facts and context, at the cost shown. What it proposes waits in <Screen id="review" /> and on the **Proposals** tab. After you change a story, it reads only what changed. **Read again…** asks what it missed first.</Step>
+</Steps>
+
+<Shot id="story-talk" alt="A story about Brightwater Provisions with Read and its cost at the top and Talk at the right; after talking, the screen says Stopped. 57 words added to your story. Saved." />
+
+Each save keeps a version. **Versions** (<Kbd>⇧V</Kbd>) opens every saved version, to compare two or **Restore** one. The story's ⋯ menu also has **Link to a role**, **Reject…** (what came from it is left out of your record) and **Delete** (asks first; the facts it gave stay, each marked for you to **Keep it** or **Reject it**). Your goals story lives in [Goals](/docs/using/goals), not here.
+
+Telling a job well takes time: 20 minutes or more is normal. See [How to tell your story](/docs/best-practices/your-story).
+
+## Roles
+
+The **Timeline** of your roles, with career breaks as gaps and linked projects inside their role. A role shows its **Facts**, **Context**, **Sources** and **History**.
+
+- On each fact: **Approve**, **Edit** (approved in your words), **Reject** with a reason, **Undo approval**, and **Add context or rewrite** to ask for a rewrite with your note. A fact opens in a third pane (a drawer on medium screens, a sheet on a phone) with its sources and history.
+- **Add a fact** (<Kbd>F</Kbd>) and **Add context** (<Kbd>X</Kbd>): something true about the role that its facts don't say; rewrites of its facts use it.
+- **Same work** and **Looks like the same fact** pairs show in place, with **Connect** / **Keep separate** and **Merge** / **Keep both**.
+- A **Disagreement** between a story and your record asks you to choose: **Record is right** (<Kbd>1</Kbd>), **Story is right** (<Kbd>2</Kbd>) or **Neither** (<Kbd>3</Kbd>). Two jobs at different employers whose dates overlap ask **Both are right**, **Fix end date** or **Fix start date**.
+- A role whose official title your story didn't give goes on resumes under what you call it, and says so until you **Edit** it to give the official title.
+- **Add role** adds one you held yourself, approved as you give it. **Delete role…** asks first.
+
+**More for Roles** has **Find duplicates**, **Check for disagreements** and **Find same work**, each using your AI budget.
+
+## Projects
+
+Projects read from your GitHub repositories, each with its facts, its role and how it shows on resumes. **Connect GitHub** gives CareerBot read-only access to the repositories you choose. **Read repositories** reads the ones you pick, at the cost shown; file contents are sent to the AI model you chose. Only new facts are added. On a project: **Approve**, **Reject**, **Link to a role**, **Show on resumes** / **Leave out of resumes**, **Read again** and **Find same work**. **Disconnect GitHub** asks first; your projects stay.
+
+## Skills, Tools and Certifications
+
+Three pages that work the same way. **Gather** (or **Gather again**) reads your approved roles, projects and facts and proposes each skill, tool or certification once. Tabs: **All**, **Proposed**, **Approved**, **Rejected**.
+
+- **Approve**, **Edit** (name, group or kind) and **Reject**.
+- **Looks like a duplicate**: **Merge** or **Keep both**; **Undo merge** splits them again.
+- **Show on resumes** / **Leave out of resumes**, and where each one shows.
+- **Select** in the list's ⋯ menu (or <Kbd>X</Kbd> on a row, or <Kbd>⇧</Kbd>- or <Kbd>⌘</Kbd>-click) to approve, reject or move many into a group; **Done** or <Kbd>Esc</Kbd> stops (see [Selecting several](/docs/using/keyboard#selecting-several)).
+
+## Breaks
+
+Career breaks, with how each shows on resumes. **Add a break** (<Kbd>B</Kbd>) asks for the months and an optional reason. **Gaps between roles** lists gaps you could **Add as a career break**. **On resumes** sets the default: **Show**, **Show with reason**, **Fold into a role** or **Leave out**; each resume can change it. **Remove** takes a break out of your record and every resume; it waits under **Removed breaks** to restore.
+
+## Insights
+
+What's true of you across roles and projects, from your approved record. **Find new insights** looks for more (uses your AI budget); new ones wait in Review. An approved insight shows what it's **Built on** (open the facts beside it) and where it's **Used in**. **Edit**, **Move back to Review** or **Reject** it; rejected ones never come back.
+
+## Keys
+
+| Key | Does |
+| --- | --- |
+| <Kbd>J</Kbd> / <Kbd>K</Kbd> | Next / previous in the list |
+| <Kbd>Esc</Kbd> | Close what's open |
+| <Kbd>N</Kbd> / <Kbd>⇧N</Kbd> | New story / quick note (Story) |
+| <Kbd>⇧T</Kbd> | **Talk**: start and stop |
+| <Kbd>⇧V</Kbd> | **Versions** (Story) |
+| <Kbd>⌘S</Kbd> | Save the story |
+| <Kbd>A</Kbd> / <Kbd>E</Kbd> / <Kbd>R</Kbd> | Approve / Edit / Reject the open item |
+| <Kbd>U</Kbd> | Undo |
+| <Kbd>F</Kbd> | **Add a fact** |
+| <Kbd>X</Kbd> | **Add context** (Roles), select the row (Skills, Tools, Certifications) |
+| <Kbd>B</Kbd> | **Add a break** (Breaks) |
+
+## Related
+
+<Cards>
+<Card href="/docs/how-it-works/record-and-approval" title="The record and approval">Stories, facts and approval.</Card>
+<Card href="/docs/best-practices/your-story" title="How to tell your story">What to cover.</Card>
+<Card href="/docs/ai/stories" title="Reading your stories">The AI steps.</Card>
+<Card href="/docs/integrations/github" title="GitHub">Connecting repositories.</Card>
+</Cards>
