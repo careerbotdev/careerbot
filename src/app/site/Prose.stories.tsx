@@ -15,7 +15,7 @@ const page = (
       title="Getting a copy or deleting it"
       paragraphs={[
         <>
-          Email <ProseEmail address="privacy@careerbot.dev" /> to get a copy of your data or to have your account and everything in it deleted.
+          Email <ProseEmail address="privacy@careerbot.dev" /> to have your account and everything in it deleted.
         </>,
         "A second paragraph in the same section.",
       ]}

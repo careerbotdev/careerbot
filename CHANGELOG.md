@@ -2,6 +2,17 @@
 
 What changed in each version of CareerBot, newest first. The same notes are at https://careerbot.dev/changelog.
 
+## 0.9.2 · 2026-10-07
+
+The privacy docs now point to Settings, Your data for a copy of everything, and the home page no longer says the source is coming soon. The public export now checks personal details more strictly.
+
+### Fixed
+
+- The home page comparison no longer says the source is going public soon; it is on GitHub.
+- The privacy docs now point to Settings, Your data for a copy of everything; deleting an account is still by email.
+
+All releases: https://careerbot.dev/changelog#v0.9.2
+
 ## 0.9.1 · 2026-10-07
 
 The source is now public on GitHub, and the open-source page links to it. An export now refuses up front when it would be too big for any copy to import.

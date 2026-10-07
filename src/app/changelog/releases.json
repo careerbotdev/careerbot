@@ -1,5 +1,19 @@
 [
   {
+    "version": "0.9.2",
+    "date": "2026-10-07",
+    "summary": "The privacy docs now point to Settings, Your data for a copy of everything, and the home page no longer says the source is coming soon. The public export now checks personal details more strictly.",
+    "new": [],
+    "better": [],
+    "fixed": [
+      "The home page comparison no longer says the source is going public soon; it is on GitHub.",
+      "The privacy docs now point to Settings, Your data for a copy of everything; deleting an account is still by email."
+    ],
+    "selfHost": [],
+    "needsAction": false,
+    "shots": []
+  },
+  {
     "version": "0.9.1",
     "date": "2026-10-07",
     "summary": "The source is now public on GitHub, and the open-source page links to it. An export now refuses up front when it would be too big for any copy to import.",

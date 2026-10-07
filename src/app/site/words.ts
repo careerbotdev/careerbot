@@ -314,7 +314,7 @@ export const TABLE: { area: string; rows: { feature: string; detail: string }[] 
   {
     area: "Your control",
     rows: [
-      { feature: "Open source", detail: "Run your own copy for free (source going public soon)" },
+      { feature: "Open source", detail: "Run your own copy for free; the source is on GitHub" },
       { feature: "Your own keys and models", detail: "OpenRouter for AI, Apollo for company data" },
       { feature: "Budgets", detail: "Monthly caps, and each paid step shows its cost first" },
       { feature: "Hosted version", detail: "Coming: nothing to run" },
