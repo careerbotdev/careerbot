@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import type { FunctionReturnType } from "convex/server";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
+import { chat } from "./metering";
 import type { Id } from "./_generated/dataModel";
 import { PROBLEM_LABELS } from "./limitBuckets";
 import { seedModelPrices } from "./modelPrices.testing";
@@ -266,6 +267,51 @@ test("workers never hold the same role: descriptions first, sorting only once th
   const rows = new Map((await s.postings()).map((p) => [p._id, p]));
   expect(toJudge.map((id) => rows.get(id)!.fit![0].reason)).toEqual(toJudge.map((id) => (ids(w2).includes(id) ? "w2" : "w4")));
   expect(toJudge.every((id) => rows.get(id)!.queue === undefined && rows.get(id)!.claimedBy === undefined)).toBe(true);
+});
+
+// Every save counts only for the worker holding the role, so a role two workers held at once would be saved twice here.
+test("32 workers claiming at once never hold the same role: each role's description, sort and judging are done once, by the worker that held it", async () => {
+  const s = await setup();
+  const all = await queued(s, Array.from({ length: 150 }, (_, i) => ({ title: `r${i}`, queue: "text" as const })));
+  // The pass's own queueing, which places each role in its queue.
+  await s.t.mutation(internal.roles.plan, { workspaceId: s.a.w, since: Date.now(), cursor: null });
+  const since = Date.now();
+  const directions = [{ id: s.direction, changedAt: 0 }];
+  const done: Record<string, Id<"postings">[]> = { text: [], sort: [], judge: [] };
+  const judgedBy = new Map<Id<"postings">, string>();
+  const work = async (worker: string) => {
+    let letGo = false;
+    for (;;) {
+      const got = await s.t.mutation(internal.roles.claim, { workspaceId: s.a.w, since, worker });
+      if (!got) return;
+      if ("wait" in got) {
+        // Everything left is held by others: let them save first.
+        await s.t.run(async () => {});
+        continue;
+      }
+      if (got.step === "sort") expect(done.text).toHaveLength(all.length);
+      // Each worker lets its first roles go once, as one does when it can't finish them; others take them.
+      if (!letGo) {
+        letGo = true;
+        await s.t.mutation(internal.roles.release, { workspaceId: s.a.w, since, worker, ids: got.ids });
+        continue;
+      }
+      // Noted before the save, so it's in by the time anything the save lets happen next (a sort) is claimed.
+      done[got.step].push(...got.ids);
+      if (got.step === "text") await s.t.mutation(internal.roles.saveTexts, { workspaceId: s.a.w, worker, texts: got.ids.map((id) => ({ id, text: "" })), at: Date.now() });
+      if (got.step === "sort")
+        await s.t.mutation(internal.roles.saveSort, { workspaceId: s.a.w, worker, method: "model", directions, results: got.ids.map((id) => ({ id, against: [s.direction], directionIds: [s.direction] })) });
+      if (got.step === "judge") {
+        for (const id of got.ids) judgedBy.set(id, worker);
+        await s.t.mutation(internal.roles.saveFit, { workspaceId: s.a.w, worker, rubric: "v2", directions, results: got.ids.map((id) => ({ id, judged: [s.direction], fit: [{ directionId: s.direction, level: "some" as const, reason: worker }], stretch: [] })) });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: 32 }, (_, i) => work(`w${i}`)));
+
+  for (const step of ["text", "sort", "judge"]) expect([...done[step]].sort()).toEqual([...all].sort());
+  const rows = await s.postings();
+  expect(rows.every((p) => p.queue === undefined && p.claimedBy === undefined && p.fit?.length === 1 && p.fit[0].reason === judgedBy.get(p._id))).toBe(true);
 });
 
 test("a pass sorts each role to the directions it could be, judges it only for those from its description without the company's repeated text, and lists sorted-out roles apart", async () => {
@@ -748,6 +794,74 @@ test("with the AI budget used up, a pass pauses and keeps its roles queued", asy
   expect(job).toMatchObject({ status: "paused", pausedFor: "openrouter" });
   expect(await s.postings()).toEqual([expect.objectContaining({ queue: "sort", descriptionAt: expect.any(Number) })]);
   expect((await s.postings())[0].failed).toBeUndefined();
+});
+
+// Sets A's monthly AI budget, with what was already spent this month.
+async function budget(s: Awaited<ReturnType<typeof setup>>, usd: number, spent = 0) {
+  await s.t.run(async (ctx) => {
+    const b = (await ctx.db.query("budgets").collect()).find((x) => x.workspaceId === s.a.w)!;
+    await ctx.db.patch(b._id, { aiMonthlyUsd: usd });
+    if (spent) await ctx.db.insert("usage", { workspaceId: s.a.w, service: "openrouter", purpose: "earlier", costUsd: spent, ok: true, state: "settled", at: Date.now() });
+  });
+}
+const lastPass = (s: Awaited<ReturnType<typeof setup>>) => s.t.run(async (ctx) => (await ctx.db.query("jobs").order("desc").collect()).find((j) => j.kind === "roles")!);
+const TOO_LITTLE = "This call could cost more than what's left of this month's AI budget.";
+
+test("with the AI budget nearly used, a pass whose next call can't fit pauses with why, and picks up when the budget is raised", async () => {
+  const s = await setup();
+  const { sorted, judged } = stubWorld({ jobs: [{ id: 1, title: "Account Executive", location: "New York, NY" }] });
+  // $0.05 left; a sort call holds about $0.08.
+  await budget(s, 5, 4.95);
+  await s.pass("2026-09-20T09:00:00Z");
+  expect(await lastPass(s)).toMatchObject({ status: "paused", pausedFor: "openrouter", error: TOO_LITTLE });
+  expect(sorted).toEqual([]);
+  expect(await s.postings()).toEqual([expect.objectContaining({ queue: "sort", descriptionAt: expect.any(Number) })]);
+  const shown = (await s.asA.query(api.activity.list, {})).find((r) => r.kind === "roles" && r.state === "running");
+  expect(shown?.detail).toBe(`Paused until your AI budget allows. ${TOO_LITTLE}`);
+
+  await s.asA.mutation(api.budgets.set, { aiMonthlyUsd: 10, apolloMonthlyCredits: 0, apolloMode: "paused" });
+  await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+  expect(await lastPass(s)).toMatchObject({ status: "done" });
+  expect(sorted.map((x) => x.title)).toEqual(["Account Executive"]);
+  expect(judged).toHaveLength(1);
+  const [role] = await s.postings();
+  expect(role.fitAt).toEqual(expect.any(Number));
+  expect(role.queue).toBeUndefined();
+});
+
+test("a pass the budget refuses while other AI calls hold the rest waits for them to settle, then pauses with why", async () => {
+  const s = await setup();
+  stubWorld({ jobs: [{ id: 1, title: "Account Executive", location: "New York, NY" }] });
+  // A call already running holds about $0.08 of $0.12, so the pass's sort call (about $0.08) is refused while it runs;
+  // once it settles at $0.05, what's left is still too little.
+  await budget(s, 0.12);
+  const world = globalThis.fetch as (input: string | URL, init?: RequestInit) => Promise<Response>;
+  let answer: (() => void) | undefined;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: string | URL, init?: RequestInit) =>
+      String(init?.body).includes("already running")
+        ? new Promise<Response>((resolve) => (answer = () => resolve(Response.json({ choices: [{ message: { content: "ok" } }], usage: { cost: 0.05 } }))))
+        : world(input, init),
+    ),
+  );
+  const running = s.t.action((ctx) => chat(ctx, { workspaceId: s.a.w, purpose: "running", model: "test/model", messages: [{ role: "user", content: "already running" }] }));
+  await vi.waitFor(() => expect(answer).toBeDefined());
+
+  await s.asA.mutation(api.roles.start, {});
+  // The pass reads the board, then its sort call is refused for what the running call holds (waited for in small steps:
+  // reading the OpenRouter key isn't on the fake clock).
+  await vi.waitFor(async () => expect(await s.t.run(async (ctx) => (await ctx.db.query("discovery").collect()).some((d) => d.rolesBudget))).toBe(true), { interval: 20, timeout: 4000 });
+  // Minutes go by with the call still running: the pass waits for it, still running, its role still queued.
+  await vi.advanceTimersByTimeAsync(3 * 60_000);
+  expect(await lastPass(s)).toMatchObject({ status: "running" });
+  expect(await s.postings()).toEqual([expect.objectContaining({ queue: "sort", descriptionAt: expect.any(Number) })]);
+
+  answer!();
+  await running;
+  await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+  expect(await lastPass(s)).toMatchObject({ status: "paused", pausedFor: "openrouter", error: TOO_LITTLE });
+  expect(await s.postings()).toEqual([expect.objectContaining({ queue: "sort" })]);
 });
 
 test("a pass for some companies reads, describes, sorts and judges only their roles; the next full pass picks up the rest", async () => {

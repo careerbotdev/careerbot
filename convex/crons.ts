@@ -9,6 +9,10 @@ crons.monthly("resume paused work", { day: 1, hourUTC: 0, minuteUTC: 5 }, intern
 // Runs cut off by a deploy or crash are picked up again, so nobody sees a job stuck on "Reading…".
 crons.interval("pick up interrupted work", { minutes: 5 }, internal.jobs.recoverStuck, {});
 
+// Every 5 minutes, the reports' counts written since are folded into one row per count and day (tallies.fold), so a
+// report keeps reading a few rows.
+crons.interval("fold report counts", { minutes: 5 }, internal.tallies.fold, {});
+
 // Every morning, the job boards of every workspace with Targets are read again for new and closed roles.
 crons.daily("check roles at targets", { hourUTC: 9, minuteUTC: 0 }, internal.roles.startAll, {});
 

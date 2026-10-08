@@ -195,7 +195,10 @@ export default defineSchema({
 
   // Counts for the reports (reports.ts, tallies.ts), kept up where things happen, so a report reads a few rows a day
   // instead of every job, company, fact or resume. day: the UTC day it happened (0 for standing counts, "roles"). key:
-  // what it's split by (a job's kind; for "roles", a direction and its level or state). Added to a shard picked at random.
+  // what it's split by (a job's kind; for "roles", a direction and its level or state). A change is a row of its own
+  // (no `folded`), never a change to a row another write may change, so writes at once never collide over a count;
+  // tallies.fold adds changes into the count's one folded row (folded) every few minutes. A report adds up both.
+  // shard: rows from before changes were rows of their own, folded like changes.
   // Each row a count is about carries whether it's in the count (its `tallied`), so it's counted once, however the
   // counting of what was there before (reports.backfill) and changes as they happen interleave.
   // Metrics: jobDone, jobFailed (by kind); companies (found); targets (made a target, less those no longer one);
@@ -210,9 +213,12 @@ export default defineSchema({
     ),
     day: v.number(),
     key: v.optional(v.string()),
-    shard: v.number(),
     n: v.number(),
-  }).index("by_metric", ["workspaceId", "metric", "day", "key", "shard"]),
+    folded: v.optional(v.literal(true)),
+    shard: v.optional(v.number()),
+  })
+    .index("by_metric", ["workspaceId", "metric", "day", "key", "folded"])
+    .index("by_folded", ["folded"]),
 
   // Each workspace's AI spending per month as a running total, so an AI call's budget check reads a few rows, not every
   // call of the month (budgets.ts). Shard 0: what was spent and held before the month's total started, summed once from
@@ -475,6 +481,9 @@ export default defineSchema({
     queue: v.optional(v.union(v.literal("text"), v.literal("sort"), v.literal("judge"))),
     claimedAt: v.optional(v.number()),
     claimedBy: v.optional(v.string()),
+    // Where it sits among the free roles of its step: a random number from 0 to 1, given when it's first queued. Workers
+    // claiming at once each start at a random place, so they rarely reach for the same roles.
+    spot: v.optional(v.number()),
     // A step that failed: how many times this pass, when last, and why. Three in one pass set it aside until the next.
     failed: v.optional(v.object({ count: v.number(), at: v.number(), error: v.string() })),
     // Their own rating, and for "no" the reason they gave (optional). "no" keeps the role, set aside, so it can be restored.
@@ -483,7 +492,7 @@ export default defineSchema({
     .index("by_workspace", ["workspaceId", "closedAt"])
     .index("by_company", ["companyId", "closedAt"])
     .index("by_external", ["workspaceId", "companyId", "externalId"])
-    .index("by_queue", ["workspaceId", "queue", "claimedAt"])
+    .index("by_queue", ["workspaceId", "queue", "claimedAt", "spot"])
     // Roles they turned down, for ranking's preferences.
     .index("by_rating", ["workspaceId", "rating.value"]),
 
@@ -556,6 +565,9 @@ export default defineSchema({
     // Failures in the roles pass started at `since` that weren't about any one role (a bug, a limit, OpenRouter down):
     // how many, when last, and the last error. Too many stop the pass.
     rolesProblems: v.optional(v.object({ since: v.number(), count: v.number(), at: v.number(), error: v.string() })),
+    // The AI budget refused a call in the roles pass started at `since` (why, as budgets.reserve said): the pass hands
+    // out no more AI work, and pauses with this once no AI call is still running. Cleared when the pass runs again.
+    rolesBudget: v.optional(v.object({ since: v.number(), at: v.number(), message: v.string() })),
     // How roles are sorted before judging: an AI model (unset) or Jev.
     roleSort: v.optional(v.union(v.literal("model"), v.literal("jev"))),
     // Whether judging counts how big a stretch a role is (rubric v2, roleRubric.ts): unset or true, it does; false, v1.

@@ -152,8 +152,9 @@ function retryOf(j: Job): Retry | null {
 
 // The workspace's background work for the activity indicator: everything queued, running or paused, and what finished
 // or failed in the last day, newest first. Each with its plain name, its state (queued and paused count as running,
-// with a word on why it's waiting), when it last moved, how far along it is where the job records that (steps done so
-// far), and for failed work how to try again where that's possible.
+// with a word on why it's waiting: paused work says which budget it waits for and why that budget stopped it), when it
+// last moved, how far along it is where the job records that (steps done so far), and for failed work how to try again
+// where that's possible.
 export const list = query({
   args: {},
   handler: async (ctx) => {
@@ -169,9 +170,7 @@ export const list = query({
           j.status === "queued"
             ? "Waiting to start"
             : j.status === "paused"
-              ? j.pausedFor === "apollo"
-                ? "Paused until your Apollo budget allows"
-                : "Paused until your AI budget allows"
+              ? `${j.pausedFor === "apollo" ? "Paused until your Apollo budget allows" : "Paused until your AI budget allows"}${j.error ? `. ${j.error}` : ""}`
               : j.status === "failed"
                 ? (j.error ?? null)
                 : null;

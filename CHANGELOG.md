@@ -2,6 +2,18 @@
 
 What changed in each version of CareerBot, newest first. The same notes are at https://careerbot.dev/changelog.
 
+## 0.9.4 · 2026-10-08
+
+Checking roles is faster and no longer fails when many roles are saved at once. When your AI budget runs short, it now pauses with a plain reason and resumes when you raise it.
+
+### Fixed
+
+- Checking roles at many companies at once no longer fails with "Couldn't check roles" when the Reports counts are updated by several checks together.
+- Checking roles reads job descriptions many times faster, because the workers that share the work no longer keep reaching for the same roles.
+- Checking roles with too little AI budget left for its next step now pauses and says why in Activity, instead of staying on running.
+
+All releases: https://careerbot.dev/changelog#v0.9.4
+
 ## 0.9.3 · 2026-10-08
 
 The website now explains how CareerBot starts from your career, not your resume, and links to CareerBot on GitHub, X and LinkedIn. An open tab no longer keeps loading pages in the background.

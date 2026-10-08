@@ -78,6 +78,16 @@ export async function aiHeld(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
   return heldOf(await ctx.db.query("aiSpend").withIndex("by_workspace_month", (q) => q.eq("workspaceId", workspaceId).eq("month", monthStart())).collect()) > 0;
 }
 
+// Actions stop after 10 minutes, so a call reserved longer ago than that was cut off; the daily check settles it.
+const RUNNING_MS = 10 * 60 * 1000;
+
+// Whether an AI call of the workspace is on its way right now: reserved and not settled yet. Calls that settled without
+// knowing what they cost (indeterminate) may still hold some of the budget, but aren't running.
+export async function aiRunning(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
+  const reserved = ctx.db.query("usage").withIndex("by_workspace_state", (q) => q.eq("workspaceId", workspaceId).eq("state", "reserved").gt("at", Date.now() - RUNNING_MS));
+  return !!(await reserved.filter((q) => q.eq(q.field("service"), "openrouter")).first());
+}
+
 // A call settled and gave back what it held: work paused for what running calls held starts again, and pauses again if
 // it still doesn't fit.
 export async function resumeHeld(ctx: MutationCtx, workspaceId: Id<"workspaces">) {
