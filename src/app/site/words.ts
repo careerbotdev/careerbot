@@ -15,6 +15,8 @@ export const CAREERBOT_URL = "https://careerbot.dev";
 // so careerbot.dev never links to a demo that isn't there: unset, Home has no Open the demo, Questions doesn't offer it
 // and /demo on careerbot.dev isn't sent anywhere (next.config.ts).
 export const DEMO_URL = process.env.DEMO_URL ? new URL("/demo", process.env.DEMO_URL).href : undefined;
+// The public source, on GitHub (AGPL-3.0).
+export const SOURCE_URL = "https://github.com/careerbotdev/careerbot";
 
 // The headline. The owner picked it (2026-09-30); its last words are marked in amber. The others are kept for a later
 // wording test.
@@ -31,7 +33,7 @@ export const HEADLINE_OPTIONS = [
 export const HERO = {
   tag: "Open source",
   subline:
-    "CareerBot learns your whole career, points you at the companies and roles where you’ll stand out, and gets you ready to apply or to write straight to the people who hire.",
+    "CareerBot starts from your work history, not your resume. It shows where you could go next and which roles fit, then writes each application and outreach message from what you really did.",
   cta: "Get notified",
   note: "We’ll email you when the hosted version opens. The source is already on GitHub.",
   joined: "You’re on the list. We’ll email you when the hosted version opens.",
@@ -43,8 +45,8 @@ export const HERO = {
 // link previews: title about 60, description about 125).
 export const PAGE_TITLE = "CareerBot · Open-source AI job search assistant";
 export const SHARE_TITLE = "CareerBot: an open-source AI job search assistant";
-export const DESCRIPTION = "CareerBot is an AI job search assistant. It learns your work history, finds roles that fit you, and helps you apply or write to the people who hire.";
-export const SHARE_DESCRIPTION = "An AI job search assistant that finds roles that fit you and helps you apply or write to the people who hire.";
+export const DESCRIPTION = "CareerBot is an AI job search assistant. It starts from your work history, not your resume, finds roles that fit you, and helps you apply or reach out.";
+export const SHARE_DESCRIPTION = "An AI job search assistant that starts from your work history, not your resume, and finds roles that fit you.";
 
 // The other public pages' heads (the layout adds " · CareerBot" to each title); `share` is the shorter description
 // for link previews.
@@ -63,8 +65,8 @@ export const HEADS = {
   },
   questions: {
     title: "Questions about CareerBot",
-    description: "Whether CareerBot gets you a job, makes things up or sends anything for you, whether to still apply, what it costs, and what happens to your data.",
-    share: "What CareerBot does and doesn’t do, what it costs, and what happens to your data.",
+    description: "How CareerBot differs from a resume builder, whether it gets you a job or makes things up, what it costs, and what happens to your data.",
+    share: "What CareerBot does and doesn’t do, how it differs from a resume builder, what it costs, and what happens to your data.",
   },
   changelog: {
     title: "Changelog",
@@ -88,13 +90,20 @@ export const PAGES: readonly { label: string; href: string }[] = WEBSITE
 export const SIGN_IN_LINK = DEMO ? { label: "Open the demo", href: "/demo" } : { label: "Sign in", href: SELF_HOSTED ? "/" : "/sign-in" };
 export const MENU = { open: "Menu", close: "Close" };
 
-// The footer: a line on what CareerBot is for, the links in two groups (Product: the pages, then the changelog), then
-// the licence and Privacy.
+// The footer: a line on what CareerBot is for, CareerBot elsewhere (careerbot.dev only: its GitHub, X and LinkedIn,
+// as marks), the links in two groups (Product: the pages, then the changelog and the source), then the licence and
+// Privacy.
 export const FOOTER = {
   description: "Aim at the right roles, tailor every application and start real conversations.",
+  elsewhere: [
+    { label: "CareerBot on GitHub", href: SOURCE_URL, icon: "github" },
+    { label: "CareerBot on X", href: "https://x.com/careerbotdev", icon: "x" },
+    { label: "CareerBot on LinkedIn", href: "https://www.linkedin.com/company/careerbotdev", icon: "linkedin" },
+  ] as const,
   product: "Product",
   account: "Account",
   changelog: { label: "Changelog", href: "/changelog" },
+  source: { label: "Source on GitHub", href: SOURCE_URL },
   licence: "© 2026 CareerBot. Open source under the AGPL-3.0.",
   // careerbot.dev's own page; the demo, which has none, links to it there.
   privacy: { label: "Privacy", href: DEMO ? `${CAREERBOT_URL}/privacy` : "/privacy" },
@@ -115,6 +124,24 @@ export const CHANGELOG = {
 
 // Home's call to action after the pains, so a reader who's convinced there can sign up.
 export const CTA_BAND = { heading: "Ready to stop applying into the void?", cta: "Get notified" };
+
+// Where it starts: the usual way (the resume you have, polished) beside CareerBot's (your career, from what you
+// actually did), then the way from your own words to what you send. Home, after the band.
+export const START = {
+  heading: ["Most job tools start from your resume.", "CareerBot starts from your career."],
+  usual: "They take the resume you already have and polish it. But resumes drift. Over the years a line gets stretched here and rounded up there, until it no longer quite matches what you did.",
+  ours: "It works the way a career coach would: it starts from what you actually did, and builds everything else on that.",
+  steps: [
+    { title: "Your own words", body: "You tell it about each job you’ve had: what you did, and what came of it." },
+    { title: "A record you approve", body: "It turns that into a record of what you did. Nothing goes in until you approve it." },
+    { title: "Directions", body: "Where you could go next, including moves you hadn’t considered." },
+    { title: "What fits, and why", body: "Which companies and roles fit you and which don’t, with scores, reasons and the firm limits you set." },
+    {
+      title: "Applications from your record",
+      body: "A resume, cover letter and outreach message for each role you go after, written from that record. You review everything and send it yourself.",
+    },
+  ],
+};
 
 // Where job searches go wrong: the pains, in the reader's words. `short` is the first sentence, for a phone's list.
 export const PAINS = {
@@ -240,8 +267,8 @@ export const PORTAL = {
 
 // The honesty line: bold, never invented.
 export const TRUST = {
-  heading: "It writes boldly, but never makes things up",
-  body: "CareerBot pushes you up, the way a good coach would. But every line comes from something you really did, so you can talk to all of it in an interview.",
+  heading: "It writes boldly, from what you really did",
+  body: "CareerBot pushes you up, the way a good coach would. But each line shows the facts from your own words it’s built on, and a line with nothing behind it is flagged for you to fix or cut, so you can talk to all of it in an interview.",
 };
 
 // Home's two cards under the steps, each leading to the page that says more.
@@ -253,7 +280,7 @@ export const CARDS = [
   },
   {
     title: TRUST.heading,
-    body: "CareerBot describes your work boldly, but every line comes from something you really did.",
+    body: "CareerBot describes your work boldly, but each line shows what it’s built on, and anything without a basis is flagged.",
     link: { label: "How it works", href: "/how-it-works" },
   },
 ];
@@ -289,7 +316,7 @@ export const TABLE: { area: string; rows: { feature: string; detail: string }[] 
   {
     area: "Applying",
     rows: [
-      { feature: "Tailored resumes", detail: "Written in the posting’s language, every line traceable" },
+      { feature: "Tailored resumes", detail: "Written in the posting’s language; each line shows what it’s built on" },
       { feature: "Cover letters and answers", detail: "For the application questions too" },
       { feature: "Requirement check", detail: "Where you’re strong, partial or thin for each posting" },
       { feature: "PDF, Word and Google Docs", detail: "Docs kept in step with each new version" },
@@ -316,7 +343,7 @@ export const TABLE: { area: string; rows: { feature: string; detail: string }[] 
     rows: [
       { feature: "Open source", detail: "Run your own copy for free; the source is on GitHub" },
       { feature: "Your own keys and models", detail: "OpenRouter for AI, Apollo for company data" },
-      { feature: "Budgets", detail: "Monthly caps, and each paid step shows its cost first" },
+      { feature: "Budgets", detail: "Monthly caps; nothing paid runs until you set one, and most paid steps show their cost first" },
       { feature: "Hosted version", detail: "Coming: nothing to run" },
     ],
   },
@@ -339,7 +366,7 @@ export const OPEN_SOURCE = {
       "The AGPL-3.0 lets you use, change and share CareerBot. If you run a changed copy for other people, you share your changes with them under the same licence.",
       "The source is public on GitHub.",
     ],
-    source: { label: "View the source on GitHub", href: "https://github.com/careerbotdev/careerbot" },
+    source: { label: "View the source on GitHub", href: SOURCE_URL },
   },
   needs: {
     heading: "What you need to run it",
@@ -352,7 +379,7 @@ export const OPEN_SOURCE = {
         title: "Convex, for your data",
         body: "Use Convex’s free cloud plan, the easiest way to run a copy just for you, or run Convex yourself, since it’s open source too.",
       },
-      { title: "A place to run it", body: "A Docker image you can install on Coolify, Dokploy or any Docker host, or deploy to Cloudflare." },
+      { title: "A place to run it", body: "Prebuilt Docker images with Docker Compose, on your computer, Coolify, Dokploy or any Docker host, or deploy to Cloudflare." },
       { title: "A way to sign in", body: "A username and password, with nothing to set up. Google or GitHub sign-in is optional." },
     ],
     optional: "Optional: a Brave Search key, to find job boards a company’s website doesn’t link to.",
@@ -377,8 +404,12 @@ export const FAQ = [
     a: "No tool can promise that. CareerBot is built to put your effort where it counts: better targets, stronger applications and real conversations.",
   },
   {
+    q: "How is this different from a resume builder?",
+    a: "Most resume tools start from the resume you already have and polish it. CareerBot starts from your career: you tell it about each job you’ve had, in your own words, and it turns that into a record you approve. From there it suggests directions, shows which companies and roles fit you and why, and writes a resume, cover letter and outreach message for each role from that record. It works the way a career coach would, and you review everything.",
+  },
+  {
     q: "Does it make things up?",
-    a: "No. It describes your work boldly, in the words employers use, but everything comes from something you told it. If you didn’t do it, it won’t say you did.",
+    a: "It’s built not to. It describes your work boldly, in the words employers use, from the record you approved, and each line shows the facts it’s built on. AI still slips sometimes, so a line with nothing behind it is flagged for you to fix or cut before anything goes out.",
   },
   {
     q: "Should I still apply through the portal?",

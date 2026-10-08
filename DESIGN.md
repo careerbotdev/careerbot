@@ -652,7 +652,7 @@ Never: re-sorting a list under the pointer, bouncing, numbers counting up, confe
 
 ## Iconography
 
-Lucide icons, as drawn, at a 1.5px stroke that stays 1.5px at every size (`absoluteStrokeWidth`). 16px inside the interface, 20px in empty states and the phone bar. Icons are `muted` at rest and take the text colour when their item is current or hovered; they are never amber. A red icon marks a failure and a green one a finished result, and nothing else is coloured. Each concept has one icon, used everywhere it appears; the map lives on the Icons board in Paper and in `src/components/icons.ts`.
+Lucide icons, as drawn, at a 1.5px stroke that stays 1.5px at every size (`absoluteStrokeWidth`). 16px inside the interface, 20px in empty states and the phone bar. Icons are `muted` at rest and take the text colour when their item is current or hovered; they are never amber. A red icon marks a failure and a green one a finished result, and nothing else is coloured. Each concept has one icon, used everywhere it appears; the map lives on the Icons board in Paper and in `src/components/icons.tsx`. Other services keep their own marks (Google, GitHub, X, LinkedIn), filled in one colour like the icons around them: the sign-in buttons, and the website footer's links to CareerBot elsewhere.
 
 ## Shapes
 

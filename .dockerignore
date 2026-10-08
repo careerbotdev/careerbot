@@ -8,6 +8,10 @@
 .claude
 .codex
 .storybook
+# The launch tooling (private, and built on .storybook) has no place in the image.
+scripts/launch
+launch
+launch-assets
 .wrangler
 .open-next
 .next

@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useId, useLayoutEffect, useRef, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useId, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { Button } from "@/components/Button";
 import { Checkbox } from "@/components/Checkbox";
 import { ContextMenu, Menu, type MenuEntry } from "@/components/Menu";
 import { Count, UnreadMark } from "@/components/StatusTag";
 import type { IconName } from "@/components/icons";
 import { Tooltip } from "@/components/Tooltip";
+import { useSmall } from "@/components/useSmall";
 
 // Rows of a list or table: J/K (and the arrows) move focus, Home/End jump, Tab leaves. The focus target of each row
 // carries data-row; the row's whole box (a list item or a table row) carries data-row-scope. One row is the tab stop:
@@ -189,6 +190,20 @@ export function ListRow({ title, line, lead, tag, meta, actions = [], menu, sele
     onOpen?.();
   };
 
+  // A tag cut short (StatusTag ends a long one in an ellipsis) puts its full words in the row's tooltip, on medium
+  // screens and up; on a phone a long press is the row's menu, and the words are in what the row opens.
+  const small = useSmall();
+  const [tagBox, setTagBox] = useState<HTMLSpanElement | null>(null);
+  const [cutTag, setCutTag] = useState<string>();
+  useLayoutEffect(() => {
+    if (!tagBox) return;
+    const measure = () => setCutTag([...tagBox.querySelectorAll("*")].some((el) => el.scrollWidth > el.clientWidth) ? (tagBox.textContent ?? undefined) : undefined);
+    measure();
+    const seen = new ResizeObserver(measure);
+    seen.observe(tagBox);
+    return () => seen.disconnect();
+  }, [tagBox]);
+
   const look = below
     ? "border-transparent bg-subtle"
     : selected
@@ -210,15 +225,21 @@ export function ListRow({ title, line, lead, tag, meta, actions = [], menu, sele
         </span>
         {line && <span className="truncate text-body-sm leading-body-sm text-muted">{line}</span>}
       </span>
+      {/* At most two fifths of the row beside the title, so a long tag is cut short instead of squeezing the title and
+          its line to nothing. */}
       {(tag || meta) && (
         <span
-          className={`flex shrink-0 ${compact ? "items-center gap-2" : "flex-col items-end gap-0.5"} ${
+          className={`flex shrink-0 ${compact ? "items-center gap-2" : "max-w-2/5 min-w-0 flex-col items-end gap-0.5"} ${
             hasActions
               ? "md:group-hover/row:invisible md:group-has-[[data-actions]:focus-within]/row:invisible md:group-has-[[data-state=open]]/row:invisible"
               : ""
           }`}
         >
-          {tag}
+          {tag && (
+            <span ref={setTagBox} className="flex max-w-full min-w-0">
+              {tag}
+            </span>
+          )}
           {meta && <span className="text-body-sm leading-body-sm whitespace-nowrap text-muted tabular-nums">{meta}</span>}
         </span>
       )}
@@ -232,6 +253,15 @@ export function ListRow({ title, line, lead, tag, meta, actions = [], menu, sele
     onKeyDown,
     onKeyUp,
   };
+  const main = href ? (
+    <Link href={href} {...mainProps}>
+      {body}
+    </Link>
+  ) : (
+    <button type="button" {...mainProps}>
+      {body}
+    </button>
+  );
 
   const inner = (
     <>
@@ -240,15 +270,7 @@ export function ListRow({ title, line, lead, tag, meta, actions = [], menu, sele
           {checkable && <Checkbox label={`Select ${title}`} hideLabel checked={checked} onChange={onCheck} />}
         </span>
       )}
-      {href ? (
-        <Link href={href} {...mainProps}>
-          {body}
-        </Link>
-      ) : (
-        <button type="button" {...mainProps}>
-          {body}
-        </button>
-      )}
+      {cutTag && !small ? <Tooltip content={cutTag}>{main}</Tooltip> : main}
       {trail && <span className="flex shrink-0 items-center gap-1 pr-[11px]">{trail}</span>}
       {/* Over the tag and date, the row's full height so nothing of the line peeks out; only the buttons take the
           pointer, so the rest of the row still opens it. */}

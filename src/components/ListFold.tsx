@@ -46,7 +46,7 @@ export function ListFold({
       >
         <span className="flex min-w-0 items-center gap-2">
           <Chevron aria-hidden="true" size={14} className="shrink-0 text-muted" />
-          <span className="text-body-sm leading-body-sm font-semibold text-text">{label}</span>
+          <span className="shrink-0 text-body-sm leading-body-sm font-semibold whitespace-nowrap text-text">{label}</span>
           {count !== undefined && <Count>{count}</Count>}
           {note && noteInline && <span className="ml-auto hidden min-w-0 truncate pl-2 text-label leading-label text-muted md:block">{note}</span>}
         </span>

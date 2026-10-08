@@ -25,10 +25,11 @@ export type Theme = "light" | "dark";
 
 // Opens one story on its own, in `theme` (light unless asked), with less motion (each mock-up shows its final frame),
 // lets its play function finish, then runs `act` (the clicks a story doesn't make itself). The pointer then leaves the
-// window, so nothing it clicked last shows its hover, unless the shot is of the hover (`hover`).
-export async function openStory(page: Page, story: string, act?: Act, { hover = false, theme = "light" }: { hover?: boolean; theme?: Theme } = {}) {
+// window, so nothing it clicked last shows its hover, unless the shot is of the hover (`hover`). `root`: a Storybook
+// built into a folder of storybook-static/ ("/launch"), else the app's.
+export async function openStory(page: Page, story: string, act?: Act, { hover = false, theme = "light", root = "" }: { hover?: boolean; theme?: Theme; root?: string } = {}) {
   if (!origin) throw new Error("serveStorybook() first");
-  await page.goto(`${origin}/iframe.html?id=${story}&viewMode=story&globals=theme:${theme}`);
+  await page.goto(`${origin}${root}/iframe.html?id=${story}&viewMode=story&globals=theme:${theme}`);
   await page.locator("#storybook-root > *").first().waitFor();
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(1200);

@@ -30,6 +30,7 @@ const PARTS = [
   "site-parts-cta-band--joined",
   "site-parts-why--large",
   "site-parts-sections--pains",
+  "site-parts-sections--start",
   "site-parts-sections--steps",
   "site-parts-sections--cards",
   "site-parts-sections--questions",

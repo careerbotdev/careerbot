@@ -18,15 +18,17 @@ const tones = {
 
 export type StatusTone = keyof typeof tones;
 
+// A tag never grows past the space its parent gives it: a long one (a limit the role is against) ends in an ellipsis.
+// A ListRow shows a cut tag's full words in a tooltip.
 export function StatusTag({ tone, icon, children, className = "" }: { tone: StatusTone; icon?: IconName; children: ReactNode; className?: string }) {
   const Icon = icon && Icons[icon];
   return (
     <span
       data-tone={tone}
-      className={`inline-flex h-5 shrink-0 items-center gap-1 self-center rounded-sm border px-1.5 text-label leading-label font-medium whitespace-nowrap ${tones[tone]} ${className}`}
+      className={`inline-flex h-5 max-w-full min-w-0 shrink-0 items-center gap-1 self-center rounded-sm border px-1.5 text-label leading-label font-medium whitespace-nowrap ${tones[tone]} ${className}`}
     >
-      {Icon && <Icon aria-hidden="true" size={12} />}
-      {children}
+      {Icon && <Icon aria-hidden="true" size={12} className="shrink-0" />}
+      <span className="min-w-0 truncate">{children}</span>
     </span>
   );
 }

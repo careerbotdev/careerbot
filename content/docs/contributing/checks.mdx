@@ -82,6 +82,14 @@ Draws the share image (`pnpm share:card`, written to `src/app/opengraph-image.pn
 
 `opennextjs-cloudflare build`: the Cloudflare Workers build that careerbot.dev deploys (it runs `pnpm build` itself). Run it when you touch something that could behave differently on Workers, such as Node-only APIs in server code.
 
+## pnpm check:worker
+
+```bash title="Terminal"
+pnpm cf:build && pnpm check:worker
+```
+
+Serves that build as Cloudflare runs it, with its Worker under Wrangler (`opennextjs-cloudflare preview`, on port 8799), and runs the Playwright checks in `tests/worker/`: a docs page, and on the demo's build (`CAREERBOT_MODE=demo`) a signed-in screen, are opened and left alone, and fail when the tab keeps prefetching pages while it sits idle. The deploy runs it on the build it's about to ship. Run it when you change Next.js, OpenNext, Wrangler or `open-next.config.ts`.
+
 ## pnpm upgrade:check
 
 Proves a self-hosted copy of the previous release updates to this checkout without losing anything, in Docker on your

@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "convex/_generated/**",
     ".open-next/**",
+    // Wrangler's local state and bundles, from `pnpm check:worker` (opennextjs-cloudflare preview).
+    ".wrangler/**",
     "storybook-static/**",
     // fumadocs-mdx's generated docs index (source.config.ts).
     ".source/**",

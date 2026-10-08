@@ -15,12 +15,14 @@ import { Pains as PainsPart } from "./Pains";
 import { Paths as PathsPart } from "./Paths";
 import { Portal as PortalPart } from "./Portal";
 import { Questions as QuestionsPart } from "./Questions";
+import { Start as StartPart } from "./Start";
 import { Steps as StepsPart } from "./Steps";
 import { Trust as TrustPart } from "./Trust";
 import { FAQ, HOME_QUESTIONS, HOW_IT_WORKS, OPEN_SOURCE, TABLE } from "./words";
 
-// The public pages' sections, each large (resize for medium) and on a phone. Home: Where job searches go wrong, How
-// CareerBot fixes it, the two cards, a few questions (on a phone folded, the first open; and with another opened).
+// The public pages' sections, each large (resize for medium) and on a phone. Home: Where job searches go wrong, Where
+// it starts, How CareerBot fixes it, the two cards, a few questions (on a phone folded, the first open; and with
+// another opened).
 // How it works: the page's heading, the four steps, Two paths, See where else your experience fits, the whole search in
 // one place, It writes boldly, Everything CareerBot does. Open source: the licence, what you need, how it differs.
 // Questions as its own page. And the close: Home's, a page's own (Open source's words), and after joining.
@@ -34,6 +36,9 @@ const joins = answer(api.waitlist.join, () => ({ ok: true as const }));
 
 export const Pains: Story = { name: "Where job searches go wrong", render: () => <PainsPart /> };
 export const PainsPhone: Story = { name: "Where job searches go wrong, phone", globals: phone, render: () => <PainsPart /> };
+
+export const Start: Story = { name: "Where it starts", render: () => <StartPart /> };
+export const StartPhone: Story = { name: "Where it starts, phone", globals: phone, render: () => <StartPart /> };
 
 export const Steps: Story = { name: "How CareerBot fixes it", render: () => <StepsPart /> };
 export const StepsPhone: Story = { name: "How CareerBot fixes it, phone", globals: phone, render: () => <StepsPart /> };

@@ -49,8 +49,9 @@ next-env.d.ts
 /storybook-static/
 architecture-static
 
-# Rendered checks (Playwright) output
+# Rendered and Worker checks (Playwright) output
 /tests/rendered/test-results/
+/tests/worker/test-results/
 
 # Test persona runs (scripts/personas.ts): reports and raw results, kept locally.
 /testdata/personas/*/runs/

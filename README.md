@@ -4,9 +4,9 @@
 
 [![Latest release](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fcareerbot.dev%2Freleases.json&query=%24%5B0%5D.version&prefix=v&label=release&color=blue)](https://careerbot.dev/changelog) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 
-You tell CareerBot your career in your own words, job by job and project by project. It turns that into a record of what you've done, which you review and approve. You say where you want to go next, or ask it where you could go. It finds companies worth wanting, watches their openings, and tells you which roles deserve your time and why. When you go after one, it writes a tailored resume, cover letter and outreach message from your record, and finds the people to talk to.
+You tell CareerBot your career in your own words, job by job. It turns that into a record of what you've done, which you review and approve. You say where you want to go next, or ask it where you could go. It finds companies worth wanting, watches their openings, and tells you which roles deserve your time and why. When you go after one, it writes a tailored resume, cover letter and outreach message from your record, and finds the people to talk to.
 
-- **Every line it writes about you links back to something you said**, so you can speak to all of it in an interview.
+- **Each line it writes about you shows the facts it's built on**, from your own words, and a line with nothing behind it is flagged for you to fix or cut, so you can speak to all of it in an interview.
 - **Nothing enters your record or goes out under your name without your say-so.** CareerBot never sends anything: you apply and send every message yourself.
 - **AI spending runs on budgets you set**, on your own keys.
 - **It takes real time.** Telling the story of a job is often 20 minutes or more. What you get back is a record you can stand behind.

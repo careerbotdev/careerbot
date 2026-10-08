@@ -4,7 +4,7 @@ import { RootedMockup } from "./mockups/Rooted";
 import { Section } from "./Section";
 import { TRUST } from "./words";
 
-// It writes boldly, but never makes things up (the Website v4 — Pages boards, How it works): the honesty line beside
+// It writes boldly, from what you really did (the Website v4 — Pages boards, How it works): the honesty line beside
 // the rooted mock-up on a grey stage; on a phone, the words alone.
 export function Trust() {
   return (

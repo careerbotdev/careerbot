@@ -12,9 +12,9 @@ import { Pursuits } from "./Pursuits";
 // Not for me and the filters open), the list's ⋯, a pursuit with its follow-up and the resume beside it, choosing a
 // path, a pursuit contacted on the Outreach path, an outreach message gone quiet (follow up), the next contact after a
 // follow-up, outreach to a company with no open role, a pursuit's Role tab (with and without an open role), answers
-// with Ask, contacts with a message, adding a contact, a
-// closed pursuit, and By direction. Clicks, J and K, Enter and Esc work as in the app; resize the window for medium
-// (768 to 1279) and the phone (under 768).
+// with Ask, contacts with a message, adding a contact, a closed pursuit, By direction, and All roles with Against your
+// limits open. Clicks, J and K, Enter and Esc work as in the app; resize the window for medium (768 to 1279) and the
+// phone (under 768).
 
 function Fixture({ query, empty = false }: { query: string; empty?: boolean }) {
   const [answers] = useState(() => pursuitsFixtures({ empty }));
@@ -142,3 +142,13 @@ export const Closed: Story = { render: () => <Fixture query="status=closed&role=
 export const ByDirection: Story = { name: "By direction", render: () => <Fixture query="status=pursuing" /> };
 
 export const NoDirections: Story = { name: "No directions yet", render: () => <Fixture query="status=all" empty /> };
+
+// All roles with Against your limits open: each role's limit is a long tag, which ends in an ellipsis (its words in a
+// tooltip) so the role's title and company keep their width.
+export const AgainstYourLimits: Story = {
+  name: "Against your limits",
+  render: () => <Fixture query="status=all&direction=dir-solutions" />,
+  play: async () => {
+    await userEvent.click(await page().findByRole("button", { name: /Against your limits/ }));
+  },
+};

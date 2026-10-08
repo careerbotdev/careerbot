@@ -3,7 +3,7 @@ import { Section } from "./Section";
 import { CARDS } from "./words";
 
 // Home's two cards under the steps (the Website v4 — Pages boards): Open source, yours to run, and It writes boldly,
-// but never makes things up, each a title, a line and a link to the page that says more (the whole card is the link).
+// from what you really did, each a title, a line and a link to the page that says more (the whole card is the link).
 // From medium up each is a bordered card with a small drawing on a grey square: a terminal over two key chips, and a
 // highlighted resume line linked to a checked fact. Side by side on a large screen, stacked on a medium one; on a
 // phone, two plain sections between hairlines.
