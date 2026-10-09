@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { type ActionCtx, internalAction, internalMutation, internalQuery, query } from "./_generated/server";
 import { mutation } from "./functions";
-import { aiHeld, BUDGET_REACHED, type BudgetReached, HELD_BY_RUNNING } from "./budgets";
+import { aiHeld, BUDGET_REACHED, type BudgetReached, isHeldReason } from "./budgets";
 import { runExtract, runRework } from "./extract";
 import { chat, spendingFor } from "./metering";
 import { dayOf, tally } from "./tallies";
@@ -117,7 +117,7 @@ export const setState = internalMutation({
   handler: async (ctx, { jobId, ...patch }) => {
     const job = await ctx.db.get(jobId);
     // Waiting on calls that have all settled since it was refused: it starts again instead (budgets.aiHeld).
-    if (job && patch.status === "paused" && patch.error === HELD_BY_RUNNING && !(await aiHeld(ctx, job.workspaceId))) {
+    if (job && patch.status === "paused" && isHeldReason(patch.error) && !(await aiHeld(ctx, job.workspaceId))) {
       await ctx.db.patch(jobId, { status: "queued" });
       await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId });
       return;

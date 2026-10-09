@@ -2,6 +2,20 @@
 
 What changed in each version of CareerBot, newest first. The same notes are at https://careerbot.dev/changelog.
 
+## 0.9.5 · 2026-10-09
+
+Checking roles now waits when other AI work holds the budget, runs one check at a time, and never throws away AI work you already paid for. Ranking roles again while a check runs no longer fails.
+
+### Fixed
+
+- A long link in an item's Details, like an open role's title on a company, is now cut short inside the column instead of running past the edge of the window.
+- Ranking roles again for a direction while a roles check is running no longer fails; the roles are ranked again alongside the check.
+- Checking roles near the end of your AI budget now keeps every role sort it paid for, instead of throwing some away when the budget turned one down.
+- Ranking roles again while a roles check is paused for the budget now picks that check up again instead of running a second one beside it.
+- Checking roles near the end of your AI budget no longer pauses while there's budget left; it waits for running AI work to finish, then carries on.
+
+All releases: https://careerbot.dev/changelog#v0.9.5
+
 ## 0.9.4 · 2026-10-08
 
 Checking roles is faster and no longer fails when many roles are saved at once. When your AI budget runs short, it now pauses with a plain reason and resumes when you raise it.

@@ -2,7 +2,7 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { HELD_BY_RUNNING } from "./budgets";
+import { HELD_BY_RUNNING, HELD_BY_UNSETTLED } from "./budgets";
 import { apollo, chat, chatJson, type Decision, decide, LONG_REPLY_TOKENS } from "./metering";
 import { seedModelPrices, TEST_PRICE } from "./modelPrices.testing";
 import schema from "./schema";
@@ -275,7 +275,7 @@ test("an answer that doesn't say what it cost keeps what it held until the daily
   await setAiBudget(t, workspaceId, 0.12);
   vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: "gen-9", model: "m/x", choices: [{ message: { content: "hi" } }] })));
   await t.action(async (ctx) => chat(ctx, { workspaceId, purpose: "unsure", model: "m/x", messages: hello }));
-  await expect(t.action(async (ctx) => chat(ctx, { workspaceId, purpose: "next", model: "m/x", messages: hello }))).rejects.toMatchObject({ data: { message: HELD_BY_RUNNING } });
+  await expect(t.action(async (ctx) => chat(ctx, { workspaceId, purpose: "next", model: "m/x", messages: hello }))).rejects.toMatchObject({ data: { message: HELD_BY_UNSETTLED } });
   vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.endsWith("generation?id=gen-9") ? Response.json({ data: { total_cost: 0.02 } }) : costs(0.01))));
   await t.action(internal.metering.reconcile, {});
   await t.action(async (ctx) => chat(ctx, { workspaceId, purpose: "next", model: "m/x", messages: hello }));

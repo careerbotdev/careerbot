@@ -85,8 +85,9 @@ const brief = (d: SortDirection) => ({ name: d.name, ...(d.positioning ? { posit
 const SORT = `You sort job postings for a job seeker before each one is read closely. For each posting, name every direction it could plausibly be: the work the direction is about, or near it, at any level and under any title. The directions often overlap, and a posting often fits several: name each one whose work overlaps the posting's work even partly. When unsure, include the direction: a posting left out is never looked at again for it, while an extra one only costs a closer read. Name no direction only when the work is clearly something else (another field or function, such as engineering, design, finance or legal). Judge the work the description describes, not the title's words; use the title only when there is no description.
 Reply with JSON only: one key per posting, each with the keys of its directions, for example {"r1": ["d2"], "r2": [], "r3": ["d1", "d3"]}.`;
 
-// `stopAt` (the backtest): batches that fail, or aren't back by then, are left out of the results instead of failing the
-// sort, and counted.
+// A batch that fails starts no more of them, and comes back as `failure` beside the results of the batches that did
+// come back, each paid for. `stopAt` (the backtest): batches that fail, or aren't back by then, are left out of the
+// results instead, and counted.
 async function modelSort(ctx: ActionCtx, ws: Id<"workspaces">, choice: ModelChoice, postings: SortPosting[], directions: SortDirection[], stopAt?: number) {
   const ids = new Map(directions.map((d, i) => [dirKey(i), d.id]));
   const dirs = Object.fromEntries(directions.map((d, i) => [dirKey(i), brief(d)]));
@@ -121,7 +122,8 @@ async function modelSort(ctx: ActionCtx, ws: Id<"workspaces">, choice: ModelChoi
       results.set(p.id, [...new Set(named.map((k) => ids.get(String(k))).filter((id): id is string => !!id))]);
     });
   };
-  if (stopAt === undefined) await pool(chunks(postings, MODEL_BATCH), MODEL_AT_ONCE, sortBatch);
+  let failure: { e: unknown } | undefined;
+  if (stopAt === undefined) failure = await pool(chunks(postings, MODEL_BATCH), MODEL_AT_ONCE, sortBatch).then(() => undefined, (e: unknown) => ({ e }));
   else {
     const run = pool(chunks(postings, MODEL_BATCH), MODEL_AT_ONCE, async (batch) => {
       if (Date.now() >= stopAt) return;
@@ -132,7 +134,7 @@ async function modelSort(ctx: ActionCtx, ws: Id<"workspaces">, choice: ModelChoi
     await Promise.race([run, deadline.promise]);
     clearTimeout(timer);
   }
-  return { results: new Map(results), costUsd, unanswered, errors };
+  return { results: new Map(results), costUsd, unanswered, errors, failure };
 }
 
 // Jev's questions for one posting (in the state as `posting`). Question ids never reach the model, so each question
@@ -163,11 +165,13 @@ function jevQuestions(directions: SortDirection[]): Record<string, DecisionQuest
 // Jev's signals per posting: the probability its main work is each direction's work (`work`, in the directions' order),
 // the probability each direction is the one it is most (`pick`), and the probability it's none of them (`none`).
 export type JevSignals = { work: number[]; pick: number[]; none: number };
+// Asks Jev for each posting's signals, a group at a time. A group that fails starts no more of them, and comes back as
+// `failure` beside the signals of the groups that came back.
 export async function jevSignals(ctx: ActionCtx, ws: Id<"workspaces">, model: string, postings: SortPosting[], directions: SortDirection[]) {
   const questions = jevQuestions(directions);
   const signals = new Map<string, JevSignals>();
   let costUsd = 0;
-  await pool(chunks(postings, JEV_GROUP), JEV_AT_ONCE, async (group) => {
+  const failure = await pool(chunks(postings, JEV_GROUP), JEV_AT_ONCE, async (group) => {
     const r = await decide(ctx, {
       workspaceId: ws,
       purpose: "role sort",
@@ -187,8 +191,8 @@ export async function jevSignals(ctx: ActionCtx, ws: Id<"workspaces">, model: st
         none: pick[NONE] ?? 0,
       });
     });
-  });
-  return { signals, costUsd };
+  }).then(() => undefined, (e: unknown) => ({ e }));
+  return { signals, costUsd, failure };
 }
 
 // Liquid AI's d1 (spike, backtest only): the same questions as Jev, asked of Liquid's decisions API one posting a call
@@ -245,16 +249,18 @@ const gated = (none: number, pick: number, work: number): JevRule => (s) => s.wo
 export const JEV_RULE = gated(JEV_NONE, JEV_PICK, JEV_WORK);
 
 // Sorts each posting to the ids of the directions it could plausibly be ([] for none), with the workspace's model for the
-// method: "Sorting roles" for an AI model, "Sorting roles with Jev" for Jev.
-export async function sortRoles(ctx: ActionCtx, ws: Id<"workspaces">, method: SortMethod, postings: SortPosting[], directions: SortDirection[]) {
+// method: "Sorting roles" for an AI model, "Sorting roles with Jev" for Jev. A call that fails (the budget refusing it,
+// say) starts no more; the results are then those of the calls that came back, each paid for, and `failure` is why the
+// rest weren't sorted, for the caller to deal with once it has saved them.
+export async function sortRoles(ctx: ActionCtx, ws: Id<"workspaces">, method: SortMethod, postings: SortPosting[], directions: SortDirection[]): Promise<{ results: Map<string, string[]>; costUsd: number; failure?: { e: unknown } }> {
   if (!postings.length || !directions.length) return { results: new Map<string, string[]>(postings.map((p) => [p.id, []])), costUsd: 0 };
   const choice = await modelFor(ctx, ws, SORT_TASK[method]);
   if (method === "model") {
-    const { results, costUsd } = await modelSort(ctx, ws, choice, postings, directions);
-    return { results, costUsd };
+    const { results, costUsd, failure } = await modelSort(ctx, ws, choice, postings, directions);
+    return { results, costUsd, failure };
   }
-  const { signals, costUsd } = await jevSignals(ctx, ws, choice.model, postings, directions);
-  return { results: jevPass(signals, directions, JEV_RULE), costUsd };
+  const { signals, costUsd, failure } = await jevSignals(ctx, ws, choice.model, postings, directions);
+  return { results: jevPass(signals, directions, JEV_RULE), costUsd, failure };
 }
 
 // ---- Backtest ----
@@ -387,7 +393,9 @@ export const backtest = internalAction({
       modelRun = { unanswered: postings.length - r.signals.size, errors: r.errors };
       results = jevPass(signals, directions, JEV_RULE);
     } else {
-      ({ signals, costUsd } = await jevSignals(ctx, ws, choice.model, postings, directions));
+      let failure;
+      ({ signals, costUsd, failure } = await jevSignals(ctx, ws, choice.model, postings, directions));
+      if (failure) throw failure.e;
       results = jevPass(signals, directions, JEV_RULE);
     }
     const sortSeconds = (Date.now() - sortStarted) / 1000;

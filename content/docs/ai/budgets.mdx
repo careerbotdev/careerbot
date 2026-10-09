@@ -35,6 +35,7 @@ A call is refused, and nothing is sent to OpenRouter, when:
   <Message text="This month's AI budget is used up." where="Anywhere AI runs">Raise the budget, or wait for the 1st.</Message>
   <Message text="This call could cost more than what's left of this month's AI budget." where="Anywhere AI runs">The call's most could go past what's left. Raise the budget to let it run.</Message>
   <Message text="Waiting on AI work already running, which could use the rest of this month's AI budget." where="Anywhere AI runs">Calls running now hold the rest. It starts again by itself as they finish.</Message>
+  <Message text="Waiting on earlier AI work to be settled tonight, which could use the rest of this month's AI budget." where="Anywhere AI runs">Calls that were cut off, or didn't say what they cost, hold the rest until the nightly check settles them. It starts again by itself then.</Message>
 </Messages>
 
 Prices are read from OpenRouter every hour, so what a call holds follows the providers' prices. A call that may have

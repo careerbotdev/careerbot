@@ -64,6 +64,11 @@ export async function addAiSpend(ctx: MutationCtx, workspaceId: Id<"workspaces">
 
 // Why a job paused when calls already running hold what's left of the budget; it picks up as they settle (resumeHeld).
 export const HELD_BY_RUNNING = "Waiting on AI work already running, which could use the rest of this month's AI budget.";
+// Why a job paused when what's left is held by calls that aren't running but weren't settled: cut off, or answered
+// without saying what they cost. The nightly check settles them (metering's reconcile), and the job picks up then.
+export const HELD_BY_UNSETTLED = "Waiting on earlier AI work to be settled tonight, which could use the rest of this month's AI budget.";
+const HELD = [HELD_BY_RUNNING, HELD_BY_UNSETTLED];
+export const isHeldReason = (message: string | undefined) => !!message && HELD.includes(message);
 
 // What calls not settled yet hold of a month's total. Adding and taking off the same amounts can leave a rounding
 // crumb, which holds nothing.
@@ -92,7 +97,7 @@ export async function aiRunning(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
 // it still doesn't fit.
 export async function resumeHeld(ctx: MutationCtx, workspaceId: Id<"workspaces">) {
   for (const job of await ctx.db.query("jobs").withIndex("by_status", (q) => q.eq("status", "paused")).collect()) {
-    if (job.workspaceId !== workspaceId || job.error !== HELD_BY_RUNNING) continue;
+    if (job.workspaceId !== workspaceId || !isHeldReason(job.error)) continue;
     await ctx.db.patch(job._id, { status: "queued" });
     await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId: job._id });
   }
@@ -155,7 +160,9 @@ export const reserve = internalMutation({
       const held = heldOf(total);
       if (settled >= b.aiMonthlyUsd) throw new ConvexError(reached("This month's AI budget is used up."));
       if (settled + amount > b.aiMonthlyUsd) throw new ConvexError(reached("This call could cost more than what's left of this month's AI budget."));
-      if (settled + held + amount > b.aiMonthlyUsd) throw new ConvexError(reached(HELD_BY_RUNNING));
+      // Held by calls running now, which will settle and give back what they don't spend; or by calls that won't settle
+      // until the nightly check (read in the same transaction, so a call settling meanwhile can't be missed).
+      if (settled + held + amount > b.aiMonthlyUsd) throw new ConvexError(reached((await aiRunning(ctx, workspaceId)) ? HELD_BY_RUNNING : HELD_BY_UNSETTLED));
       await addAiSpend(ctx, workspaceId, Date.now(), { held: amount });
     } else {
       const b = await budgetRow(ctx, workspaceId);

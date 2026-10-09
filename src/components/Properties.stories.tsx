@@ -7,7 +7,8 @@ const meta = { title: "Components/Properties", component: Properties } satisfies
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-// The Details column of an item, as it sits beside the body on a large screen.
+// The Details column of an item, as it sits beside the body on a large screen. A link longer than the column (an open
+// role's title) is cut short, its arrow showing.
 export const DetailsColumn: Story = {
   args: { children: null },
   render: () => (
@@ -28,6 +29,11 @@ export const DetailsColumn: Story = {
             <CostEstimate amount="Free" />
           </span>
         </span>
+      </Property>
+      <Property label="Open roles">
+        <span>12 · 9 remote · 4 match your titles</span>
+        <PropertyLink href="https://jobs.example.com/loadstar-systems/1">Senior Solutions Consultant, Demand Planning and Forecasting</PropertyLink>
+        <PropertyLink href="https://jobs.example.com/loadstar-systems/2">Implementation Consultant</PropertyLink>
       </Property>
       <Property label="Found">Supply Chain Product search · Sep 3</Property>
       <Property label="People">

@@ -29,9 +29,9 @@ import { clockOf, requireWorkspace } from "./workspaces";
 // sorted to the approved directions each could plausibly be, then judged against only those. A pass reads the boards
 // first, 10 companies a run, each run scheduling the next. Then everything else is done by workers running side by
 // side: each claims a few roles (so no two work on the same one), fetches their descriptions, sorts or judges them,
-// saves, and claims again until nothing is left. The pass's own run watches them, pauses the pass once the AI budget
-// can't fit their next call and no call is still running, and hands over to a fresh run (with fresh workers) before
-// Convex's 10-minute limit.
+// saves, and claims again until nothing is left. A call the budget refuses for what other calls still running hold is
+// tried again once they settle; the pass's own run pauses the pass once the AI budget can't fit their next call and no
+// call is still running, and hands over to a fresh run (with fresh workers) before Convex's 10-minute limit.
 
 // Companies read per run.
 const BATCH = 10;
@@ -53,6 +53,10 @@ const WORK_MS = 6 * 60 * 1000;
 // How often the pass's run checks on the work, and how long a worker with nothing free to claim waits before trying again.
 const POLL_MS = 10 * 1000;
 const WAIT_MS = 5 * 1000;
+// The longest a worker waits before trying again when the budget keeps refusing its calls for what calls still running
+// hold: each refusal in a row doubles its wait from WAIT_MS up to this, so near the end of a budget the workers whose
+// calls don't fit ask again now and then rather than every few seconds.
+const HELD_WAIT_MS = 60 * 1000;
 // Failures of a role's own input in one pass after which it's set aside until the next pass.
 const MAX_FAILURES = 3;
 // Problems in one pass that weren't about any one role (a bug, a limit, OpenRouter down) after which the pass stops and
@@ -65,6 +69,9 @@ const MAX_PROBLEMS = 20;
 const PAGE = 500;
 const SYNC_PAGE = 200;
 const TEXT_PAGE = 200;
+// Roles rankAgain clears per write (rankAgainPage): few, so each write is quick and seldom meets a running pass's
+// workers saving one of the same roles.
+const RERANK_PAGE = 50;
 // Roles (and descriptions) saved per write, so a large board with descriptions stays well within a write's size.
 const SAVE_CHUNK = 50;
 // Coverage read longer ago than this is stale.
@@ -335,9 +342,9 @@ async function freeIn(ctx: QueryCtx, workspaceId: Id<"workspaces">, step: Step, 
 }
 
 // A worker takes a few roles nobody holds: descriptions first; sorting once every description is in (so what a
-// company repeats is counted across all its roles); then judging. Once the budget refused an AI call in this pass, only
-// descriptions are handed out. Null: stopped, or nothing left it may take. wait: the rest is held by other workers (or
-// waits on their descriptions).
+// company repeats is counted across all its roles); then judging. Once the budget refused an AI call in this pass in a
+// way waiting on running calls won't change (release's `budget`), only descriptions are handed out. Null: stopped, or
+// nothing left it may take. wait: the rest is held by other workers (or waits on their descriptions).
 export const claim = internalMutation({
   args: { workspaceId: v.id("workspaces"), since: v.number(), worker: v.string() },
   handler: async (ctx, { workspaceId, since, worker }): Promise<{ step: Step; ids: Id<"postings">[] } | { wait: true } | null> => {
@@ -365,7 +372,8 @@ export const claim = internalMutation({
 // A worker couldn't finish its roles: they're free again. `error`: the roles' own input failed (the model couldn't
 // read or answer for them), which counts toward setting them aside. Anything else (our own limits and bugs, OpenRouter
 // down, the budget) frees them without counting; a problem that isn't the budget is recorded for the pass, and so is
-// the budget's refusal (`budget`, why it refused), which stops the pass handing out AI work.
+// a budget refusal that waiting on running calls won't change (`budget`, why it refused, work's refusedBy), which stops
+// the pass handing out AI work.
 export const release = internalMutation({
   args: {
     workspaceId: v.id("workspaces"),
@@ -396,10 +404,9 @@ export const release = internalMutation({
       else await ctx.db.insert("discovery", { workspaceId, seeds: [], resolved: [], rolesProblems });
     }
     if (budget) {
-      // The first refusal is kept, unless it waited on calls running and this one says what's left is too little.
+      // The first refusal is kept.
       const row = await settingsOf(ctx, workspaceId);
-      const had = row?.rolesBudget?.since === since ? row.rolesBudget : null;
-      if (had && (had.message !== HELD_BY_RUNNING || budget === HELD_BY_RUNNING)) return;
+      if (row?.rolesBudget?.since === since) return;
       const rolesBudget = { since, at, message: budget };
       if (row) await ctx.db.patch(row._id, { rolesBudget });
       else await ctx.db.insert("discovery", { workspaceId, seeds: [], resolved: [], rolesBudget });
@@ -939,7 +946,9 @@ async function cleanCompany(ctx: ActionCtx, ws: Id<"workspaces">, companyId: Id<
 
 // Sorts the claimed roles. Returns the ones put off because another worker is still working out what their company
 // repeats; they're freed to be claimed again. Claims are spread over every company's roles, so the roles are read again
-// after each company this worker works out: one another worker finished meanwhile isn't worked out twice.
+// after each company this worker works out: one another worker finished meanwhile isn't worked out twice. A sort call
+// that fails (the budget refusing it, say) stops the rest, but every call that came back is paid for, so its roles are
+// saved first; the failure then comes as Unfinished, naming the roles left, or as itself when none was saved.
 async function sortSome(ctx: ActionCtx, ws: Id<"workspaces">, worker: string, ids: Id<"postings">[]) {
   let input = await ctx.runQuery(internal.roles.sortInput, { workspaceId: ws, ids });
   const later: Id<"postings">[] = [];
@@ -961,14 +970,24 @@ async function sortSome(ctx: ActionCtx, ws: Id<"workspaces">, worker: string, id
   const groups = new Map<string, typeof input.postings>();
   for (const p of input.postings) if (!later.includes(p.id)) groups.set(p.against.join(","), [...(groups.get(p.against.join(",")) ?? []), p]);
   const results: { id: Id<"postings">; against: Id<"items">[]; directionIds: Id<"items">[] }[] = [];
+  let failure: { e: unknown } | undefined;
   for (const group of groups.values()) {
     const against = group[0].against;
     const directions = input.directions.filter((d) => against.includes(d.id));
-    const { results: sorted } = await sortRoles(ctx, ws, input.method, group.map((p) => ({ id: p.id, title: p.title, company: p.company, text: p.text ?? "" })), directions);
-    // A role the sort didn't answer for goes on to every direction: judging it costs less than missing it.
-    for (const p of group) results.push({ id: p.id, against, directionIds: against.filter((d) => sorted.get(p.id)?.includes(d) ?? true) });
+    const sort = await sortRoles(ctx, ws, input.method, group.map((p) => ({ id: p.id, title: p.title, company: p.company, text: p.text ?? "" })), directions);
+    for (const p of group) {
+      const sorted = sort.results.get(p.id);
+      if (sorted) results.push({ id: p.id, against, directionIds: against.filter((d) => sorted.includes(d)) });
+    }
+    failure = sort.failure;
+    if (failure) break;
   }
-  await ctx.runMutation(internal.roles.saveSort, { workspaceId: ws, worker, method: input.method, directions: input.directions.map((d) => ({ id: d.id, changedAt: d.changedAt })), results });
+  if (results.length) await ctx.runMutation(internal.roles.saveSort, { workspaceId: ws, worker, method: input.method, directions: input.directions.map((d) => ({ id: d.id, changedAt: d.changedAt })), results });
+  if (failure) {
+    if (!results.length) throw failure.e;
+    const saved = new Set<Id<"postings">>(results.map((r) => r.id));
+    throw new Unfinished(ids.filter((id) => !saved.has(id)), failure.e);
+  }
   return later;
 }
 
@@ -1047,6 +1066,15 @@ const budgetStop = (e: unknown) => e instanceof ConvexError && (e.data as Budget
 const inputFault = (e: unknown) =>
   e instanceof UnreadableReply || (e instanceof OpenRouterError && (e.status === 413 || (e.status === 400 && /context|too long|too large|maximum|tokens/i.test(e.message))));
 const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+// A step that failed after saving some of its roles: `left`, the ones it didn't save, and why it failed (`failure`).
+class Unfinished extends Error {
+  constructor(
+    readonly left: Id<"postings">[],
+    readonly failure: unknown,
+  ) {
+    super(messageOf(failure));
+  }
+}
 // Whether a write lost to other workers' writes on every one of Convex's own retries (many claiming the same roles at once).
 const conflicted = (e: unknown) => /changed while this mutation was being run/.test(messageOf(e));
 
@@ -1055,13 +1083,27 @@ const conflicted = (e: unknown) => /changed while this mutation was being run/.t
 // short, random pause. When a few roles fail together in a way their input could cause, each is tried alone: only a
 // role that fails alone counts toward being set aside, and if every one fails alone the cause is taken to be ours, not
 // theirs. Its paid calls are spent on the pass's job, for whoever started the pass.
+// A call the budget refuses for what calls still running hold frees its roles to be claimed again after a random pause,
+// longer each time in a row (HELD_WAIT_MS): those calls settle and give back what they didn't spend, so the next try
+// fits or meets a refusal that waiting won't change (what's left is too little, or the rest is held by calls that aren't
+// running: the daily check settles those, resuming the pass). Only a refusal waiting won't change is recorded for the
+// pass, which then stops. A step that saved some of its roles before failing (Unfinished) is taken as having failed for
+// the rest only: those alone are let go, or tried alone, so nothing already paid for is asked again.
 export const work = internalAction({
   args: { workspaceId: v.id("workspaces"), since: v.number(), worker: v.string(), until: v.number(), jobId: v.optional(v.id("jobs")), origin: v.optional(origin) },
   handler: async (actionCtx, { workspaceId: ws, since, worker, until, jobId, origin }) => {
     const ctx = spendingFor(actionCtx, { jobId, origin });
     let done = 0;
+    let heldWait = WAIT_MS;
     const release = (ids: Id<"postings">[], why: { error: string } | { problem: string } | { budget: string } | Record<string, never> = {}) =>
       ids.length ? ctx.runMutation(internal.roles.release, { workspaceId: ws, since, worker, ids, ...why }) : null;
+    const refusedBy = async (ids: Id<"postings">[], e: unknown) => {
+      const { message } = (e as ConvexError<BudgetReached>).data;
+      if (message !== HELD_BY_RUNNING) return release(ids, { budget: message });
+      await release(ids);
+      await sleep(heldWait * (0.5 + Math.random()));
+      heldWait = Math.min(2 * heldWait, HELD_WAIT_MS);
+    };
     while (Date.now() < until) {
       let got;
       try {
@@ -1076,37 +1118,43 @@ export const work = internalAction({
         await sleep(WAIT_MS);
         continue;
       }
+      let left = got.ids;
       try {
         const later = await runStep(ctx, ws, worker, got.step, got.ids);
         done += got.ids.length - later.length;
+        heldWait = WAIT_MS;
         if (later.length) {
           await release(later);
           await sleep(WAIT_MS);
         }
         continue;
-      } catch (e) {
+      } catch (caught) {
+        const e = caught instanceof Unfinished ? caught.failure : caught;
+        if (caught instanceof Unfinished) {
+          done += left.length - caught.left.length;
+          left = caught.left;
+        }
         if (budgetStop(e)) {
-          // No more AI work is handed out in this pass; its run pauses it once no AI call is still running.
-          await release(got.ids, { budget: (e as ConvexError<BudgetReached>).data.message });
+          await refusedBy(left, e);
           continue;
         }
         if (!inputFault(e)) {
-          await release(got.ids, { problem: messageOf(e) });
+          await release(left, { problem: messageOf(e) });
           await sleep(WAIT_MS);
           continue;
         }
-        if (got.ids.length === 1) {
-          await release(got.ids, { error: messageOf(e) });
+        if (left.length === 1) {
+          await release(left, { error: messageOf(e) });
           continue;
         }
       }
-      const alone = await Promise.allSettled(got.ids.map((id) => runStep(ctx, ws, worker, got.step, [id])));
-      const failed = alone.flatMap((r, i) => (r.status === "rejected" ? [{ id: got.ids[i], e: r.reason as unknown }] : []));
+      const alone = await Promise.allSettled(left.map((id) => runStep(ctx, ws, worker, got.step, [id])));
+      const failed = alone.flatMap((r, i) => (r.status === "rejected" ? [{ id: left[i], e: r.reason as unknown }] : []));
       await release(alone.flatMap((r) => (r.status === "fulfilled" ? r.value : [])));
       done += alone.length - failed.length;
       const refused = failed.find((f) => budgetStop(f.e));
       if (refused) {
-        await release(failed.map((f) => f.id), { budget: (refused.e as ConvexError<BudgetReached>).data.message });
+        await refusedBy(failed.map((f) => f.id), refused.e);
         continue;
       }
       if (failed.length === got.ids.length) await release(got.ids, { problem: messageOf(failed[0].e) });
@@ -1144,12 +1192,20 @@ export const finish = internalMutation({
 });
 
 // Start a pass unless one is already queued or running (a running pass reads, before it's done, every board someone
-// asks to check meanwhile). A pass reads every watched company whose board wasn't read since it started; with boards
-// false (ranking again), only boards someone asked to check. origin: whether they asked for it, or the daily check
-// started it.
+// asks to check meanwhile), or take up a paused one (a pass paused for the budget queues every role's next step again
+// when it resumes, so it does what a new one would), so a workspace never has two at once. A pass reads every watched
+// company whose board wasn't read since it started; with boards false (ranking again), only boards someone asked to
+// check. origin: whether they asked for it, or the daily check started it.
 async function startPass(ctx: MutationCtx, workspaceId: Id<"workspaces">, origin: Doc<"jobs">["origin"], boards = true) {
   const jobs = await ctx.db.query("jobs").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).order("desc").take(100);
-  if (jobs.some((j) => j.kind === "roles" && (j.status === "queued" || j.status === "running"))) return null;
+  const passes = jobs.filter((j) => j.kind === "roles");
+  if (passes.some((j) => j.status === "queued" || j.status === "running")) return null;
+  const paused = passes.find((j) => j.status === "paused");
+  if (paused && !(await isStopped(ctx, workspaceId, typeof paused.args?.since === "number" ? paused.args.since : paused._creationTime))) {
+    await ctx.db.patch(paused._id, { status: "queued" });
+    await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId: paused._id });
+    return paused._id;
+  }
   const jobId = await ctx.db.insert("jobs", { workspaceId, kind: "roles", args: { since: Date.now(), ...(boards ? {} : { boards: false }) }, status: "queued", origin });
   await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId });
   return jobId;
@@ -1464,54 +1520,51 @@ export const refreshRanks = internalMutation({
   },
 });
 
-// One page of rankAgain: each open role's verdicts and sort for the directions are cleared and it's queued again.
-async function rankAgainPage(ctx: MutationCtx, workspaceId: Id<"workspaces">, directionIds: Id<"items">[], cursor: string | null) {
-  const ratings = await watchedRatings(ctx, workspaceId);
-  const rank = await ranker(ctx, workspaceId, ratings);
-  const { approved, area } = rank;
-  const asked = new Set<string>(directionIds.filter((d) => approved.has(d)));
-  if (!asked.size) return { isDone: true, cursor: "" };
-  const page = await ctx.db.query("postings").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId).eq("closedAt", undefined)).paginate({ cursor, numItems: SYNC_PAGE });
-  for (const p of page.page) {
-    // Not ranked yet: the pass ranks it for every direction anyway.
-    if (!p.sort && p.fitAt === undefined) continue;
-    // Judged before sorting existed: every other direction it wasn't listed for was "none", written out so those
-    // verdicts stay once it has a sort. Directions already waiting to be ranked again have no verdict to keep.
-    const legacy = p.sort
-      ? []
-      : [...approved.keys()]
-          .filter((d) => !asked.has(d) && !p.rerank?.some((r) => r === d) && !p.fit?.some((f) => f.directionId === d))
-          .map((d) => ({ directionId: d as Id<"items">, level: "none" as const, method: "model" as const, directionAt: p.fitAt }));
-    const fit = [...(p.fit ?? []).filter((f) => !asked.has(f.directionId)).map((f) => (p.sort ? f : { ...f, directionAt: f.directionAt ?? p.fitAt })), ...legacy];
-    const sort = p.sort && { ...p.sort, directionIds: p.sort.directionIds.filter((d) => !asked.has(d)), against: p.sort.against.filter((a) => !asked.has(a.directionId)) };
-    const next = { ...p, fit, sort, rerank: [...new Set([...(p.rerank ?? []), ...(asked as Set<Id<"items">>)])] };
-    const inArea = ratings.has(p.companyId) && inWorkArea(p, area);
-    await ctx.db.patch(p._id, { fit, sort, rerank: next.rerank, queue: inArea ? stepFor(next, approved) : undefined, claimedAt: undefined, claimedBy: undefined, failed: undefined });
-    await rank.sync(next);
-  }
-  return { isDone: page.isDone, cursor: page.continueCursor };
-}
-
-// The rest of rankAgain, a page per run; the last page starts a pass that reads no boards.
-export const rankAgainRest = internalMutation({
-  args: { workspaceId: v.id("workspaces"), directionIds: v.array(v.id("items")), cursor: v.string(), origin: v.optional(origin) },
+// One page of rankAgain, each its own write: each open role's verdicts and sort for the directions are cleared and it's
+// queued again (a role a worker holds is let go, so what it was working out from before is dropped). The next page
+// follows; the last starts a pass that reads no boards, or leaves the roles to the pass already running, whose workers
+// take them from the queue. Pages are small and never part of the request itself, so a pass's 32 workers claiming and
+// saving the same roles meanwhile can't make the request fail, and a page they do collide with is run again on its own.
+// A page leaves a role it already cleared as it was (but let go), so running one again clears nothing twice.
+export const rankAgainPage = internalMutation({
+  args: { workspaceId: v.id("workspaces"), directionIds: v.array(v.id("items")), cursor: v.union(v.string(), v.null()), origin: v.optional(origin) },
   handler: async (ctx, { workspaceId, directionIds, cursor, origin }) => {
-    const page = await rankAgainPage(ctx, workspaceId, directionIds, cursor);
-    if (!page.isDone) await ctx.scheduler.runAfter(0, internal.roles.rankAgainRest, { workspaceId, directionIds, cursor: page.cursor, origin });
+    const ratings = await watchedRatings(ctx, workspaceId);
+    const rank = await ranker(ctx, workspaceId, ratings);
+    const { approved, area } = rank;
+    const asked = new Set<string>(directionIds.filter((d) => approved.has(d)));
+    if (!asked.size) return;
+    const page = await ctx.db.query("postings").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId).eq("closedAt", undefined)).paginate({ cursor, numItems: RERANK_PAGE });
+    for (const p of page.page) {
+      // Not ranked yet: the pass ranks it for every direction anyway.
+      if (!p.sort && p.fitAt === undefined) continue;
+      // Judged before sorting existed: every other direction it wasn't listed for was "none", written out so those
+      // verdicts stay once it has a sort. Directions already waiting to be ranked again have no verdict to keep.
+      const legacy = p.sort
+        ? []
+        : [...approved.keys()]
+            .filter((d) => !asked.has(d) && !p.rerank?.some((r) => r === d) && !p.fit?.some((f) => f.directionId === d))
+            .map((d) => ({ directionId: d as Id<"items">, level: "none" as const, method: "model" as const, directionAt: p.fitAt }));
+      const fit = [...(p.fit ?? []).filter((f) => !asked.has(f.directionId)).map((f) => (p.sort ? f : { ...f, directionAt: f.directionAt ?? p.fitAt })), ...legacy];
+      const sort = p.sort && { ...p.sort, directionIds: p.sort.directionIds.filter((d) => !asked.has(d)), against: p.sort.against.filter((a) => !asked.has(a.directionId)) };
+      const next = { ...p, fit, sort, rerank: [...new Set([...(p.rerank ?? []), ...(asked as Set<Id<"items">>)])] };
+      const inArea = ratings.has(p.companyId) && inWorkArea(p, area);
+      await ctx.db.patch(p._id, { fit, sort, rerank: next.rerank, queue: inArea ? stepFor(next, approved) : undefined, claimedAt: undefined, claimedBy: undefined, failed: undefined });
+      await rank.sync(next);
+    }
+    if (!page.isDone) await ctx.scheduler.runAfter(0, internal.roles.rankAgainPage, { workspaceId, directionIds, cursor: page.continueCursor, origin });
     else await startPass(ctx, workspaceId, origin, false);
   },
 });
 
 // Rank every open role again for one direction (or every approved direction), after it changed: their verdicts and
-// sort for it are cleared, and the next pass sorts and judges them for it alone. Nothing is ranked again without this.
-// The first page of roles is done at once; the rest follow a page at a time.
+// sort for it are cleared, a page at a time (rankAgainPage), and a pass sorts and judges them for it alone. Nothing is
+// ranked again without this.
 export async function rankAgainFor(ctx: MutationCtx, workspaceId: Id<"workspaces">, origin: "you" | "automatic", directionId?: Id<"items">) {
   const approved = await directionTimes(ctx, workspaceId);
   if (directionId && !approved.has(directionId)) throw new ConvexError("Not found.");
   const directionIds = directionId ? [directionId] : ([...approved.keys()] as Id<"items">[]);
-  const page = await rankAgainPage(ctx, workspaceId, directionIds, null);
-  if (!page.isDone) await ctx.scheduler.runAfter(0, internal.roles.rankAgainRest, { workspaceId, directionIds, cursor: page.cursor, origin });
-  else await startPass(ctx, workspaceId, origin, false);
+  await ctx.scheduler.runAfter(0, internal.roles.rankAgainPage, { workspaceId, directionIds, cursor: null, origin });
 }
 
 export const rankAgain = mutation({

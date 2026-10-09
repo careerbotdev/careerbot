@@ -3,6 +3,7 @@ import type { FunctionReturnType } from "convex/server";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import { chat } from "./metering";
+import { HELD_BY_UNSETTLED } from "./budgets";
 import type { Id } from "./_generated/dataModel";
 import { PROBLEM_LABELS } from "./limitBuckets";
 import { seedModelPrices } from "./modelPrices.testing";
@@ -314,6 +315,95 @@ test("32 workers claiming at once never hold the same role: each role's descript
   expect(rows.every((p) => p.queue === undefined && p.claimedBy === undefined && p.fit?.length === 1 && p.fit[0].reason === judgedBy.get(p._id))).toBe(true);
 });
 
+// rankAgain clears roles a page at a time, each page a write of its own after the request, so the request never meets
+// the workers; the pages meet them as they claim and save the same roles, each page here running while a worker holds
+// roles it claimed. A role cleared is sorted again for the direction alone, so each sort against Design alone is one
+// role being ranked again for it.
+test("ranking a direction again while 32 workers claim and save completes, and every role ends judged for it afresh, once", async () => {
+  const s = await setup({ design: true });
+  const all = await queued(s, Array.from({ length: 160 }, (_, i) => ({ title: `r${i}`, queue: "text" as const })));
+  const since = Date.now();
+  // The pass these workers belong to is running, so ranking again leaves the roles to it rather than starting another.
+  await s.t.run((ctx) => ctx.db.insert("jobs", { workspaceId: s.a.w, kind: "roles", args: { since, boards: false }, status: "running", origin: "you" }));
+  await s.t.mutation(internal.roles.plan, { workspaceId: s.a.w, since, cursor: null });
+  const sortedOnce = new Set<Id<"postings">>();
+  const sortedAgain = new Map<Id<"postings">, number>();
+  const judgedAgain = new Map<Id<"postings">, number>();
+  let asked = false;
+  let paging = false;
+  // A failed check stops every worker, so the test fails with it rather than the others waiting on a role forever.
+  let failed = false;
+  const work = async (worker: string) => {
+    while (!failed) {
+      const got = await s.t.mutation(internal.roles.claim, { workspaceId: s.a.w, since, worker });
+      if (!got) return;
+      if ("wait" in got) {
+        await s.t.run(async () => {});
+        continue;
+      }
+      // Once every role is sorted and judging is under way, Design is ranked again; from then on each worker lets the
+      // next page of it run while it holds its roles, before doing their step.
+      if (!asked && got.step === "judge" && sortedOnce.size === all.length) {
+        asked = true;
+        await s.asA.mutation(api.roles.rankAgain, { directionId: s.design });
+        // The request itself clears no role, so it never meets the workers; its pages do.
+        expect((await s.postings()).some((p) => p.rerank)).toBe(false);
+        paging = true;
+      }
+      if (paging) {
+        vi.advanceTimersByTime(1);
+        await s.t.finishInProgressScheduledFunctions();
+      }
+      if (got.step === "text") await s.t.mutation(internal.roles.saveTexts, { workspaceId: s.a.w, worker, texts: got.ids.map((id) => ({ id, text: "" })), at: Date.now() });
+      if (got.step === "sort") {
+        // What the sort is asked, as a worker reads it: every direction the first time, Design alone once ranked again.
+        const input = await s.t.query(internal.roles.sortInput, { workspaceId: s.a.w, ids: got.ids });
+        for (const p of input.postings) {
+          if (!sortedOnce.has(p.id)) expect(p.against.length).toBe(2);
+          else {
+            expect(p.against).toEqual([s.design]);
+            sortedAgain.set(p.id, (sortedAgain.get(p.id) ?? 0) + 1);
+          }
+        }
+        await s.t.mutation(internal.roles.saveSort, { workspaceId: s.a.w, worker, method: "model", directions: input.directions.map((d) => ({ id: d.id, changedAt: d.changedAt })), results: input.postings.map((p) => ({ id: p.id, against: p.against, directionIds: p.against })) });
+        for (const p of input.postings) sortedOnce.add(p.id);
+      }
+      if (got.step === "judge") {
+        const input = await s.t.query(internal.roles.judgeInput, { workspaceId: s.a.w, ids: got.ids });
+        for (const p of input.postings) if (sortedAgain.has(p.id) && p.directionIds.includes(s.design)) judgedAgain.set(p.id, (judgedAgain.get(p.id) ?? 0) + 1);
+        await s.t.mutation(internal.roles.saveFit, {
+          workspaceId: s.a.w, worker, rubric: input.rubric, directions: input.times,
+          results: input.postings.map((p) => ({ id: p.id, judged: p.directionIds, fit: p.directionIds.map((d) => ({ directionId: d, level: "some" as const, reason: sortedAgain.has(p.id) ? "again" : "first" })), stretch: [] })),
+        });
+      }
+    }
+  };
+  const run = (name: string) =>
+    Promise.all(
+      Array.from({ length: 32 }, (_, i) =>
+        work(`${name}${i}`).catch((e: unknown) => {
+          failed = true;
+          throw e;
+        }),
+      ),
+    );
+  await run("w");
+  expect(asked).toBe(true);
+  // Pages left once the workers ran out, then the pass's next run, which takes up the roles they queued.
+  await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+  await run("next");
+
+  expect(all.map((id) => sortedAgain.get(id))).toEqual(all.map(() => 1));
+  expect(all.map((id) => judgedAgain.get(id))).toEqual(all.map(() => 1));
+  const rows = await s.postings();
+  expect(rows.every((p) => p.queue === undefined && p.claimedBy === undefined && p.rerank === undefined)).toBe(true);
+  expect(rows.map((p) => p.fit?.filter((f) => f.directionId === s.design).map((f) => f.reason))).toEqual(rows.map(() => ["again"]));
+  expect(rows.every((p) => p.fit?.filter((f) => f.directionId === s.direction).length === 1)).toBe(true);
+  // No second pass was started beside the running one.
+  expect((await s.t.run((ctx) => ctx.db.query("jobs").collect())).filter((j) => j.kind === "roles")).toHaveLength(1);
+  // About 3s alone; longer beside the rest of the suite.
+}, 30_000);
+
 test("a pass sorts each role to the directions it could be, judges it only for those from its description without the company's repeated text, and lists sorted-out roles apart", async () => {
   const s = await setup({ design: true });
   const pitch = "About Acme: we build the rockets that carry satellites to orbit, and we are growing fast.";
@@ -373,7 +463,9 @@ test("a direction changed after its roles were ranked is marked, never ranked ag
 
   vi.setSystemTime(Date.parse("2026-09-21T12:00:00Z"));
   await s.asA.mutation(api.roles.rankAgain, { directionId: s.direction });
-  // Waiting for the pass: nothing ranked for Sales, nothing stale.
+  // Its page of roles, in a write of its own; then waiting for the pass: nothing ranked for Sales, nothing stale.
+  vi.advanceTimersByTime(1);
+  await s.t.finishInProgressScheduledFunctions();
   let sales = await view(s, s.direction);
   expect([sales.ranked, sales.sortedOut, sales.anyRanked, sales.stale]).toEqual([[], [], false, false]);
   await s.t.finishAllScheduledFunctions(vi.runAllTimers);
@@ -829,39 +921,149 @@ test("with the AI budget nearly used, a pass whose next call can't fit pauses wi
   expect(role.queue).toBeUndefined();
 });
 
-test("a pass the budget refuses while other AI calls hold the rest waits for them to settle, then pauses with why", async () => {
-  const s = await setup();
-  stubWorld({ jobs: [{ id: 1, title: "Account Executive", location: "New York, NY" }] });
-  // A call already running holds about $0.08 of $0.12, so the pass's sort call (about $0.08) is refused while it runs;
-  // once it settles at $0.05, what's left is still too little.
-  await budget(s, 0.12);
+// An AI call already running, holding about $0.08 of the budget until it's answered; settle answers it at what it cost.
+async function callRunning(s: Awaited<ReturnType<typeof setup>>) {
   const world = globalThis.fetch as (input: string | URL, init?: RequestInit) => Promise<Response>;
-  let answer: (() => void) | undefined;
+  let answer: ((cost: number) => void) | undefined;
   vi.stubGlobal(
     "fetch",
     vi.fn((input: string | URL, init?: RequestInit) =>
       String(init?.body).includes("already running")
-        ? new Promise<Response>((resolve) => (answer = () => resolve(Response.json({ choices: [{ message: { content: "ok" } }], usage: { cost: 0.05 } }))))
+        ? new Promise<Response>((resolve) => (answer = (cost) => resolve(Response.json({ choices: [{ message: { content: "ok" } }], usage: { cost } }))))
         : world(input, init),
     ),
   );
   const running = s.t.action((ctx) => chat(ctx, { workspaceId: s.a.w, purpose: "running", model: "test/model", messages: [{ role: "user", content: "already running" }] }));
   await vi.waitFor(() => expect(answer).toBeDefined());
+  return async (cost: number) => {
+    answer!(cost);
+    await running;
+  };
+}
 
+// A pass started while the budget can't fit its sort call beside what a running call holds: its description is read,
+// and for minutes its sort is refused and tried again, the pass still running, its role queued, nothing recorded.
+async function waitsOnRunning(s: Awaited<ReturnType<typeof setup>>, sorted: unknown[]) {
   await s.asA.mutation(api.roles.start, {});
-  // The pass reads the board, then its sort call is refused for what the running call holds (waited for in small steps:
-  // reading the OpenRouter key isn't on the fake clock).
-  await vi.waitFor(async () => expect(await s.t.run(async (ctx) => (await ctx.db.query("discovery").collect()).some((d) => d.rolesBudget))).toBe(true), { interval: 20, timeout: 4000 });
-  // Minutes go by with the call still running: the pass waits for it, still running, its role still queued.
-  await vi.advanceTimersByTimeAsync(3 * 60_000);
+  // Waited for in small steps: reading the OpenRouter key isn't on the fake clock.
+  await vi.waitFor(async () => expect((await s.postings())[0]?.descriptionAt).toBeDefined(), { interval: 20, timeout: 4000 });
+  for (let i = 0; i < 36; i++) await vi.advanceTimersByTimeAsync(5_000);
   expect(await lastPass(s)).toMatchObject({ status: "running" });
-  expect(await s.postings()).toEqual([expect.objectContaining({ queue: "sort", descriptionAt: expect.any(Number) })]);
+  expect(await s.postings()).toEqual([expect.objectContaining({ queue: "sort" })]);
+  expect(sorted).toEqual([]);
+  expect(await s.t.run(async (ctx) => (await ctx.db.query("discovery").collect()).some((d) => d.rolesBudget))).toBe(false);
+}
 
-  answer!();
-  await running;
+test("a pass the budget refuses for what running calls hold waits for them to settle, then carries on and finishes", async () => {
+  const s = await setup();
+  const { sorted, judged } = stubWorld({ jobs: [{ id: 1, title: "Account Executive", location: "New York, NY" }] });
+  // The running call holds about $0.08 of $0.12, so the pass's sort call (about $0.08) doesn't fit beside it; settled
+  // at $0.01, it leaves room for the pass's calls.
+  await budget(s, 0.12);
+  const settle = await callRunning(s);
+  await waitsOnRunning(s, sorted);
+
+  await settle(0.01);
+  await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+  expect(await lastPass(s)).toMatchObject({ status: "done" });
+  expect(sorted.length).toBeGreaterThan(0);
+  expect(judged).toHaveLength(1);
+  expect((await s.postings())[0].fitAt).toEqual(expect.any(Number));
+});
+
+test("a pass the budget refuses for what running calls hold waits for them to settle, then pauses with why when what's left is too little", async () => {
+  const s = await setup();
+  const { sorted } = stubWorld({ jobs: [{ id: 1, title: "Account Executive", location: "New York, NY" }] });
+  // Settled at $0.05, the running call leaves $0.07 of $0.12: too little for a sort call.
+  await budget(s, 0.12);
+  const settle = await callRunning(s);
+  await waitsOnRunning(s, sorted);
+
+  await settle(0.05);
   await s.t.finishAllScheduledFunctions(vi.runAllTimers);
   expect(await lastPass(s)).toMatchObject({ status: "paused", pausedFor: "openrouter", error: TOO_LITTLE });
+  expect(sorted).toEqual([]);
   expect(await s.postings()).toEqual([expect.objectContaining({ queue: "sort" })]);
+});
+
+// A worker's sort claim of 40 roles is four calls at once. Each holds about $0.08 of $0.30, so the budget refuses the
+// fourth for what the other three hold while they run.
+test("a sort claim whose last call the budget refuses saves the roles of the calls that came back and lets go only the rest: nothing paid for is lost", async () => {
+  const s = await setup();
+  const all = await queued(s, Array.from({ length: 40 }, (_, i) => ({ title: `r${i}`, queue: "sort" as const })));
+  const { sorted } = stubWorld({ jobs: [] });
+  await budget(s, 0.3);
+  // Each call is answered only once three are out, so all four have asked the budget before any settles.
+  const world = globalThis.fetch;
+  const out: (() => void)[] = [];
+  vi.stubGlobal("fetch", vi.fn((input: string | URL, init?: RequestInit) => new Promise<Response>((resolve) => out.push(() => resolve(world(input, init))))));
+  const worked = s.t.action(internal.roles.work, { workspaceId: s.a.w, since: Date.now(), worker: "w0", until: Date.now() + 1000 });
+  await vi.waitFor(() => expect(out).toHaveLength(3), { interval: 20, timeout: 4000 });
+  for (let i = 0; i < 20; i++) await vi.advanceTimersByTimeAsync(5);
+  expect(out).toHaveLength(3);
+  for (const answer of out) answer();
+  // The worker waits on the calls it was refused for, then its time is up.
+  for (let i = 0; i < 4; i++) await vi.advanceTimersByTimeAsync(5_000);
+  expect(await worked).toBe(30);
+
+  const rows = await s.postings();
+  const saved = rows.filter((p) => p.sort);
+  // Every role a call came back for is saved, and on to judging; only the other ten are back in the queue, free to be
+  // claimed, without counting as failed.
+  expect(saved).toHaveLength(30);
+  expect(saved.map((p) => p.title).sort()).toEqual(sorted.map((x) => x.title).sort());
+  expect(saved.every((p) => p.queue === "judge" && p.claimedBy === undefined)).toBe(true);
+  const left = rows.filter((p) => !p.sort);
+  expect(left).toHaveLength(10);
+  expect(left.every((p) => p.queue === "sort" && p.claimedBy === undefined && p.claimedAt === undefined && p.failed === undefined)).toBe(true);
+  expect(rows.map((p) => p._id).sort()).toEqual([...all].sort());
+  const usage = (await s.t.run((ctx) => ctx.db.query("usage").collect())).filter((u) => u.purpose === "role sort");
+  expect(usage).toHaveLength(3);
+  expect(usage.every((u) => u.state === "settled")).toBe(true);
+  // A refusal waiting on running calls changes isn't recorded for the pass.
+  expect(await s.t.run(async (ctx) => (await ctx.db.query("discovery").collect()).some((d) => d.rolesBudget))).toBe(false);
+});
+
+test("a pass the budget refuses for what a call that isn't running holds pauses, and finishes once the daily check settles that call", async () => {
+  const s = await setup();
+  // A call answered without saying what it cost holds about $0.08 of $0.12 until the daily check looks it up.
+  await budget(s, 0.12);
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: "gen-1", choices: [{ message: { content: "ok" } }] })));
+  await s.t.action((ctx) => chat(ctx, { workspaceId: s.a.w, purpose: "earlier", model: "test/model", messages: [{ role: "user", content: "hi" }] }));
+  const [unsure] = await s.t.run((ctx) => ctx.db.query("usage").collect());
+  expect(unsure.state).toBe("indeterminate");
+  const { sorted, judged } = stubWorld({ jobs: [{ id: 1, title: "Account Executive", location: "New York, NY" }] });
+  await s.pass("2026-09-20T09:00:00Z");
+  expect(await lastPass(s)).toMatchObject({ status: "paused", pausedFor: "openrouter", error: HELD_BY_UNSETTLED });
+  expect(sorted).toEqual([]);
+
+  await s.t.mutation(internal.metering.resolve, { usageId: unsure._id, addUsd: 0.01, unresolved: false });
+  await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+  expect(await lastPass(s)).toMatchObject({ status: "done" });
+  expect(judged).toHaveLength(1);
+});
+
+test("ranking again while a pass is paused for the budget takes that pass up rather than starting a second beside it", async () => {
+  const s = await setup();
+  const { judged } = stubWorld({ jobs: [{ id: 1, title: "Account Executive", location: "New York, NY" }] });
+  await budget(s, 5, 4.95);
+  await s.pass("2026-09-20T09:00:00Z");
+  const paused = await lastPass(s);
+  expect(paused).toMatchObject({ status: "paused", error: TOO_LITTLE });
+
+  // The budget allows again (a new month, say) but nothing resumed the pass yet; they rank again.
+  await budget(s, 10);
+  await s.asA.mutation(api.roles.rankAgain, { directionId: s.direction });
+  await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+  const passes = await s.t.run(async (ctx) => (await ctx.db.query("jobs").collect()).filter((j) => j.kind === "roles"));
+  expect(new Set(passes.map((j) => j.args.since))).toEqual(new Set([paused.args.since]));
+  expect(await lastPass(s)).toMatchObject({ status: "done" });
+  expect(judged).toHaveLength(1);
+
+  // With nothing paused or running, ranking again starts a pass of its own.
+  await s.asA.mutation(api.roles.rankAgain, { directionId: s.direction });
+  await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+  expect((await lastPass(s)).args.since).not.toBe(paused.args.since);
 });
 
 test("a pass for some companies reads, describes, sorts and judges only their roles; the next full pass picks up the rest", async () => {

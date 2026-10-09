@@ -24,14 +24,15 @@ export function Property({ label, children }: { label: string; children: ReactNo
   );
 }
 
-// A value that opens elsewhere (a website, a job board): underlined in the border colour, the arrow after it.
+// A value that opens elsewhere (a website, a job board): underlined in the border colour, the arrow after it. A value
+// longer than its column is cut short, the arrow still showing.
 export function PropertyLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <a
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="tap inline-flex min-w-0 items-center gap-1 self-start rounded-sm underline decoration-border decoration-1 underline-offset-3 transition-colors duration-100 hover:decoration-text"
+      className="tap inline-flex max-w-full min-w-0 items-center gap-1 self-start rounded-sm underline decoration-border decoration-1 underline-offset-3 transition-colors duration-100 hover:decoration-text"
     >
       <span className="min-w-0 truncate">{children}</span>
       <Icons.openElsewhere aria-hidden="true" size={12} className="shrink-0 text-muted" />

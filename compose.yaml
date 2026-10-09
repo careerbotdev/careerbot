@@ -16,7 +16,7 @@
 
 services:
   web:
-    image: ghcr.io/careerbotdev/careerbot-web:${CAREERBOT_VERSION:-0.9.4}
+    image: ghcr.io/careerbotdev/careerbot-web:${CAREERBOT_VERSION:-0.9.5}
     restart: unless-stopped
     # Published on this machine only (BIND_ADDRESS, default 127.0.0.1): on a server, Coolify's or Dokploy's proxy reaches
     # the containers over Docker's network, and Docker-published ports bypass a host firewall such as ufw. Set
@@ -35,7 +35,7 @@ services:
   # commands: docker compose run --rm convex-setup new-setup-code (or reset-password <username>). Always the same
   # version as web: web starts only once this version's functions are deployed.
   convex-setup:
-    image: ghcr.io/careerbotdev/careerbot-setup:${CAREERBOT_VERSION:-0.9.4}
+    image: ghcr.io/careerbotdev/careerbot-setup:${CAREERBOT_VERSION:-0.9.5}
     restart: "no"
     environment:
       CONVEX_DEPLOY_KEY: ${CONVEX_DEPLOY_KEY:-}

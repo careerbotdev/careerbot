@@ -67,8 +67,9 @@ export const faceoff = internalAction({
     const jevChoice = await modelFor(ctx, ws, "roleSortJev");
     const jev = (async () => {
       const t = Date.now();
-      const r = await jevSignals(ctx, ws, jevChoice.model, postings, directions);
-      return { ...r, seconds: (Date.now() - t) / 1000 };
+      const { signals, costUsd, failure } = await jevSignals(ctx, ws, jevChoice.model, postings, directions);
+      if (failure) throw failure.e;
+      return { signals, costUsd, seconds: (Date.now() - t) / 1000 };
     })();
     const d1 = (async () => {
       const t = Date.now();
