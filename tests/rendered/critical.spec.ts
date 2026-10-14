@@ -25,6 +25,8 @@ const SCREENS = [
   "screens-pursuits--not-for-me",
   "screens-pursuits--filters",
   "screens-pursuits--list-menu",
+  "screens-pursuits--sort-by",
+  "screens-pursuits--sorted-by-posted",
   "screens-pursuits--pursuit",
   "screens-pursuits--choose-path",
   "screens-pursuits--contacted",

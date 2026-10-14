@@ -3,12 +3,11 @@ import { createAccount, getAuthUserId, invalidateSessions, modifyAccountCredenti
 import { ConvexError, v } from "convex/values";
 import { Scrypt } from "lucia";
 import { internal } from "./_generated/api";
-import type { DataModel, Doc, Id, TableNames } from "./_generated/dataModel";
+import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, query, type ActionCtx, type QueryCtx } from "./_generated/server";
 import { action } from "./functions";
 import { selfHosted } from "./allowlist";
 import { normalSetupCode, normalUsername, passwordProblem, SETUP_ALPHABET, usernameProblem, type PasswordRefusal } from "./passwordRules";
-import schema from "./schema";
 
 // Username and password sign-in for a self-hosted copy (CAREERBOT_MODE=self-hosted; careerbot.dev stays Google and
 // GitHub, invite-only). There's no email, so:
@@ -347,48 +346,13 @@ export const resetPersonPassword = action({
   },
 });
 
-// Removes someone else: signed out everywhere, their account gone at once, and their workspace with everything in it
-// deleted in the background (purgeWorkspace).
+// Removes someone else: signed out everywhere and unable to sign in again at once, and their account, with their
+// workspace and everything in it, deleted in the background (accountDelete.ts).
 export const removePerson = action({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }) => {
     await ctx.runQuery(internal.account.personToChange, { userId });
     await invalidateSessions(ctx, { userId });
-    await ctx.runMutation(internal.account.removeUser, { userId });
-  },
-});
-
-export const removeUser = internalMutation({
-  args: { userId: v.id("users") },
-  handler: async (ctx, { userId }) => {
-    for (const account of await ctx.db.query("authAccounts").withIndex("userIdAndProvider", (q) => q.eq("userId", userId)).collect()) {
-      for (const limit of await ctx.db.query("authRateLimits").withIndex("identifier", (q) => q.eq("identifier", account._id)).collect()) await ctx.db.delete(limit._id);
-      for (const code of await ctx.db.query("authVerificationCodes").withIndex("accountId", (q) => q.eq("accountId", account._id)).collect()) await ctx.db.delete(code._id);
-      await ctx.db.delete(account._id);
-    }
-    for (const member of await ctx.db.query("memberships").withIndex("by_user", (q) => q.eq("userId", userId)).collect()) {
-      await ctx.db.delete(member._id);
-      const others = await ctx.db.query("memberships").withIndex("by_workspace", (q) => q.eq("workspaceId", member.workspaceId)).first();
-      if (!others) await ctx.scheduler.runAfter(0, internal.account.purgeWorkspace, { workspaceId: member.workspaceId, table: 0 });
-    }
-    await ctx.db.delete(userId);
-  },
-});
-
-// Every table a workspace's rows can be in (all but Convex Auth's own and the copy-wide ones; a row without this
-// workspace's id is left alone either way).
-const PURGED = (Object.keys(schema.tables) as TableNames[]).filter((t) => !t.startsWith("auth") && !["users", "setupCodes", "workspaces"].includes(t));
-
-// Deletes a removed person's workspace: every row with its id, a page of one table at a time, then the workspace.
-export const purgeWorkspace = internalMutation({
-  args: { workspaceId: v.id("workspaces"), table: v.number(), cursor: v.optional(v.string()) },
-  handler: async (ctx, { workspaceId, table, cursor }) => {
-    if (table >= PURGED.length) {
-      if (await ctx.db.get(workspaceId)) await ctx.db.delete(workspaceId);
-      return;
-    }
-    const page = await ctx.db.query(PURGED[table]).paginate({ cursor: cursor ?? null, numItems: 500 });
-    for (const doc of page.page) if ("workspaceId" in doc && doc.workspaceId === workspaceId) await ctx.db.delete(doc._id);
-    await ctx.scheduler.runAfter(0, internal.account.purgeWorkspace, page.isDone ? { workspaceId, table: table + 1 } : { workspaceId, table, cursor: page.continueCursor });
+    await ctx.runMutation(internal.accountDelete.remove, { userId });
   },
 });

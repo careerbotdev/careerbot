@@ -1,12 +1,12 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { type ActionCtx, httpAction, internalMutation, internalQuery, type MutationCtx, query, type QueryCtx } from "./_generated/server";
+import { type ActionCtx, httpAction, internalAction, internalMutation, internalQuery, type MutationCtx, query, type QueryCtx } from "./_generated/server";
 import { action, mutation } from "./functions";
 import { docxOf } from "./docxFiles";
 import { cleanName, type DocContent, type DriveNode, isFrozen, pastedKey, planNodes, ROOT, ROOT_NAME, type Step, stepFor, type TailoredInput } from "./drivePaths";
 import { syncSoon } from "./driveSoon";
-import { siteOf } from "./githubApp";
+import { newToken, siteOf } from "./githubApp";
 import { letterOf, letterText } from "./pursuits";
 import { counted } from "./recordContext";
 import { postingName, resumeShower } from "./resume";
@@ -19,7 +19,8 @@ import { getInWorkspace, requireWorkspace } from "./workspaces";
 // (the same Google OAuth client, AUTH_GOOGLE_ID and AUTH_GOOGLE_SECRET), for the drive.file scope only: CareerBot can
 // see nothing but the files it makes and the folder they choose. Settings asks for a one-time link (connect), which
 // goes through /google/drive/connect (remembering the browser in a cookie) to Google's consent screen; Google comes
-// back to /google/drive/callback, where the code is exchanged and the refresh token sealed (secretBox). Tokens never
+// back to /google/drive/callback, where the code is exchanged and the refresh token sealed (secretBox) and held until
+// the signed-in app finishes connecting (connections.finish), for the person who started it only. Tokens never
 // reach a client. Choosing a folder uses Google's Picker in the browser with its own short-lived token from Google
 // (GOOGLE_PICKER_KEY is the Picker's browser key); only the folder's id comes here.
 //
@@ -247,10 +248,10 @@ export const fileFor = query({
 export const connect = mutation({
   args: { from: v.optional(v.literal("today")) },
   handler: async (ctx, { from }) => {
-    const { workspaceId } = await requireWorkspace(ctx);
+    const { workspaceId, userId } = await requireWorkspace(ctx);
     if (!googleClient()) throw new ConvexError("Google Drive isn’t set up yet.");
-    const token = Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
-    await ctx.db.insert("driveLinks", { token, workspaceId, expiresAt: Date.now() + LINK_MS, ...(from ? { from } : {}) });
+    const token = newToken();
+    await ctx.db.insert("driveLinks", { token, workspaceId, userId, expiresAt: Date.now() + LINK_MS, ...(from ? { from } : {}) });
     return `${siteOf().convex}/google/drive/connect?state=${token}`;
   },
 });
@@ -271,16 +272,23 @@ export const dropLink = internalMutation({
   },
 });
 
-// Connected: the sealed tokens replace any earlier connection. Places already in Drive are kept, so the same account
-// finds its files again (a file it can't reach is made anew). The first sync starts straight away.
-export const saveConnection = internalMutation({
-  args: { workspaceId: v.id("workspaces"), account: v.string(), sealedRefresh: v.string(), sealedAccess: v.string(), accessExpiresAt: v.number() },
-  handler: async (ctx, { workspaceId, ...conn }) => {
-    const old = await connectionOf(ctx, workspaceId);
-    if (old) await ctx.db.delete(old._id);
-    await ctx.db.insert("driveConnections", { workspaceId, ...conn, ...(old?.parentId ? { parentId: old.parentId, parentName: old.parentName } : {}), at: Date.now() });
-    await startSync(ctx, workspaceId, "you");
-  },
+// Connected (connections.finish): the sealed tokens replace any earlier connection. Places already in Drive are kept,
+// so the same account finds its files again (a file it can't reach is made anew). The first sync starts straight away.
+export async function keepConnection(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  conn: { account: string; sealedRefresh: string; sealedAccess: string; accessExpiresAt: number },
+) {
+  const old = await connectionOf(ctx, workspaceId);
+  if (old) await ctx.db.delete(old._id);
+  await ctx.db.insert("driveConnections", { workspaceId, ...conn, ...(old?.parentId ? { parentId: old.parentId, parentName: old.parentName } : {}), at: Date.now() });
+  await startSync(ctx, workspaceId, "you");
+}
+
+// A connection that was never finished (connections.ts): its tokens go.
+export const revoke = internalAction({
+  args: { sealedRefresh: v.string() },
+  handler: async (_ctx, { sealedRefresh }) => revokeDrive(sealedRefresh),
 });
 
 // The folder they chose in Google's Picker for the CareerBot folder to live in. The folder moves there on the next
@@ -329,14 +337,20 @@ export const forget = internalMutation({
   },
 });
 
+// Google revokes CareerBot's tokens for a connection (the refresh token, and with it every access token it made). An
+// unreachable Google, or a token it already dropped, is left at that: nothing more can be done from here.
+export async function revokeDrive(sealedRefresh: string) {
+  const token = await open(sealedRefresh);
+  await fetch(REVOKE_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token }) }).catch(() => null);
+}
+
 // Disconnect: Google revokes CareerBot's tokens and syncing stops. The files stay in their Drive.
 export const disconnect = action({
   args: {},
   handler: async (ctx) => {
     const { workspaceId, conn } = await ctx.runQuery(internal.drive.mine, {});
     if (!conn) return;
-    const token = await open(conn.sealedRefresh);
-    await fetch(REVOKE_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token }) }).catch(() => null);
+    await revokeDrive(conn.sealedRefresh);
     await ctx.runMutation(internal.drive.forget, { workspaceId });
   },
 });
@@ -377,8 +391,8 @@ function accountOf(idToken: string | undefined) {
   }
 }
 
-// GET /google/drive/callback?code=…&state=…: keep the connection only for the link's workspace, from the browser that
-// started it, and only with Drive access granted.
+// GET /google/drive/callback?code=…&state=…: hold the connection for the signed-in app to finish, only for the link's
+// workspace and person, from the browser that started it, and only with Drive access granted.
 export const callback = httpAction(async (ctx, req) => {
   const url = new URL(req.url);
   const token = url.searchParams.get("state") ?? "";
@@ -386,7 +400,7 @@ export const callback = httpAction(async (ctx, req) => {
   const cookie = (req.headers.get("cookie") ?? "").split(/;\s*/).find((c) => c.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
   const row = token ? await ctx.runQuery(internal.drive.link, { token }) : null;
   const client = googleClient();
-  if (!row || !client || cookie !== token) return redirect(back("failed", row?.from), clearCookie);
+  if (!row?.userId || !client || cookie !== token) return redirect(back("failed", row?.from), clearCookie);
   await ctx.runMutation(internal.drive.dropLink, { token });
   if (url.searchParams.get("error") === "access_denied") return redirect(back("denied", row.from), clearCookie);
   if (!code) return redirect(back("failed", row.from), clearCookie);
@@ -402,14 +416,18 @@ export const callback = httpAction(async (ctx, req) => {
     await fetch(REVOKE_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token: got.refresh_token }) }).catch(() => null);
     return redirect(back("denied", row.from), clearCookie);
   }
-  await ctx.runMutation(internal.drive.saveConnection, {
+  const held = await ctx.runMutation(internal.connections.hold, {
     workspaceId: row.workspaceId,
-    account: accountOf(got.id_token),
-    sealedRefresh: await seal(got.refresh_token),
-    sealedAccess: await seal(got.access_token),
-    accessExpiresAt: Date.now() + (got.expires_in ?? 3600) * 1000,
+    userId: row.userId,
+    connection: {
+      kind: "drive",
+      account: accountOf(got.id_token),
+      sealedRefresh: await seal(got.refresh_token),
+      sealedAccess: await seal(got.access_token),
+      accessExpiresAt: Date.now() + (got.expires_in ?? 3600) * 1000,
+    },
   });
-  return redirect(back("connected", row.from), clearCookie);
+  return redirect(`${back("connected", row.from)}&connection=${held}`, clearCookie);
 });
 
 // ---- Syncing ----

@@ -1,7 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel, Id, TableNames } from "./_generated/dataModel";
-import { query, type QueryCtx } from "./_generated/server";
+import { internalQuery, query, type QueryCtx } from "./_generated/server";
 
 // The one place that decides which workspace a request may touch.
 // Every public query, mutation and action that reads or writes workspace data starts with `requireWorkspace`.
@@ -15,6 +15,13 @@ export async function requireWorkspace(ctx: QueryCtx) {
   if (!membership) throw new Error("No workspace for this account.");
   return { userId, workspaceId: membership.workspaceId };
 }
+
+// requireWorkspace for an action, which can't read the database: an action asks this before anything else, outside
+// calls included, so a signed-out caller gets nothing done.
+export const callerWorkspace = internalQuery({
+  args: {},
+  handler: async (ctx) => (await requireWorkspace(ctx)).workspaceId,
+});
 
 // The time a workspace's screens count from: now, or the moment it's held at (asOf, the demo's snapshot), so what's
 // new, due, recent, out of date or this month's stays as it was then.

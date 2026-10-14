@@ -24,10 +24,12 @@ export const LEFT_OUT: Record<string, string> = {
   driveConnections: "a Google Drive connection belongs to the copy it was made on",
   driveFiles: "the Docs a Google Drive connection made, which only that connection can reach",
   driveLinks: "one-time Google Drive links",
+  pendingConnections: "a connection waiting to be finished on the copy it was made on",
   memberships: "who can use a workspace, made by the copy it goes into",
   exports: "an export's own progress and file",
   imports: "an import's own progress and file",
   importIds: "an import's old and new ids, kept while it runs",
+  plans: "an operator's allowance for the workspace on the copy it was set on",
 };
 const FINISHED = new Set(["done", "failed"]);
 
@@ -181,15 +183,16 @@ export function slotAt(s: Shape, doc: unknown, path: (string | number)[]): Slot 
   return slot;
 }
 
-// The stored files a row names (fields holding ids of _storage).
-export function filesIn(s: Shape, value: unknown, out = new Set<string>()): Set<string> {
+// The ids a row holds in its id fields, of one table when given: the stored files it names ("_storage"), the rows it
+// links to.
+export function linksIn(s: Shape, value: unknown, table?: string, out = new Set<string>()): Set<string> {
   if (value === undefined || value === null) return out;
   const m = memberFor(s, value);
-  if (m.kind === "id" && m.table === "_storage" && typeof value === "string") out.add(value);
+  if (m.kind === "id" && (!table || m.table === table) && typeof value === "string") out.add(value);
   else if (m.kind === "object" && typeof value === "object") {
-    for (const [k, y] of Object.entries(value)) if (m.fields?.[k]) filesIn(m.fields[k], y, out);
+    for (const [k, y] of Object.entries(value)) if (m.fields?.[k]) linksIn(m.fields[k], y, table, out);
   }
-  else if ((m.kind === "array" || m.kind === "record") && m.element && typeof value === "object") for (const y of Object.values(value)) filesIn(m.element, y, out);
+  else if ((m.kind === "array" || m.kind === "record") && m.element && typeof value === "object") for (const y of Object.values(value)) linksIn(m.element, y, table, out);
   return out;
 }
 

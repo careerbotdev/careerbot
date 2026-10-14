@@ -25,6 +25,8 @@ export const status = query({
 export const save = action({
   args: { key: v.string() },
   handler: async (ctx, { key }): Promise<{ ok: true } | { ok: false; message: string }> => {
+    // Whose key it is first, so nobody signed out can have CareerBot try keys with Brave.
+    await ctx.runQuery(internal.workspaces.callerWorkspace, {});
     const k = key.trim();
     if (!k) return { ok: false, message: "Paste your Brave Search key." };
     const res = await fetch("https://api.search.brave.com/res/v1/web/search?q=careerbot&count=1", { headers: { accept: "application/json", "X-Subscription-Token": k } }).catch(() => null);

@@ -9,6 +9,8 @@ import { addAiSpend, BUDGET_REACHED, type BudgetReached, monthStart, resumeHeld 
 import { priceOf, worstCase } from "./modelPrices";
 import { apolloBalance, apolloKeyFor } from "./apolloKey";
 import { openrouterKeyFor } from "./openrouterKey";
+import { addPlatformSpend, NOT_ON_PLATFORM, platformAi, resumePlatformHeld } from "./plan";
+import { RECOMMENDED } from "./aiSettings";
 import { CutOffReply, parseReplyJson, type ReplySchema, UnreadableReply } from "./replyJson";
 import { addSpend } from "./tallies";
 
@@ -48,16 +50,30 @@ export const settle = internalMutation({
     const release = state === "indeterminate" ? 0 : (row.reservedUsd ?? 0);
     const next = { ...patch, state: state ?? ("settled" as const), ...(release ? { reservedUsd: undefined } : {}) };
     await ctx.db.patch(usageId, next);
-    if (row.service === "openrouter") await addAiSpend(ctx, row.workspaceId, row.at, { usd: (patch.costUsd ?? 0) - (row.costUsd ?? 0), held: -release });
+    const usd = (patch.costUsd ?? 0) - (row.costUsd ?? 0);
+    if (row.service === "openrouter") await addAiSpend(ctx, row.workspaceId, row.at, { usd, held: -release });
+    if (row.platform) await addPlatformSpend(ctx, monthStart(row.at), { usd, held: -release });
     if (release) await resumeHeld(ctx, row.workspaceId);
+    if (release && row.platform) await resumePlatformHeld(ctx);
     await addSpend(ctx, { ...row, ...next });
   },
 });
 
 // Every AI call records itself as reserved before it's made, holding `amount` (the most it could cost) against the
 // budget; budgets.reserve refuses it when that doesn't fit. Settling replaces what it holds with its real cost.
-async function reserveAi(ctx: MeteredCtx, args: { workspaceId: Id<"workspaces">; purpose: string; model: string; amount: number }) {
+async function reserveAi(ctx: MeteredCtx, args: { workspaceId: Id<"workspaces">; purpose: string; model: string; amount: number; platform: boolean }) {
   return ctx.runMutation(internal.budgets.reserve, { ...args, ...ctx.spentFor, service: "openrouter", automated: true });
+}
+
+// The key an AI call goes with: the workspace's own, else CareerBot's (plan.ts), which only takes the recommended
+// models.
+async function aiKey(ctx: ActionCtx, workspaceId: Id<"workspaces">, model: string) {
+  const own = await openrouterKeyFor(ctx, workspaceId);
+  if (own) return { key: own, platform: false };
+  const platform = platformAi();
+  if (!platform || !(await ctx.runQuery(internal.plan.onPlatform, { workspaceId }))) throw new Error("Add your OpenRouter key in settings first.");
+  if (!RECOMMENDED.some((m) => m.id === model)) throw new Error(NOT_ON_PLATFORM);
+  return { key: platform.key, platform: true };
 }
 
 // Reply tokens a call may use (max_tokens, reasoning included), unless it asks for more; replies seen reach about 20,000.
@@ -86,10 +102,9 @@ type OpenRouterResponse = {
 // cost (its prompt at one token a byte, and a reply of max_tokens) before it's sent with that max_tokens, so it can't
 // cost more than it holds.
 export async function chat(ctx: ActionCtx, args: ChatArgs): Promise<ChatReply> {
-  const key = await openrouterKeyFor(ctx, args.workspaceId);
-  if (!key) throw new Error("Add your OpenRouter key in settings first.");
+  const { key, platform } = await aiKey(ctx, args.workspaceId, args.model);
   // A budget that's unset or used up stops the call before OpenRouter is asked anything.
-  const blocked = await ctx.runQuery(internal.budgets.aiCheck, { workspaceId: args.workspaceId });
+  const blocked = await ctx.runQuery(internal.budgets.aiCheck, { workspaceId: args.workspaceId, platform });
   if (blocked) throw new ConvexError({ code: BUDGET_REACHED, service: "openrouter", message: blocked } satisfies BudgetReached);
   const price = await priceOf(ctx, args.model);
   if (!price.fixed) throw new Error(`${args.model} has no set price, so its cost can't be kept within your AI budget. Choose another model in AI settings.`);
@@ -111,7 +126,7 @@ export async function chat(ctx: ActionCtx, args: ChatArgs): Promise<ChatReply> {
   // bytes a message) outweighs the few tokens a chat template adds to each. No provider takes more than the model's
   // context.
   const promptTokens = Math.min(new TextEncoder().encode(request).length, price.context ?? Infinity);
-  const usageId = await reserveAi(ctx, { workspaceId: args.workspaceId, purpose: args.purpose, model: args.model, amount: worstCase(price, promptTokens, maxTokens) });
+  const usageId = await reserveAi(ctx, { workspaceId: args.workspaceId, purpose: args.purpose, model: args.model, amount: worstCase(price, promptTokens, maxTokens), platform });
   let res: Response;
   let body: OpenRouterResponse = {};
   try {
@@ -306,15 +321,14 @@ function readAnswers(questions: Record<string, DecisionQuestion>, answers: Decis
 // so what was charged is always recorded; requests that failed on their way or whose answer didn't say what it cost
 // leave the row indeterminate, for the daily check.
 export async function decide(ctx: ActionCtx, args: { workspaceId: Id<"workspaces">; purpose: string; model: string; decisions: Decision[] }) {
-  const key = await openrouterKeyFor(ctx, args.workspaceId);
-  if (!key) throw new Error("Add your OpenRouter key in settings first.");
+  const { key, platform } = await aiKey(ctx, args.workspaceId, args.model);
   const price = await priceOf(ctx, args.model);
   if (!price.fixed || !price.context) throw new Error(`${args.model} has no set price, so its cost can't be kept within your AI budget. Choose another model in AI settings.`);
   // A decision can't be sent max_tokens, but its state, questions and answer together fit the model's context, so each
   // costs at most its context in tokens at the higher of its prompt and reply prices (Jev: $0.042 a million prompt
   // tokens, answers free, 32,000 tokens), plus the price per request. The group holds that for every decision in it.
   const each = worstCase({ ...price, prompt: Math.max(price.prompt, price.completion) }, price.context, 0);
-  const usageId = await reserveAi(ctx, { workspaceId: args.workspaceId, purpose: args.purpose, model: args.model, amount: each * args.decisions.length });
+  const usageId = await reserveAi(ctx, { workspaceId: args.workspaceId, purpose: args.purpose, model: args.model, amount: each * args.decisions.length, platform });
   let costUsd = 0;
   let inputTokens = 0;
   let outputTokens = 0;
@@ -385,8 +399,8 @@ async function waiting(ctx: QueryCtx, workspaceId: Id<"workspaces">, service: Do
 
 export const unsettled = internalQuery({
   args: { workspaceId: v.id("workspaces"), service: v.union(v.literal("openrouter"), v.literal("apollo")) },
-  handler: async (ctx, { workspaceId, service }): Promise<Pick<Doc<"usage">, "_id" | "at" | "state" | "lookup" | "unseen">[]> =>
-    (await waiting(ctx, workspaceId, service)).map((r) => ({ _id: r._id, at: r.at, state: r.state, lookup: r.lookup, unseen: r.unseen })),
+  handler: async (ctx, { workspaceId, service }): Promise<Pick<Doc<"usage">, "_id" | "at" | "state" | "lookup" | "unseen" | "platform">[]> =>
+    (await waiting(ctx, workspaceId, service)).map((r) => ({ _id: r._id, at: r.at, state: r.state, lookup: r.lookup, unseen: r.unseen, platform: r.platform })),
 });
 
 // The workspaces whose spending is settled: not the demo (demo.ts), which makes no calls and must not change.
@@ -406,11 +420,14 @@ export const reconcile = internalAction({
     const now = Date.now();
     for (const workspaceId of await ctx.runQuery(internal.metering.workspaces, {})) {
       const ai = await ctx.runQuery(internal.metering.unsettled, { workspaceId, service: "openrouter" });
-      const key = ai.length ? await openrouterKeyFor(ctx, workspaceId) : null;
+      // Calls on CareerBot's key (plan.ts) are looked up with it, the rest with the workspace's own.
+      const own = ai.some((r) => !r.platform) ? await openrouterKeyFor(ctx, workspaceId) : null;
+      const platformKey = platformAi()?.key ?? null;
       for (const row of ai) {
         // A cut-off call never got a reply: nothing to look up.
         const ids = row.state === "reserved" ? [] : (row.lookup ?? []);
         const unseen = row.state === "reserved" ? 1 : (row.unseen ?? 0);
+        const key = row.platform ? platformKey : own;
         const costs = key ? await Promise.all(ids.map((id) => generationCost(key, id))) : ids.map(() => null);
         const late = now - row.at > LOOKUP_GRACE_MS;
         const open = costs.some((c) => c === null || (c === "none" && !late));
@@ -436,7 +453,9 @@ export const resolve = internalMutation({
     const next = { costUsd: (row.costUsd ?? 0) + addUsd, state: unresolved ? ("unresolved" as const) : ("settled" as const), lookup: undefined, unseen: undefined, reservedUsd: undefined };
     await ctx.db.patch(usageId, next);
     await addAiSpend(ctx, row.workspaceId, row.at, { usd: addUsd, held: -(row.reservedUsd ?? 0) });
+    if (row.platform) await addPlatformSpend(ctx, monthStart(row.at), { usd: addUsd, held: -(row.reservedUsd ?? 0) });
     if (row.reservedUsd) await resumeHeld(ctx, row.workspaceId);
+    if (row.reservedUsd && row.platform) await resumePlatformHeld(ctx);
     await addSpend(ctx, { ...row, ...next });
   },
 });

@@ -31,6 +31,9 @@ export function Ai({ size, recommended }: { size: ScreenSize; recommended: { dat
   const { models: catalog, error: catalogError } = useModelCatalog();
   const listed = recommended.data?.models;
   const name = (id: string) => modelName(id, catalog, listed);
+  // On CareerBot's AI (careerbot.dev, no OpenRouter key of their own) only the recommended models can be chosen.
+  const onPlatform = useQuery(api.budgets.status)?.plan?.source === "platform";
+  const choosable = onPlatform ? catalog?.filter((m) => listed?.some((r) => r.id === m.id)) : catalog;
 
   const choose = (next: ModelChoiceValue) => {
     const before = main;
@@ -53,7 +56,7 @@ export function Ai({ size, recommended }: { size: ScreenSize; recommended: { dat
         )}
       </section>
       <TryIt size={size} name={name} catalog={catalog} model={main?.model} />
-      <Advanced size={size} main={main ?? null} name={name} catalog={catalog} catalogError={catalogError} onChooseMain={choose} />
+      <Advanced size={size} main={main ?? null} name={name} catalog={choosable} catalogError={catalogError} onPlatform={onPlatform} onChooseMain={choose} />
     </SettingsPane>
   );
 }
@@ -120,6 +123,7 @@ function Advanced({
   name,
   catalog,
   catalogError,
+  onPlatform,
   onChooseMain,
 }: {
   size: ScreenSize;
@@ -127,6 +131,7 @@ function Advanced({
   name: (id: string) => string;
   catalog?: CatalogModel[];
   catalogError?: string;
+  onPlatform: boolean;
   onChooseMain: (choice: ModelChoiceValue) => void;
 }) {
   const tasks = useQuery(api.aiSettings.list);
@@ -255,20 +260,29 @@ function Advanced({
               </div>
             )}
           </div>
-          <Choice title="Sorting roles" line="Sorts new roles into your directions. Jev is a decision model made for this; the main model works too.">
+          <Choice title="Sorting roles" line={onPlatform ? "Sorts new roles into your directions." : "Sorts new roles into your directions. Jev is a decision model made for this; the main model works too."}>
             {method !== undefined && <Select label="Sorting roles" value={sortValue} onChange={chooseSort} options={sortOptions} className="w-full @lg:w-47" />}
           </Choice>
-          <Choice title="A model that isn’t listed" line="Pick any OpenRouter model for every task instead of one above.">
-            <Combobox
-              variant="button"
-              label="Choose from all models"
-              placeholder="Choose from all models"
-              searchPlaceholder="Search models…"
-              value={main?.model}
-              onChange={(model) => onChooseMain({ model, reasoning: main?.reasoning })}
-              options={modelOptions(catalog, true)}
-            />
-          </Choice>
+          {onPlatform ? (
+            <Choice title="A model that isn’t listed" line="Other models need your own OpenRouter key.">
+              <Link href="/settings?section=keys" className={buttonLook("secondary", "self-start", small ? "lg" : "md")}>
+                Add your own key
+                <Icons.goIn aria-hidden="true" />
+              </Link>
+            </Choice>
+          ) : (
+            <Choice title="A model that isn’t listed" line="Pick any OpenRouter model for every task instead of one above.">
+              <Combobox
+                variant="button"
+                label="Choose from all models"
+                placeholder="Choose from all models"
+                searchPlaceholder="Search models…"
+                value={main?.model}
+                onChange={(model) => onChooseMain({ model, reasoning: main?.reasoning })}
+                options={modelOptions(catalog, true)}
+              />
+            </Choice>
+          )}
           <Choice title="Compare models" line="Run one task with up to four models and see what each does, side by side: reading a story, writing the base resume or finding insights. Uses your AI budget; your record and resumes don’t change.">
             <Link href="/settings?section=ai&compare=1" className={buttonLook("secondary", "self-start", small ? "lg" : "md")}>
               Compare models

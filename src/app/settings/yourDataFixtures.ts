@@ -5,10 +5,11 @@ import { newer, TOO_LARGE, WRONG_FILE } from "../../../convex/exportRules";
 import { answer, type Answers } from "../storyConvex";
 
 // Settings, Your data in each state of its Paper boards, for its stories (and Getting started's offer). Wren's workspace
-// for the export states; a new, empty workspace for the import states. Export, Import and Continue move the fixture
-// on as the deployment would.
+// for the export and delete states; a new, empty workspace for the import states. Export, Import, Continue and Delete
+// my account move the fixture on as the deployment would.
 
 type Status = FunctionReturnType<typeof api.yourData.status>;
+type AccountStatus = NonNullable<FunctionReturnType<typeof api.accountDelete.status>>;
 export type YourDataState =
   | "ready"
   | "exporting"
@@ -21,7 +22,10 @@ export type YourDataState =
   | "stopped"
   | "newer"
   | "wrongFile"
-  | "tooLarge";
+  | "tooLarge"
+  | "deleting"
+  | "deleteStopped"
+  | "ownerBlocked";
 
 const NAME = "careerbot-export-2026-10-06.zip";
 const BYTES = 4.2 * 1024 * 1024;
@@ -69,7 +73,7 @@ export function yourDataFixtures(start: YourDataState, now = Date.now()): Answer
   });
   const refused = (error: string) => imp({ status: "refused", error });
   const status = (): Status => {
-    const empty = !["ready", "exporting", "exported", "notEmpty", "imported"].includes(state);
+    const empty = !["ready", "exporting", "exported", "notEmpty", "imported", "deleting", "deleteStopped", "ownerBlocked"].includes(state);
     const preview = { format: 1, version: "0.8.0", exportedAt: "2026-10-06T09:00:00.000Z", counts: COUNTS, omitted: [] };
     return {
       version: "0.8.0",
@@ -99,8 +103,22 @@ export function yourDataFixtures(start: YourDataState, now = Date.now()): Answer
                       : null,
     };
   };
+  // Delete account: Wren's own, deleting partway through her workspace's tables (stopped ten minutes ago in
+  // deleteStopped), or held back because she owns a self-hosted copy others use.
+  const account = (): AccountStatus => ({
+    name: "wren@example.com",
+    blocked: state === "ownerBlocked" ? "You’re this copy’s owner, so remove the other people in Account first." : null,
+    deletion:
+      state === "deleting" || state === "deleteStopped"
+        ? { step: "deleting", deleted: 1240, tables: 39, table: 18, beat: state === "deleteStopped" ? now - 10 * 60_000 : now }
+        : null,
+  });
   return {
     ...answer(api.yourData.status, status),
+    ...answer(api.accountDelete.status, account),
+    ...answer(api.accountDelete.start, () => {
+      state = "deleting";
+    }),
     ...answer(api.yourData.startExport, () => {
       state = "exporting";
       return "exp-1" as Id<"exports">;

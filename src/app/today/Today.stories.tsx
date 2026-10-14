@@ -29,6 +29,7 @@ const SETUP: Setup = {
   workspaceId: "ws",
   hidden: true,
   storyUsdPerWord: 0.00002,
+  platformAi: null,
   firstStory: null,
   skipped: ["drive"],
   steps: {
@@ -45,9 +46,9 @@ const SETUP: Setup = {
   firstPursuit: null,
 };
 
-function todayFixtures({ empty }: { empty: boolean }): Answers {
+function todayFixtures({ empty, allowance }: { empty: boolean; allowance?: { spentUsd: number } }): Answers {
   const pursuits = pursuitsFixtures({ empty });
-  const settings = settingsFixtures();
+  const settings = settingsFixtures({ allowance });
   // New strong roles: the ranked roles that are strong fits and not started, best first.
   const ranked = pursuits[getFunctionName(api.roles.list)] as (args: object) => { page: TodayRole[] };
   const roles = () => ranked({ filters: {} }).page.filter((r) => r.level === "strong" && !r.pursuit);
@@ -77,9 +78,9 @@ function todayFixtures({ empty }: { empty: boolean }): Answers {
 // The fixtures' person (settings/fixtures.ts), whose search Today shows.
 const PERSON = "Wren Castellano";
 
-function Fixture({ query = "", empty = false, demo = false, newVersion = false, updated = false }: { query?: string; empty?: boolean; demo?: boolean; newVersion?: boolean; updated?: boolean }) {
+function Fixture({ query = "", empty = false, demo = false, newVersion = false, updated = false, allowance }: { query?: string; empty?: boolean; demo?: boolean; newVersion?: boolean; updated?: boolean; allowance?: { spentUsd: number } }) {
   const [answers] = useState(() => ({
-    ...todayFixtures({ empty }),
+    ...todayFixtures({ empty, allowance }),
     ...(newVersion ? updateFixtures("out") : {}),
     ...(updated ? answer(api.updates.sawVersion, () => true) : {}),
     ...(demo ? answer(api.workspaces.current, () => ({ id: "ws" as never, name: PERSON, demo: true, asOf: null })) : {}),
@@ -116,6 +117,9 @@ export const Lines: Story = { render: () => <Fixture /> };
 export const NothingNeedsYou: Story = { name: "Nothing needs you", render: () => <Fixture empty /> };
 export const NewVersion: Story = { name: "A new version, for a self-hosted copy's owner", render: () => <Fixture newVersion /> };
 export const WhatsNewAfterAnUpdate: Story = { name: "What's new, after an update", render: () => <Fixture updated /> };
+// On careerbot.dev, CareerBot's AI with this month's allowance used up (Today — large, AI allowance used up).
+export const AllowanceUsedUp: Story = { name: "AI allowance used up", render: () => <Fixture allowance={{ spentUsd: 5 }} /> };
+export const AllowanceUsedUpPhone: Story = { name: "AI allowance used up, phone", globals: { viewport: { value: "mobile2" } }, render: () => <Fixture allowance={{ spentUsd: 5 }} /> };
 
 export const InTheDemo: Story = { name: "In the demo", render: () => <Fixture demo /> };
 export const InTheDemoPhone: Story = { name: "In the demo, phone", globals: { viewport: { value: "mobile2" } }, render: () => <Fixture demo /> };

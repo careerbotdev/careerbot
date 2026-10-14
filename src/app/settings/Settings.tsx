@@ -133,6 +133,6 @@ function useLines(recommended?: { id: string; name: string }[]): Partial<Record<
     drive: drive && (!drive.connected ? "Not connected" : drive.connected.broken ? "Needs connecting again" : drive.connected.failed ? `${drive.connected.failed} not synced` : `Connected as ${drive.connected.account}`),
     companies: companies && `${INDUSTRY_WORDS[companies.lens.industries]} · ${JUDGE_WORDS[companies.lens.judge]}`,
     updates: updates ? updatesLine(updates) : undefined,
-    yourdata: "Export or import everything",
+    yourdata: "Export, import or delete everything",
   };
 }

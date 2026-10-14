@@ -1,8 +1,8 @@
 // The Pursuits screen's address: the tab (status), the role open (role, a posting id; with direction, the direction it's
 // shown for) or the pursuit with no open role open (pursuit), and a company whose roles the list starts filtered to
-// (company). A change sets or clears (null) a key and keeps the rest.
+// (company), and the order of All roles and Interested (sort: posted for Newest posted, else Best fit). A change sets or clears (null) a key and keeps the rest.
 type Params = { get(key: string): string | null; toString(): string };
-type Change = { status?: string | null; role?: string | null; pursuit?: string | null; direction?: string | null; company?: string | null };
+type Change = { status?: string | null; role?: string | null; pursuit?: string | null; direction?: string | null; company?: string | null; sort?: string | null };
 
 export function pursuitsHref(params: Params, change: Change) {
   const next = new URLSearchParams(params.toString());

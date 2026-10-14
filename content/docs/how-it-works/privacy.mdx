@@ -11,6 +11,7 @@ sources:
   - convex/drive.ts
   - convex/repoReader.ts
   - convex/allowlist.ts
+  - convex/accountDelete.ts
   - docs/BUILD.md
 ---
 
@@ -69,9 +70,16 @@ visits aren't counted. Copies run by others, and local builds, send nothing.
 ## Getting a copy or deleting it
 
 Settings, [Your data](/docs/using/your-data) exports everything in your workspace as one file you can download. Your
-keys, connections and password aren't in it. To have your account and everything in it deleted, including your keys and
-your Drive connection, email [privacy@careerbot.dev](mailto:privacy@careerbot.dev); email too for a copy of your data if
-you can't sign in.
+keys, connections and password aren't in it.
+
+The same page deletes your account, under **Delete account**: you type your account's name to confirm, and CareerBot
+deletes your workspace and everything in it, including stored files and your keys, disconnects Google Drive and GitHub
+(Google revokes CareerBot's access; CareerBot's GitHub App is uninstalled from your account unless another workspace
+uses it), then deletes your sign-in and the account itself, and signs you out. It can't be undone, so export first if
+you want a copy. How it works: [Deleting your account](/docs/using/your-data#deleting-your-account).
+
+If you can't sign in, email [privacy@careerbot.dev](mailto:privacy@careerbot.dev) to have your account deleted or for a
+copy of your data.
 
 On your own copy, you hold the data: see [Updates, backups and export](/docs/self-hosting/updates).
 

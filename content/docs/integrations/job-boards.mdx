@@ -3,6 +3,7 @@ title: Job boards
 description: CareerBot reads open roles from each company's own public job board. Which boards it reads, how it finds them, and what happens when it can't.
 sources:
   - convex/boardProviders.ts
+  - convex/boards.ts
   - convex/enrich.ts
   - convex/roles.ts
   - convex/crons.ts
@@ -15,9 +16,31 @@ CareerBot reads roles straight from each company's own public job board, the sam
 
 ## Which boards it reads
 
-Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Breezy, Personio, Rippling, Gem, Workable, Recruitee, BambooHR, Pinpoint, Teamtailor, Jobvite, iCIMS, Oracle Recruiting Cloud, JazzHR and Dover.
+Greenhouse, Lever, Ashby, Workday, Breezy, Personio, Rippling, Gem, Workable, Recruitee, BambooHR, Pinpoint, Jobvite, iCIMS, Oracle Recruiting Cloud, JazzHR, Dover and Eightfold.
 
-Each was checked against a real company's board. Reading a board is free.
+Each was checked against real companies' boards. Reading a board is free.
+
+From each role it keeps what the board itself states: the title, its places, whether it's remote, hybrid or on-site, the employment type, the pay where the company shows it, when it was posted, the link, and the full description (up to 8,000 characters). Each role keeps which board it came from and when it was last seen there. Pay a board gives only in words, like "$140,000 - $180,000", is kept only when its currency and period are certain; otherwise CareerBot reads it from the description.
+
+Large Workday, Oracle and Eightfold boards are searched for your directions' titles rather than read whole.
+
+Some companies send visitors from their iCIMS board on to an iCIMS career site at their own address, like GitHub's github.careers. CareerBot follows and reads that site instead. It reads up to 300 roles whole and searches a larger one for your directions' titles, one request every 5 seconds, as the site asks.
+
+### Boards it doesn't read
+
+| Board | Why |
+| --- | --- |
+| SmartRecruiters | Its rules ask automated readers to stay away from its job data. CareerBot still spots a SmartRecruiters board, so it won't guess a wrong one, but reads nothing from it. |
+| Teamtailor | Its boards ask that their pages not be given to AI, and CareerBot's AI reads every role it ranks. CareerBot still spots the board, but reads nothing from it. |
+| Paycom | Its terms forbid automated reading of the sites it hosts. |
+| ADP (Workforce Now and Recruiting Management) | Its terms forbid automated gathering of its data. |
+| Paylocity | Not yet checked: none of the companies measured used it. |
+| Phenom, SAP SuccessFactors, Avature, Paradox | Each company hosts these on its own site, under its own terms, and many turn away automated visits. Turning on **Job postings from Apollo** may still bring in their roles. |
+| Radancy (TalentBrew) | These sites ask automated visitors not to read their job search. |
+
+### How politely boards are read
+
+A board is read only for a company in your own list: once when CareerBot fills in the company's details, every day while it's one of your **Targets** or **Maybe** companies, and when you choose **Check again**. Each read has a cap on pages, and fetches at most three role pages at once. CareerBot keeps no shared index of anyone's roles.
 
 ## How a company's board is found
 

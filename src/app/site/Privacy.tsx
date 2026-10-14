@@ -5,7 +5,7 @@ import { SiteFrame } from "./SiteFrame";
 // The privacy page (the Privacy board in Paper), public to everyone, signed in or not: what CareerBot keeps, who else
 // sees it, and how to get a copy or have it deleted. When it changes, UPDATED changes with it.
 
-const UPDATED = "October 6, 2026";
+const UPDATED = "October 13, 2026";
 
 const email = <ProseEmail address="privacy@careerbot.dev" />;
 
@@ -58,7 +58,8 @@ const SECTIONS: { title: string; paragraphs: ReactNode[] }[] = [
     title: "Getting a copy or deleting it",
     paragraphs: [
       "Settings, Your data exports everything in your workspace as one file you can download: your stories, record, goals, companies and roles, pursuits, people and messages, resumes, cover letters, notes, settings and spending. It holds readable copies and a file another copy of CareerBot can import, here or on a copy you run yourself, and the other way round. Your keys, connections and password aren’t in it. The file is kept for an hour after it’s made, then deleted.",
-      <>Email {email} to have your account and everything in it deleted, including your keys and your Drive connection, or for a copy of your data if you can’t sign in.</>,
+      "Settings, Your data also deletes your account: you type its name to confirm, and CareerBot deletes your workspace and everything in it, including stored files, your keys, and your Google Drive and GitHub connections (Google revokes CareerBot’s access, and CareerBot’s GitHub App is uninstalled from your account), then your sign-in and the account itself, and signs you out. It can’t be undone, so export first if you want a copy.",
+      <>If you can’t sign in, email {email} to have your account deleted or for a copy of your data.</>,
     ],
   },
   {

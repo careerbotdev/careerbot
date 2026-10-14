@@ -2,7 +2,7 @@
 
 import { useQuery } from "convex/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../../../convex/_generated/api";
 import { useFactPane } from "@/app/record/facts/Facts";
 import { Avatar } from "@/components/Avatar";
@@ -17,7 +17,8 @@ import { PaneHeader, PaneLayout, useScreenSize } from "@/components/Panes";
 import { RejectedRow } from "@/components/RejectedRow";
 import { StatusTag } from "@/components/StatusTag";
 import { Tabs } from "@/components/Tabs";
-import { toast } from "@/components/Toast";
+import { type Toast } from "@/components/Toast";
+import { useConnectionReturn } from "../../shell/useConnectionReturn";
 import { useCommands } from "../../shell/ShellContext";
 import { useTour } from "../../shell/useTour";
 import { RECORD_TOUR } from "../../tours/record";
@@ -34,11 +35,11 @@ import { byRecent, CHOOSES_REPOS, commits, EDITS, type Fact, jobsOf, OPENS_REPO,
 type Tab = "all" | "rejected";
 const NO_ROLE = "none";
 const OPENS_CONNECTION = "Opens your GitHub connection, to read repositories into projects.";
-const RETURNED = {
+const RETURNED: Record<string, Toast> = {
   connected: { message: "GitHub is connected. Pick repositories to read.", icon: "link" },
   failed: { message: "GitHub didn’t connect. Try again.", icon: "failed" },
   requested: { message: "Your organization’s owner needs to approve CareerBot on GitHub first.", icon: "link" },
-} as const;
+};
 const busyElsewhere = (e: KeyboardEvent) =>
   !!(e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable='true'], [role=menu], [role=listbox], [role=dialog], [role=alertdialog]"));
 
@@ -75,14 +76,8 @@ export function Projects() {
     [params, router],
   );
 
-  // Back from GitHub: say how it went, once, and show the connection.
-  const said = useRef(false);
-  useEffect(() => {
-    if (said.current || !githubParam || !(githubParam in RETURNED)) return;
-    said.current = true;
-    toast({ ...RETURNED[githubParam as keyof typeof RETURNED] });
-    router.replace("/record/projects?github=1", { scroll: false });
-  }, [githubParam, router]);
+  // Back from GitHub: finish connecting, say how it went, once, and show the connection.
+  useConnectionReturn("github", RETURNED, () => router.replace("/record/projects?github=1", { scroll: false }));
 
   const all = useMemo(() => (rows ?? []).filter((r): r is Project => r.kind === "project").sort(byRecent), [rows]);
   const facts = useMemo(() => (rows ?? []).filter((r): r is Fact => r.kind === "fact" && !!r.projectKey), [rows]);

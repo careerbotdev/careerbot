@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/Dialog";
 import type { MenuEntry } from "@/components/Menu";
 import { useScreenSize } from "@/components/Panes";
 import { AREAS, MoreSheet, Sidebar } from "@/components/Sidebar";
+import { toast } from "@/components/Toast";
 import { useDemo } from "../demo/demo";
 import { useSignOut } from "../localDrafts";
 import { DEMO } from "../mode";
@@ -112,6 +113,18 @@ function barItem(path: string) {
 // Leave the demo, on the demo's build: back to careerbot.dev once signed out.
 const toCareerBot = () => window.location.assign(CAREERBOT_URL);
 
+// Once deleting the account has taken everything but the account itself (convex/accountDelete.ts), this device signs
+// out, and says why.
+function useSignOutWhenDeleted(signOut: () => void) {
+  const step = useQuery(api.accountDelete.status)?.deletion?.step;
+  const gone = step === "signingOut" || step === "done";
+  useEffect(() => {
+    if (!gone) return;
+    toast({ message: "Your account is deleted" });
+    signOut();
+  }, [gone, signOut]);
+}
+
 function Frame({ children }: { children: ReactNode }) {
   const path = usePathname();
   const hash = useSyncExternalStore(subscribeHash, () => window.location.hash, () => "");
@@ -128,8 +141,11 @@ function Frame({ children }: { children: ReactNode }) {
   const workspace = useQuery(api.workspaces.current, demo ? {} : "skip");
   const leave = useSignOut(DEMO ? toCareerBot : undefined);
   const me = useQuery(api.users.me);
+  // careerbot.dev's operators get Admin in the account menu and ⌘K.
+  const operator = useQuery(api.operators.isOperator) === true;
   const today = useToday();
   const { jobs, spend } = useActivity();
+  useSignOutWhenDeleted(signOut);
   useScrollToSection(path, hash);
   const push = useCallback((href: string) => router.push(href), [router]);
   const showShortcuts = useCallback(() => setShortcuts(true), []);
@@ -142,9 +158,10 @@ function Frame({ children }: { children: ReactNode }) {
   const account: MenuEntry[] = useMemo(
     () => [
       { label: "Settings", icon: "settings", onSelect: () => router.push("/settings") },
+      ...(operator ? [{ label: "Admin", icon: "settings" as const, onSelect: () => router.push("/admin") }] : []),
       { label: "Sign out", icon: "signOut", onSelect: signOut },
     ],
-    [router, signOut],
+    [router, signOut, operator],
   );
 
   const commands = useMemo((): Command[] => {
@@ -158,11 +175,12 @@ function Frame({ children }: { children: ReactNode }) {
           .map((s): Command => ({ id: `go-${a.key}-${s.key}`, group: "Go to", label: s.label, detail: a.label, icon: a.icon, onSelect: go(s.href) })),
       ]),
       { id: "go-settings", group: "Go to", label: "Settings", icon: "settings", keys: GO.s.keys, onSelect: go("/settings") },
+      ...(operator ? [{ id: "go-admin", group: "Go to", label: "Admin", icon: "settings" as const, onSelect: go("/admin") }] : []),
       { id: "shortcuts", group: "Help", label: "All shortcuts", icon: "shortcuts", keys: "?", onSelect: () => setShortcuts(true) },
       ...(size === "large" ? [{ id: "sidebar", group: "Help", label: collapsed ? "Expand sidebar" : "Collapse sidebar", icon: "sidebar" as const, onSelect: toggle }] : []),
       { id: "sign-out", group: "Account", label: "Sign out", icon: "signOut", onSelect: signOut },
     ];
-  }, [screenCommands, router, size, collapsed, toggle, signOut]);
+  }, [screenCommands, router, size, collapsed, toggle, signOut, operator]);
 
   const small = size === "small";
   const nav: BottomBarMode = {

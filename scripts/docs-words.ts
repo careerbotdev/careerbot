@@ -16,7 +16,8 @@ export type ScreenWords = {
 
 // The docs' screen keys, in the order the docs list them. Each has its Using page at /docs/using/<key>.
 export const SCREENS: Record<string, ScreenWords> = {
-  today: { name: "Today", elements: ["today"], paths: ["/", "/sign-in"], folders: ["src/app/today"] },
+  // Today, with the sign-in and careerbot.dev's invite link (/invite/<token>) it shows signed out.
+  today: { name: "Today", elements: ["today", "inviteScreen"], paths: ["/", "/sign-in"], folders: ["src/app/today"] },
   review: { name: "Review", elements: ["reviewScreen"], paths: ["/review"], folders: ["src/app/review"] },
   pursuits: {
     name: "Pursuits",

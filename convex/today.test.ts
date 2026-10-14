@@ -52,6 +52,31 @@ test("Setup counts the Apollo key and leaves Google Drive to be connected or ski
   expect((await as.query(api.today.setup, {})).steps.drive.done).toBe(false);
 });
 
+test("On careerbot.dev's own AI there's no key to add and Apollo can be skipped; on a copy without it, Apollo can't", async () => {
+  const t = convexTest(schema, modules);
+  const u = await t.run(async (ctx) => {
+    const id = await ctx.db.insert("users", { email: "sam@example.com" });
+    await ensureWorkspace(ctx, id);
+    return id;
+  });
+  const as = t.withIdentity({ subject: `${u}|s` });
+  await expect(as.mutation(api.today.skipStep, { step: "apollo", skipped: true })).rejects.toThrow("can’t be skipped");
+  process.env.PLATFORM_OPENROUTER_API_KEY = "sk-platform";
+  process.env.PLATFORM_AI_LIMIT_USD = "100";
+  try {
+    let s = await as.query(api.today.setup, {});
+    expect(s.platformAi).toEqual({ allowanceUsd: 5 });
+    expect(s.steps.key.done).toBe(true);
+    expect(s.steps.apollo.done).toBe(false);
+    await as.mutation(api.today.skipStep, { step: "apollo", skipped: true });
+    s = await as.query(api.today.setup, {});
+    expect(s.steps.apollo).toMatchObject({ done: true, detail: "Skipped" });
+  } finally {
+    delete process.env.PLATFORM_OPENROUTER_API_KEY;
+    delete process.env.PLATFORM_AI_LIMIT_USD;
+  }
+});
+
 test("The first pursuit ticks off from the pursuit: tailored resume, path, contacts, the outreach message sent, letter and answers, Applied (undone by going back to Preparing), then following up", async () => {
   const { t, as, w, a, direction } = await setup();
   const id = await as.mutation(api.pursuits.start, { postingId: a, directionId: direction });

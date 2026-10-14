@@ -10,12 +10,14 @@ import { answer, type Answers } from "../storyConvex";
 // DeepSeek v4.1 Flash for every task but Reading projects (Claude Sonnet 5.5, high reasoning), Jev sorting roles, and
 // the recommended models priced against 30 days of use, and Google Drive connected with 14 Docs synced. Mutations and
 // actions change the fixtures as the real ones do. `fresh`: a new workspace (no keys, no budget, no model, no Drive), for
-// Getting started; `drive: false`: Drive not connected.
+// Getting started; `drive: false`: Drive not connected; `allowance`: on careerbot.dev with no OpenRouter key, CareerBot's
+// AI within a $5 allowance, with `spentUsd` of it spent this month (adding a key in Keys takes the allowance away).
 
 type Choice = { model: string; reasoning?: Reasoning };
 type TestCall = FunctionReturnType<typeof api.jobs.latestTestCall>;
 
 const DAY = 24 * 60 * 60 * 1000;
+const ALLOWANCE_USD = 5;
 const at = (iso: string) => new Date(iso).getTime();
 
 export const CATALOG: CatalogModel[] = [
@@ -34,7 +36,7 @@ const DESCRIPTIONS: Record<string, string> = {
   "anthropic/claude-sonnet-5.5": "The strongest writer here, for resumes, letters and outreach. Costs several times more.",
 };
 
-export function settingsFixtures({ fresh = false, drive: driveOn = !fresh }: { fresh?: boolean; drive?: boolean } = {}): Answers {
+export function settingsFixtures({ fresh = false, drive: driveOn = !fresh, allowance }: { fresh?: boolean; drive?: boolean; allowance?: { spentUsd: number } } = {}): Answers {
   const usage = fresh ? { days: 30, inputTokens: 0, outputTokens: 0 } : { days: 30, inputTokens: 21_400_000, outputTokens: 2_150_000 };
   let main: Choice | null = fresh ? null : { model: "deepseek/deepseek-v4.1-flash", reasoning: "high" };
   const own = new Map<AiTask, Choice>(fresh ? [] : [["projects", { model: "anthropic/claude-sonnet-5.5", reasoning: "high" }], ["roleSortJev", { model: "typesafe/jev-1.13" }]]);
@@ -42,7 +44,8 @@ export function settingsFixtures({ fresh = false, drive: driveOn = !fresh }: { f
   const keys: Record<"openrouter" | "apollo" | "brave", { last4: string; setAt: number } | null> = fresh
     ? { openrouter: null, apollo: null, brave: null }
     : { openrouter: { last4: "4f2a", setAt: at("2026-09-14T15:00:00") }, apollo: { last4: "9c1e", setAt: at("2026-09-16T15:00:00") }, brave: { last4: "b07d", setAt: at("2026-09-20T15:00:00") } };
-  let budget = fresh ? { aiMonthlyUsd: 0, apolloMonthlyCredits: 0, apolloMode: "paused" as const } : { aiMonthlyUsd: 25, apolloMonthlyCredits: 400, apolloMode: "on" as "on" | "onRequest" | "paused" };
+  if (allowance) keys.openrouter = null;
+  let budget = fresh ? { aiMonthlyUsd: 0, apolloMonthlyCredits: 0, apolloMode: "paused" as const } : { aiMonthlyUsd: allowance ? ALLOWANCE_USD : 25, apolloMonthlyCredits: 400, apolloMode: "on" as "on" | "onRequest" | "paused" };
   let lens: Lens = { industries: "steer", judge: "hide" };
   let apolloJobs = true;
   let learn = true;
@@ -104,7 +107,11 @@ export function settingsFixtures({ fresh = false, drive: driveOn = !fresh }: { f
       test = { status: "done", result: { text: "Someone who helps you name what you’re good at and aim it at work worth doing.", model: main?.model, costUsd: 0.0002, ms: 900 }, error: undefined, pausedFor: undefined };
       return "job" as never;
     }),
-    ...answer(api.budgets.status, () => ({ ...budget, aiSpentUsd: fresh ? 0 : 6.4, apolloSpentCredits: fresh ? 0 : 212 })),
+    ...answer(api.budgets.status, () => {
+      const plan = allowance ? { source: keys.openrouter ? ("own key" as const) : ("platform" as const), allowanceUsd: ALLOWANCE_USD, platformUsedUp: false } : null;
+      const aiMonthlyUsd = plan?.source === "platform" ? Math.min(budget.aiMonthlyUsd, ALLOWANCE_USD) : budget.aiMonthlyUsd;
+      return { ...budget, aiMonthlyUsd, aiOwnUsd: fresh ? null : budget.aiMonthlyUsd, aiSpentUsd: allowance?.spentUsd ?? (fresh ? 0 : 6.4), apolloSpentCredits: fresh ? 0 : 212, plan };
+    }),
     ...answer(api.budgets.set, (next) => {
       budget = next;
     }),

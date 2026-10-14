@@ -12,11 +12,13 @@ import type { ScreenSize } from "@/components/Panes";
 import { ProgressBar } from "@/components/Progress";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { Text } from "@/components/Text";
-import { clockNow } from "../clock";
+import { AllowanceNotice, onAllowance, resetDay } from "./Allowance";
 import { GroupHead, monthDay, Rows, saved, SettingRow, SettingsPane } from "./ui";
 
 // The month's AI budget and the Apollo credits set aside, each with what's been spent against it, and whether Apollo
-// work runs on its own. Each change saves as it's made, with Undo.
+// work runs on its own. Each change saves as it's made, with Undo. On CareerBot's AI (careerbot.dev, no OpenRouter key
+// of their own) the allowance comes first: their budget can only lower it, and when it's used up it says what they can
+// do (Allowance).
 
 type Budget = { aiMonthlyUsd: number; apolloMonthlyCredits: number; apolloMode: "on" | "onRequest" | "paused" };
 
@@ -27,11 +29,6 @@ const MODES = [
 ] as const;
 
 export const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })}`;
-// AI spend is counted by UTC month; it starts again on the first.
-const nextMonth = () => {
-  const now = new Date(clockNow());
-  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1);
-};
 
 export function Budgets({ size }: { size: ScreenSize }) {
   const status = useQuery(api.budgets.status);
@@ -51,30 +48,42 @@ export function Budgets({ size }: { size: ScreenSize }) {
   };
   const credits = status.apolloMonthlyCredits;
   const renews = balance?.cycleEnd ? ` · renews ${monthDay(balance.cycleEnd)}` : "";
-
+  const plan = status.plan?.source === "platform" ? status.plan : null;
+  const allowance = onAllowance(status);
   return (
     <SettingsPane title="Budgets and spending" size={size}>
       <section aria-label="AI" className="flex flex-col">
         <GroupHead label="AI" />
         <Meter
-          label="AI budget"
+          label={allowance ? "AI allowance" : "AI budget"}
           amount={usd(status.aiSpentUsd)}
-          of={status.aiMonthlyUsd > 0 ? `spent of ${usd(status.aiMonthlyUsd)} this month` : "spent this month"}
-          side={`Resets ${new Date(nextMonth()).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`}
+          of={allowance ? `spent of your ${usd(status.aiMonthlyUsd)} allowance this month` : status.aiMonthlyUsd > 0 ? `spent of ${usd(status.aiMonthlyUsd)} this month` : "spent this month"}
+          side={`Resets ${resetDay()}`}
           value={status.aiSpentUsd}
           max={status.aiMonthlyUsd}
         />
+        <div className="empty:hidden pb-4">
+          <AllowanceNotice status={status} size={size === "small" ? "lg" : "md"} />
+        </div>
         <Rows>
+          {plan && (
+            <SettingRow
+              title="AI allowance"
+              line="CareerBot’s AI, included in the beta. With your own OpenRouter key, your own budget applies instead."
+              control={<Text className="tabular-nums">{usd(plan.allowanceUsd)} a month</Text>}
+            />
+          )}
           <SettingRow
             title="Monthly budget"
-            line={status.aiMonthlyUsd > 0 ? "AI work pauses when it’s reached and picks up again when you raise it." : "No AI work runs until you set one."}
+            line={plan ? "Up to your allowance. AI work pauses when it’s reached." : status.aiMonthlyUsd > 0 ? "AI work pauses when it’s reached and picks up again when you raise it." : "No AI work runs until you set one."}
             control={
               <NumberField
                 label="Monthly AI budget"
                 hideLabel
                 currency
                 min={0}
-                example={25}
+                max={plan?.allowanceUsd}
+                example={plan ? plan.allowanceUsd : 25}
                 value={status.aiMonthlyUsd}
                 onChange={(n) => change({ aiMonthlyUsd: n ?? 0 }, `AI budget set to ${usd(n ?? 0)} a month`)}
                 className="w-28"

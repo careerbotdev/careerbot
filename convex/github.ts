@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
-import { httpAction, internalMutation, internalQuery, query } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
+import { httpAction, internalMutation, internalQuery, type MutationCtx, query } from "./_generated/server";
 import { action, mutation } from "./functions";
 import { appFor, appJwt, githubFetch, installationToken, newLink, siteOf } from "./githubApp";
 import { requireWorkspace } from "./workspaces";
@@ -9,10 +9,11 @@ import { requireWorkspace } from "./workspaces";
 // A workspace's GitHub connection: CareerBot's GitHub App installed on their account, on all their repositories or the
 // ones they chose on GitHub. Connecting: Projects asks for a one-time link (connect), which sends them to GitHub to
 // install the app; GitHub comes back to /github/setup with the installation, and CareerBot then asks GitHub who they
-// are (/github/authorized) and keeps the installation only if it's theirs, so nobody can claim someone else's. The
-// person's own GitHub token is used for that check alone and revoked straight after. Disconnecting forgets the
-// connection for this workspace only; uninstalling the app is done in GitHub's settings, and GitHub's webhook then
-// disconnects every workspace that used it.
+// are (/github/authorized) and holds the installation only if it's theirs, so nobody can claim someone else's. The
+// person's own GitHub token is used for that check alone and revoked straight after. Projects then finishes connecting
+// (connections.finish) for the person who started it only, so a link someone else started connects nothing.
+// Disconnecting forgets the connection for this workspace only; uninstalling the app is done in GitHub's settings, and
+// GitHub's webhook then disconnects every workspace that used it.
 
 const COOKIE = "cb_github";
 
@@ -33,9 +34,9 @@ export const status = query({
 export const connect = mutation({
   args: {},
   handler: async (ctx) => {
-    const { workspaceId } = await requireWorkspace(ctx);
+    const { workspaceId, userId } = await requireWorkspace(ctx);
     if (!(await ctx.db.query("githubApp").first())) throw new Error("GitHub isn't set up yet.");
-    return `${siteOf().convex}/github/connect?state=${await newLink(ctx, "connect", workspaceId)}`;
+    return `${siteOf().convex}/github/connect?state=${await newLink(ctx, "connect", { workspaceId, userId })}`;
   },
 });
 
@@ -60,13 +61,11 @@ export const claim = internalMutation({
   },
 });
 
-export const saveInstall = internalMutation({
-  args: { workspaceId: v.id("workspaces"), installationId: v.number(), account: v.string(), selection: v.union(v.literal("all"), v.literal("selected")), settingsUrl: v.string() },
-  handler: async (ctx, { workspaceId, ...install }) => {
-    for (const old of await ctx.db.query("githubInstalls").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect()) await ctx.db.delete(old._id);
-    await ctx.db.insert("githubInstalls", { workspaceId, ...install, at: Date.now() });
-  },
-});
+// Connected (connections.finish): the installation replaces any earlier one of this workspace.
+export async function keepInstall(ctx: MutationCtx, workspaceId: Id<"workspaces">, install: Omit<Doc<"githubInstalls">, "_id" | "_creationTime" | "workspaceId" | "at">) {
+  for (const old of await ctx.db.query("githubInstalls").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect()) await ctx.db.delete(old._id);
+  await ctx.db.insert("githubInstalls", { workspaceId, ...install, at: Date.now() });
+}
 
 // The installation is gone (uninstalled on GitHub): every workspace connected through it is disconnected.
 export const forget = internalMutation({
@@ -152,14 +151,15 @@ export const setup = httpAction(async (ctx, req) => {
   return redirect(authorize.toString());
 });
 
-// GET /github/authorized?code=…&state=…: keep the installation only if the person who came back can see it on GitHub.
+// GET /github/authorized?code=…&state=…: hold the installation only if the person who came back can see it on GitHub,
+// for Projects to finish connecting.
 export const authorized = httpAction(async (ctx, req) => {
   const url = new URL(req.url);
   const token = url.searchParams.get("state") ?? "";
   const code = url.searchParams.get("code") ?? "";
   const row = await ctx.runQuery(internal.githubApp.link, { token });
   const app = await appFor(ctx);
-  if (row?.purpose !== "connect" || !row.workspaceId || !row.installationId || !code || !app) return redirect(back("failed"), clearCookie);
+  if (row?.purpose !== "connect" || !row.workspaceId || !row.userId || !row.installationId || !code || !app) return redirect(back("failed"), clearCookie);
   await ctx.runMutation(internal.githubApp.dropLink, { token });
   const exchange = await fetch("https://github.com/login/oauth/access_token", {
     method: "POST",
@@ -186,14 +186,18 @@ export const authorized = httpAction(async (ctx, req) => {
   const res = await githubFetch(`/app/installations/${row.installationId}`, { token: await appJwt(app) });
   if (!res.ok) return redirect(back("failed"), clearCookie);
   const inst = (await res.json()) as { account?: { login?: string }; repository_selection?: string; html_url?: string };
-  await ctx.runMutation(internal.github.saveInstall, {
-    workspaceId: row.workspaceId as Id<"workspaces">,
-    installationId: row.installationId,
-    account: inst.account?.login ?? "",
-    selection: inst.repository_selection === "all" ? "all" : "selected",
-    settingsUrl: inst.html_url ?? `https://github.com/settings/installations/${row.installationId}`,
+  const held = await ctx.runMutation(internal.connections.hold, {
+    workspaceId: row.workspaceId,
+    userId: row.userId,
+    connection: {
+      kind: "github",
+      installationId: row.installationId,
+      account: inst.account?.login ?? "",
+      selection: inst.repository_selection === "all" ? "all" : "selected",
+      settingsUrl: inst.html_url ?? `https://github.com/settings/installations/${row.installationId}`,
+    },
   });
-  return redirect(back("connected"), clearCookie);
+  return redirect(`${back("connected")}&connection=${held}`, clearCookie);
 });
 
 // POST /github/webhook: GitHub tells the app about installations. Signed with the app's webhook secret.

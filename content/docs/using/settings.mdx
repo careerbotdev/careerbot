@@ -20,7 +20,7 @@ On a copy you run yourself (self-hosted), Account also shows your **Username** a
 
 - **Add a person**: you choose their username (2 to 32 letters, digits, dots, dashes or underscores) and get a temporary password to give them. They choose their own password when they first sign in.
 - **Reset password**: makes a new temporary password and signs them out everywhere. Can't be undone.
-- **Remove**: removes their account and deletes their workspace: stories, record, resumes and pursuits. Asks first; can't be undone.
+- **Remove**: signs them out and removes their account, then deletes their workspace with everything in it, keys, files and Google Drive and GitHub connections included, in the background ([Deleting your account](/docs/using/your-data#deleting-your-account)). Asks first; can't be undone.
 
 <Shot id="account-self-hosted" alt="Settings, Account on a self-hosted copy, seen by its owner sam: username and workspace, Change password and Sign out, then People listing sam as owner and alex with Reset password, and Add a person." />
 
@@ -38,13 +38,14 @@ See [Models and AI tasks](/docs/ai/models).
 ## Budgets and spending
 
 - **AI budget**: what's spent this month of your **Monthly budget**. AI work pauses when it's reached and picks up again when you raise it. No AI work runs until you set one.
+- On careerbot.dev without your own OpenRouter key: **AI allowance**, the most CareerBot's AI spends for you each month. Your **Monthly budget** can only lower it. When it's used up, a note offers **Ask for more** and **Add your own key** ([more](/docs/ai/budgets#careerbots-ai-on-careerbotdev)).
 - **Apollo credits**: credits used this cycle, and what's left in your Apollo plan. **Credits set aside each month**: 0 lets CareerBot use whatever is left in your plan, never more.
 - **Automated Apollo work**: **On**, **Only when I ask** or **Paused**. On lets CareerBot find companies, their details and job postings on its own, within the credits above.
 - **Open Reports** for spending by month, task and pursuit.
 
 ## Keys
 
-**OpenRouter** (pays for every AI task), **Apollo** (finds companies, their details and job postings; shows the credits left this cycle) and **Brave Search** (optional: finds a company's job board when its website doesn't link one). Keys show masked. **Add key** or **Replace** checks the key first; the old one keeps working until the new one is checked. **Remove key** asks first and stops that work until you add a key again.
+**OpenRouter** (pays for every AI task; optional on careerbot.dev, where CareerBot's AI is included up to your allowance), **Apollo** (finds companies, their details and job postings; shows the credits left this cycle) and **Brave Search** (optional: finds a company's job board when its website doesn't link one). Keys show masked. **Add key** or **Replace** checks the key first; the old one keeps working until the new one is checked. **Remove key** asks first and stops that work until you add a key again.
 
 ## Companies
 
@@ -89,8 +90,9 @@ off too. The [changelog](/changelog) has every release; after an update, a note 
 ## Your data
 
 **Export** makes one ZIP of everything in your workspace, to keep or to bring into another copy of CareerBot, and
-**Import** brings such a ZIP into an empty workspace. Keys, connections and your password stay behind. What's in it
-and how importing works: [Your data](/docs/using/your-data).
+**Import** brings such a ZIP into an empty workspace. Keys, connections and your password stay behind.
+**Delete account** deletes your account and everything in your workspace, once you've typed its name. What's in an
+export, how importing works, and what deleting takes: [Your data](/docs/using/your-data).
 
 ## Related
 

@@ -7,7 +7,7 @@ import { HELD_BY_UNSETTLED } from "./budgets";
 import type { Id } from "./_generated/dataModel";
 import { PROBLEM_LABELS } from "./limitBuckets";
 import { seedModelPrices } from "./modelPrices.testing";
-import type { RoleFilters } from "./roles";
+import { matches, postedSince, type RoleFilters } from "./roles";
 import schema from "./schema";
 import { seal } from "./secretBox";
 import { ensureWorkspace } from "./workspaces";
@@ -574,6 +574,34 @@ test("roles list best score first, newest first within a score, a page at a time
   expect((await view(s, s.direction)).ranked.map((r) => r.title)).toEqual(["strong-new", "strong-old", "some", "none", "strong-unscored"]);
 });
 
+test("sorted by posted: newest posted first across every page, roles with no posted date last, the filters still apply, the count unchanged", async () => {
+  const s = await setup();
+  const add = (title: string, postedAt: number | undefined, score: number, setup: "remote" | "onsite" = "remote") =>
+    s.t.run((ctx) =>
+      ctx.db.insert("postings", {
+        workspaceId: s.a.w, companyId: s.company, provider: "greenhouse", externalId: title, url: `https://x/${title}`, title, location: "Remote, US", remote: setup === "remote", ...(postedAt !== undefined ? { postedAt } : {}), firstSeen: 50, lastSeen: 50,
+        fit: [{ directionId: s.direction, level: "strong", score, reason: "fit", method: "model" as const }], fitAt: 1, details: { setup, at: 1 },
+      }),
+    );
+  await add("undated-best", undefined, 95);
+  await add("old-best", 10, 90);
+  await add("newest", 40, 60);
+  await add("middle", 20, 70);
+  await add("undated", undefined, 50);
+  await add("newer-onsite", 30, 80, "onsite");
+  await refresh(s);
+  const titles = (filters: RoleFilters, numItems: number, directionId?: Id<"items">) =>
+    pages((cursor) => s.asA.query(api.roles.list, { ...(directionId ? { directionId } : {}), filters, sort: "posted", paginationOpts: { cursor, numItems } })).then((r) => r.map((x) => x.title));
+  const sorted = await titles({}, 1, s.direction);
+  expect(sorted.slice(0, 4)).toEqual(["newest", "newer-onsite", "middle", "old-best"]);
+  expect(new Set(sorted.slice(4))).toEqual(new Set(["undated-best", "undated"]));
+  expect(await titles({}, 2, s.direction)).toEqual(sorted);
+  expect((await titles({}, 1)).slice(0, 4)).toEqual(sorted.slice(0, 4));
+  expect(await titles({ setups: { value: ["remote"], unknown: false } }, 1, s.direction)).toEqual(sorted.filter((t) => t !== "newer-onsite"));
+  expect(await s.asA.query(api.roles.count, { directionId: s.direction, filters: {} })).toEqual({ count: 6, more: false });
+  expect((await view(s, s.direction)).ranked.map((r) => r.title)).toEqual(["undated-best", "old-best", "newer-onsite", "middle", "newest", "undated"]);
+});
+
 test("every filter keeps the roles that pass it, and the roles that don't say only when asked; the board's details win over what the AI read", async () => {
   const s = await setup();
   const DAY = 86400000;
@@ -642,6 +670,24 @@ test("every filter keeps the roles that pass it, and the roles that don't say on
   const role = await s.asA.query(api.roles.get, { id: pass });
   expect(role.details.pay).toEqual({ value: { min: 160000, currency: "USD", period: "year" }, source: "board" });
   expect((await s.asA.query(api.roles.get, { id: fail })).details.pay).toEqual({ value: { min: 40, max: 55, currency: "USD", period: "hour" }, source: "ai" });
+});
+
+// The filter a page is read with, written down: Convex checks a page's cursor against it, so it must not move while the
+// list is open (InvalidCursor made the list start over, again and again).
+const filterOf = (f: RoleFilters, now: number) => {
+  const q = new Proxy({}, { get: (_, op: string) => (op === "field" ? (field: string) => ({ field }) : (...args: unknown[]) => ({ op, args })) }) as Parameters<typeof matches>[0];
+  return JSON.stringify(matches(q, f, now));
+};
+
+test("posted within days asks the same of the database all day, so the list's pages stay its own; 7 days is today and the six days before it, in UTC", () => {
+  const week: RoleFilters = { postedWithinDays: { value: 7, unknown: false } };
+  const morning = Date.parse("2026-10-13T00:00:00Z");
+  for (const later of ["2026-10-13T00:00:00.001Z", "2026-10-13T09:19:00Z", "2026-10-13T23:59:59.999Z"]) expect(filterOf(week, Date.parse(later))).toBe(filterOf(week, morning));
+  expect(filterOf(week, Date.parse("2026-10-14T00:00:00Z"))).not.toBe(filterOf(week, morning));
+  const now = Date.parse("2026-10-13T21:19:00Z");
+  expect(postedSince(now, 7)).toBe(Date.parse("2026-10-07T00:00:00Z"));
+  expect(postedSince(now, 1)).toBe(Date.parse("2026-10-13T00:00:00Z"));
+  expect(filterOf(week, now)).toContain(String(Date.parse("2026-10-07T00:00:00Z")));
 });
 
 test("an eligibility limit applies to roles already judged: firm sets apart those it rules out, a preference ranks them last, a role that doesn't say is kept, and the filters start from it", async () => {

@@ -5,10 +5,13 @@ import { type ActionCtx, internalMutation, internalQuery, type MutationCtx, quer
 import { action, mutation } from "./functions";
 import { openrouterHeaders } from "./openrouterApp";
 import { AI_TASKS, type AiTask, aiTask, DECISION_TASKS, type ModelChoice, type Reasoning, reasoningLevel } from "./aiTasks";
+import { allowanceOf, NOT_ON_PLATFORM } from "./plan";
 import { requireWorkspace } from "./workspaces";
 
 // Which model a task uses: its own choice if it has one, else the workspace's default. Decision tasks never use the
-// default (it's a chat model, which can't answer them), so they need their own.
+// default (it's a chat model, which can't answer them), so they need their own. On careerbot.dev (plan.ts) a workspace
+// that hasn't chosen a default has the first recommended model, so CareerBot's AI works from the first sign-in and
+// still does once they add a key of their own; on CareerBot's key only the recommended models can be chosen.
 
 const ownRow = (ctx: QueryCtx, workspaceId: Id<"workspaces">, task: AiTask) =>
   ctx.db.query("aiSettings").withIndex("by_workspace_task", (q) => q.eq("workspaceId", workspaceId).eq("task", task)).unique();
@@ -17,10 +20,18 @@ const defaultRow = (ctx: QueryCtx, workspaceId: Id<"workspaces">) => ctx.db.quer
 
 const choiceOf = (row: { model: string; reasoning?: Reasoning } | null): ModelChoice | null => (row ? { model: row.model, reasoning: row.reasoning } : null);
 
+async function defaultOf(ctx: QueryCtx, workspaceId: Id<"workspaces">): Promise<ModelChoice | null> {
+  return choiceOf(await defaultRow(ctx, workspaceId)) ?? ((await allowanceOf(ctx, workspaceId)) ? { model: RECOMMENDED[0].id } : null);
+}
+
+async function checkPlatformModel(ctx: QueryCtx, workspaceId: Id<"workspaces">, model: string) {
+  if ((await allowanceOf(ctx, workspaceId))?.source === "platform" && !RECOMMENDED.some((m) => m.id === model)) throw new Error(NOT_ON_PLATFORM);
+}
+
 export const choiceFor = internalQuery({
   args: { workspaceId: v.id("workspaces"), task: aiTask },
   handler: async (ctx, { workspaceId, task }): Promise<ModelChoice | null> =>
-    choiceOf(await ownRow(ctx, workspaceId, task)) ?? (DECISION_TASKS[task] ? null : choiceOf(await defaultRow(ctx, workspaceId))),
+    choiceOf(await ownRow(ctx, workspaceId, task)) ?? (DECISION_TASKS[task] ? null : defaultOf(ctx, workspaceId)),
 });
 
 // The model and effort a task uses. Fails only when the task has no choice and the workspace has no default yet.
@@ -36,7 +47,7 @@ export const list = query({
   args: {},
   handler: async (ctx) => {
     const { workspaceId } = await requireWorkspace(ctx);
-    const fallback = choiceOf(await defaultRow(ctx, workspaceId));
+    const fallback = await defaultOf(ctx, workspaceId);
     return Promise.all(
       (Object.keys(AI_TASKS) as AiTask[]).map(async (task) => {
         const own = choiceOf(await ownRow(ctx, workspaceId, task));
@@ -51,12 +62,13 @@ export const defaultChoice = query({
   args: {},
   handler: async (ctx): Promise<ModelChoice | null> => {
     const { workspaceId } = await requireWorkspace(ctx);
-    return choiceOf(await defaultRow(ctx, workspaceId));
+    return defaultOf(ctx, workspaceId);
   },
 });
 
 export async function saveDefault(ctx: MutationCtx, workspaceId: Id<"workspaces">, model: string, reasoning?: Reasoning) {
   if (!model.trim()) throw new Error("Choose a model.");
+  await checkPlatformModel(ctx, workspaceId, model.trim());
   const fields = { model: model.trim(), reasoning };
   const row = await defaultRow(ctx, workspaceId);
   if (row) await ctx.db.patch(row._id, fields);
@@ -74,6 +86,7 @@ export const setDefault = mutation({
 
 export async function saveTask(ctx: MutationCtx, workspaceId: Id<"workspaces">, task: AiTask, model: string, reasoning?: Reasoning) {
   if (!model.trim()) throw new Error("Choose a model.");
+  await checkPlatformModel(ctx, workspaceId, model.trim());
   const fields = { model: model.trim(), reasoning };
   const row = await ownRow(ctx, workspaceId, task);
   if (row) await ctx.db.patch(row._id, fields);
@@ -149,10 +162,14 @@ async function fetchCatalog(): Promise<CatalogModel[]> {
   }));
 }
 
-// Every model OpenRouter offers right now, so choices never depend on what existed when the code was written.
+// Every model OpenRouter offers right now, so choices never depend on what existed when the code was written. For
+// someone signed in (Settings, Getting started), so nobody else can have CareerBot fetch it.
 export const catalog = action({
   args: {},
-  handler: fetchCatalog,
+  handler: async (ctx): Promise<CatalogModel[]> => {
+    await ctx.runQuery(internal.workspaces.callerWorkspace, {});
+    return fetchCatalog();
+  },
 });
 
 // A short list to pick the default from, for people who don't want to browse the whole catalog. Ids are OpenRouter's;

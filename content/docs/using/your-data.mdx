@@ -1,6 +1,6 @@
 ---
 title: Your data
-description: Export everything in your workspace as one ZIP, to keep or to bring into another copy of CareerBot, and import such a ZIP into an empty workspace. What the file holds, what it leaves out, and its limits.
+description: Export everything in your workspace as one ZIP, to keep or to bring into another copy of CareerBot, import such a ZIP into an empty workspace, and delete your account. What the file holds, what it leaves out, its limits, and what deleting takes.
 sources:
   - src/app/settings/YourData.tsx
   - convex/yourData.ts
@@ -9,6 +9,7 @@ sources:
   - convex/exportRules.ts
   - convex/readableExport.ts
   - convex/workspaceCopy.ts
+  - convex/accountDelete.ts
 ---
 
 Your workspace is yours to take with you. **Settings**, **Your data** makes one ZIP of everything in it, to keep, to
@@ -117,6 +118,34 @@ anything in twice.
   export."
 - Only into an empty workspace. To bring two workspaces together, there's no merge: import into a fresh account.
 - The demo can't export or import, like any change there.
+
+## Deleting your account
+
+**Delete account**, at the foot of **Your data**, deletes your account and everything in your workspace, for good.
+Export first if you want a copy: nothing can bring it back.
+
+1. Choose **Delete my account**. It asks you to type your account's name, the email you sign in with (on a copy you
+   run yourself, your username), so it's never done by a slip.
+2. **Delete my account** in that dialog starts it. It runs in the background; **Your data** and the activity list show
+   **Deleting your account** with how many items have gone, and you can leave the page.
+3. First Google Drive and GitHub are disconnected: Google revokes CareerBot's access to your Drive (the Docs it made stay
+   in your Drive, yours to keep or delete), and CareerBot's GitHub App is uninstalled from your account, unless another
+   workspace on the same copy uses that installation.
+4. Then everything in the workspace is deleted, a part at a time: stories and their versions, your record and goals,
+   companies and roles, pursuits with their people, messages, letters, follow-ups and answers, resumes, notes,
+   settings, spending history, work in progress, keys, exports and imports, and the files stored with them.
+5. Last, your sign-in, every session, the workspace, a waitlist entry with your email, and the account itself. Every
+   device you're signed in on signs out, saying your account is deleted.
+
+If it stops partway (the server restarted, say), **Continue** on **Your data** picks it up where it stopped. Running it
+again never deletes anyone else's data: only rows that belong to your workspace are touched.
+
+On a copy you run yourself, each person can delete their own account the same way. The owner can't delete their own
+while anyone else can sign in to the copy; they remove the others in **Account** first (**Remove** there deletes that
+person's account the same way). To take down a whole copy, see [Docker](/docs/self-hosting/docker).
+
+If you can't sign in to careerbot.dev, email [privacy@careerbot.dev](mailto:privacy@careerbot.dev) to have your account
+deleted. The demo can't be deleted, like any change there.
 
 ## A whole copy
 

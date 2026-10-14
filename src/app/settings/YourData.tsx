@@ -3,13 +3,15 @@
 import { useAuthToken } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
+import { ConvexError } from "convex/values";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import { CHUNK_BYTES, MAX_IMPORT_BYTES, STALLED_MS, TOO_LARGE } from "../../../convex/exportRules";
 import { Button, type ButtonSize } from "@/components/Button";
 import { ExternalLink } from "@/components/ExternalLink";
-import { ErrorLine } from "@/components/Field";
+import { Dialog } from "@/components/Dialog";
+import { ErrorLine, Field, Input } from "@/components/Field";
 import { FileDrop } from "@/components/FileDrop";
 import { Icons } from "@/components/icons";
 import type { ScreenSize } from "@/components/Panes";
@@ -20,12 +22,14 @@ import { Rows, SettingRow, SettingsPane } from "./ui";
 
 // Settings, Your data (the Your data boards in Paper): Export makes one ZIP of everything in this workspace, to keep or
 // to bring into another copy; Import brings such a ZIP into an empty workspace, checked first and shown as a preview
-// (convex/yourData.ts). Both run in the background with their progress here; an import that stopped partway can be
-// continued. On a phone the pane's actions sit in the bottom bar.
+// (convex/yourData.ts); Delete account deletes the account and everything in it (convex/accountDelete.ts). Each runs
+// in the background with its progress here; an import or deletion that stopped partway can be continued. On a phone
+// the pane's actions sit in the bottom bar.
 
 export const DOCS = "/docs/using/your-data";
 type Status = FunctionReturnType<typeof api.yourData.status>;
 type ImportState = NonNullable<Status["import"]>;
+type AccountStatus = NonNullable<FunctionReturnType<typeof api.accountDelete.status>>;
 
 // "4.2 MB", "212 KB".
 const megabytes = (bytes: number) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
@@ -120,11 +124,12 @@ async function upload(url: string, token: string | null, file: File, onProgress:
 
 export function YourData({ size }: { size: ScreenSize }) {
   const status = useQuery(api.yourData.status);
+  const account = useQuery(api.accountDelete.status);
   if (!status) return null;
-  return <YourDataView status={status} size={size} />;
+  return <YourDataView status={status} account={account ?? null} size={size} />;
 }
 
-function YourDataView({ status, size }: { status: Status; size: ScreenSize }) {
+function YourDataView({ status, account, size }: { status: Status; account: AccountStatus | null; size: ScreenSize }) {
   const small = size === "small";
   const router = useRouter();
   const startExport = useMutation(api.yourData.startExport);
@@ -229,8 +234,10 @@ function YourDataView({ status, size }: { status: Status; size: ScreenSize }) {
     continueButton
   ) : null);
 
+  // While the account is being deleted, only its progress shows.
+  const deleting = !!account?.deletion && account.deletion.step !== "done";
   useBar(
-    small
+    small && !deleting
       ? preview
         ? { kind: "actions", actions: (<>{anotherButton}{importButton}</>) }
         : importStopped
@@ -249,6 +256,15 @@ function YourDataView({ status, size }: { status: Status; size: ScreenSize }) {
   const checking = im?.status === "checking" && !importStalled;
   const refusal = tooLarge ? TOO_LARGE : im?.status === "refused" ? im.error ?? undefined : undefined;
 
+  if (deleting && account) {
+    return (
+      <SettingsPane title="Your data" size={size}>
+        <Rows>
+          <DeleteAccount account={account} size={size} />
+        </Rows>
+      </SettingsPane>
+    );
+  }
   return (
     <SettingsPane title="Your data" size={size}>
       <Rows>
@@ -343,7 +359,125 @@ function YourDataView({ status, size }: { status: Status; size: ScreenSize }) {
             </div>
           )}
         </SettingRow>
+        {account && <DeleteAccount account={account} size={size} />}
       </Rows>
     </SettingsPane>
+  );
+}
+
+// ---- Delete account ----
+
+// Delete my account (the Delete account boards): asks for the account's name, then deletes the account and everything
+// in this workspace in the background (convex/accountDelete.ts), its progress here and in the activity list until the
+// shell signs this device out (Shell, useSignOutWhenDeleted). A self-hosted copy's owner can't while others use it.
+function DeleteAccount({ account, size }: { account: AccountStatus; size: ScreenSize }) {
+  const small = size === "small";
+  const start = useMutation(api.accountDelete.start);
+  const [asking, setAsking] = useState(false);
+  const deletion = account.deletion?.step === "done" ? null : account.deletion;
+  const stalled = useStalled(deletion, !!deletion);
+  const btn: ButtonSize = small ? "lg" : "sm";
+  const resume = () => void start({ confirm: account.name ?? "" }).catch((e: unknown) => failed(e, "Couldn’t continue deleting your account."));
+  const control = deletion ? (
+    stalled && (
+      <Button variant="secondary" size={btn} detail="Picks the deletion up where it stopped." note="Free · Can’t be undone" onClick={resume}>
+        Continue
+      </Button>
+    )
+  ) : (
+    <Button
+      variant="secondary"
+      size={btn}
+      reason={account.blocked ?? undefined}
+      detail="Asks you to type your account’s name, then deletes your account and everything in this workspace."
+      note="Free · Can’t be undone"
+      onClick={() => setAsking(true)}
+    >
+      Delete my account
+    </Button>
+  );
+  const step = deletion?.step === "revoking" ? "Disconnecting Google Drive and GitHub" : deletion?.step === "signingOut" ? "Signing out" : "Deleting";
+  return (
+    <SettingRow
+      title="Delete account"
+      line={deletion ? "Deleting your account. You’ll be signed out when it’s done." : (account.blocked ?? "Deletes your account and everything in this workspace, for good. Export first to keep a copy.")}
+      control={control || undefined}
+    >
+      {deletion && (
+        <div className="flex flex-col gap-2">
+          <Progress className="max-w-120" label={step} value={deletion.table} max={deletion.tables} status={stalled ? "stopped" : "running"} detail={`${count(deletion.deleted)} items deleted`} />
+          {stalled && <ErrorLine>The deletion stopped partway. Continue picks it up where it stopped.</ErrorLine>}
+        </div>
+      )}
+      {account.name && <DeleteDialog open={asking} onOpenChange={setAsking} name={account.name} />}
+    </SettingRow>
+  );
+}
+
+// Asks before deleting: what goes, that it can't be undone, and the account's name typed to confirm.
+function DeleteDialog({ open, onOpenChange, name }: { open: boolean; onOpenChange: (open: boolean) => void; name: string }) {
+  const start = useMutation(api.accountDelete.start);
+  const [typed, setTyped] = useState("");
+  const [error, setError] = useState<string>();
+  const [sending, setSending] = useState(false);
+  const matches = typed.trim().toLowerCase() === name.trim().toLowerCase();
+  const close = (isOpen: boolean) => {
+    onOpenChange(isOpen);
+    if (!isOpen) {
+      setTyped("");
+      setError(undefined);
+    }
+  };
+  const submit = async (e?: FormEvent) => {
+    e?.preventDefault();
+    if (!matches) return setError(`Type ${name} to confirm.`);
+    setSending(true);
+    try {
+      await start({ confirm: typed });
+      close(false);
+    } catch (err) {
+      setError(err instanceof ConvexError ? String(err.data) : "Couldn’t start deleting your account. Try again.");
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={close}
+      title="Delete your account?"
+      footer={
+        <>
+          <Button onClick={() => close(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={!matches}
+            loading={sending}
+            loadingLabel="Deleting"
+            detail="Deletes your account and everything in this workspace, and signs you out."
+            note="Free · Can’t be undone"
+            onClick={() => void submit()}
+          >
+            Delete my account
+          </Button>
+        </>
+      }
+    >
+      <form noValidate onSubmit={submit} className="flex flex-col gap-3.5">
+        <div className="flex flex-col gap-2 text-body-sm leading-body-sm text-muted">
+          <p>
+            Deletes your account and everything in this workspace: stories, record, resumes, pursuits, notes, settings, keys and stored files. Google Drive and GitHub are
+            disconnected; Docs already in your Drive stay there.
+          </p>
+          <p>It can’t be undone. To keep a copy, export first.</p>
+        </div>
+        <Field label={`Type ${name} to confirm`} error={error}>
+          {(p) => <Input {...p} autoComplete="off" autoCapitalize="none" spellCheck={false} value={typed} onChange={(e) => setTyped(e.target.value)} />}
+        </Field>
+        <button type="submit" hidden />
+      </form>
+    </Dialog>
   );
 }

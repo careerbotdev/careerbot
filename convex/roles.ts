@@ -8,8 +8,10 @@ import { modelFor } from "./aiSettings";
 import { BOARD_PROVIDERS } from "./boardProviders";
 import { Boilerplate } from "./boilerplate";
 import { aiRunning, BUDGET_REACHED, type BudgetReached, HELD_BY_RUNNING } from "./budgets";
+import { HELD_BY_PLATFORM } from "./plan";
 import { learns } from "./discovery";
-import { apolloJobsFor, type Board, inWorkArea, interleave, jobCountries, type Read, readBoard, readDescription, setSearchTitles, workAreaOf } from "./enrich";
+import { type Board, interleave, type Read, readBoard, readDescription, setSearchTitles } from "./boards";
+import { apolloJobsFor, inWorkArea, jobCountries, workAreaOf } from "./enrich";
 import { activeLimits, itemsOf } from "./itemShapes";
 import { CLEARANCES, eligibilityProblems, firmProblems, LEVELS, limitsFor, type Problem, problemText, ROLE_CHECKED } from "./limitBuckets";
 import { chatJson, OpenRouterError, spendingFor, withBackoff } from "./metering";
@@ -1099,7 +1101,8 @@ export const work = internalAction({
       ids.length ? ctx.runMutation(internal.roles.release, { workspaceId: ws, since, worker, ids, ...why }) : null;
     const refusedBy = async (ids: Id<"postings">[], e: unknown) => {
       const { message } = (e as ConvexError<BudgetReached>).data;
-      if (message !== HELD_BY_RUNNING) return release(ids, { budget: message });
+      // Waiting on calls running now, the workspace's or (on CareerBot's key) any workspace's: they'll settle soon.
+      if (message !== HELD_BY_RUNNING && message !== HELD_BY_PLATFORM) return release(ids, { budget: message });
       await release(ids);
       await sleep(heldWait * (0.5 + Math.random()));
       heldWait = Math.min(2 * heldWait, HELD_WAIT_MS);
@@ -1312,8 +1315,14 @@ export type RoleFilters = Infer<typeof filters>;
 type RankTable = NamedTableInfo<DataModel, "roleRanks">;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Posted within `days`: on or after the start of the day (UTC) `days - 1` before now's, so 7 days is today and the six
+// before it. Rounded to the day because the filter is part of the query a page's cursor belongs to: a cutoff that moved
+// with the clock made every next page, and every re-run of a loaded one, a different query, which Convex turns away
+// (InvalidCursor) and the list started over, again and again.
+export const postedSince = (now: number, days: number) => Math.floor(now / DAY_MS) * DAY_MS - (days - 1) * DAY_MS;
+
 // The filters the database checks as it reads a page (all but places).
-function matches(q: FilterBuilder<RankTable>, f: RoleFilters, now: number): ExpressionOrValue<boolean> {
+export function matches(q: FilterBuilder<RankTable>, f: RoleFilters, now: number): ExpressionOrValue<boolean> {
   const all: ExpressionOrValue<boolean>[] = [];
   const known = (field: keyof Row, unknown: boolean, cond: ExpressionOrValue<boolean>) =>
     all.push(unknown ? q.or(q.eq(q.field(field), undefined), cond) : q.and(q.neq(q.field(field), undefined), cond));
@@ -1321,7 +1330,7 @@ function matches(q: FilterBuilder<RankTable>, f: RoleFilters, now: number): Expr
   if (f.minScore) known("score", f.minScore.unknown, q.gte(q.field("score"), f.minScore.value));
   if (f.minPay) known("payMin", f.minPay.unknown, q.gte(q.field("payMin"), f.minPay.value));
   if (f.setups?.value.length) known("setup", f.setups.unknown, anyOf("setup", f.setups.value));
-  if (f.postedWithinDays) known("postedAt", f.postedWithinDays.unknown, q.gte(q.field("postedAt"), now - f.postedWithinDays.value * DAY_MS));
+  if (f.postedWithinDays) known("postedAt", f.postedWithinDays.unknown, q.gte(q.field("postedAt"), postedSince(now, f.postedWithinDays.value)));
   if (f.seniority?.value.length) known("seniority", f.seniority.unknown, anyOf("seniority", f.seniority.value));
   if (f.maxYears) known("yearsAsked", f.maxYears.unknown, q.lte(q.field("yearsAsked"), f.maxYears.value));
   if (f.employmentTypes?.value.length) known("employmentType", f.employmentTypes.unknown, anyOf("employmentType", f.employmentTypes.value));
@@ -1372,19 +1381,21 @@ export async function rolesOf(ctx: QueryCtx, workspaceId: Id<"workspaces">, rows
 // direction) that pass the filters and aren't against a firm limit, best score first (those against a preference
 // after the rest), then newest. Read through roleRanks, so a page reads only its own roles however many there are;
 // filtering by place reads more rows a page, and keeps the matches among them.
+// sort "posted": newest posted first instead, across every role that passes the filters; roles with no posted date
+// last (an unset postedAt sorts below every date, so reading by_posted backwards puts them at the end, and the query,
+// and so its cursor, stays the same).
 export const list = query({
-  args: { directionId: v.optional(v.id("items")), filters, paginationOpts: paginationOptsValidator },
-  handler: async (ctx, { directionId, filters: f, paginationOpts }) => {
+  args: { directionId: v.optional(v.id("items")), filters, sort: v.optional(v.literal("posted")), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { directionId, filters: f, sort, paginationOpts }) => {
     const { workspaceId } = await requireWorkspace(ctx);
     const { names } = await scopeOf(ctx, workspaceId, directionId);
     const now = await clockOf(ctx, workspaceId);
     const opts = f.locations?.value.length ? { ...paginationOpts, numItems: Math.max(paginationOpts.numItems, PLACE_SCAN) } : paginationOpts;
-    const page = await ctx.db
-      .query("roleRanks")
-      .withIndex("by_score", (q) => q.eq("workspaceId", workspaceId).eq("directionId", directionId).eq("state", "judged"))
-      .order("desc")
-      .filter((q) => matches(q, f, now))
-      .paginate(opts);
+    const ranks = ctx.db.query("roleRanks");
+    const judged = sort === "posted"
+      ? ranks.withIndex("by_posted", (q) => q.eq("workspaceId", workspaceId).eq("directionId", directionId).eq("state", "judged"))
+      : ranks.withIndex("by_score", (q) => q.eq("workspaceId", workspaceId).eq("directionId", directionId).eq("state", "judged"));
+    const page = await judged.order("desc").filter((q) => matches(q, f, now)).paginate(opts);
     return { ...page, page: await rolesOf(ctx, workspaceId, page.page.filter((r) => inPlaces(r, f)), names) };
   },
 });

@@ -37,7 +37,7 @@ const spread = (totalN: number, n: number) => {
 const none = { aiCalls: 0, aiKnownUsd: 0, apolloCalls: 0, apolloCreditsAtMost: 0 };
 const NOT_SETTLED = { aiCalls: 2, aiKnownUsd: 0.04, apolloCalls: 0, apolloCreditsAtMost: 0 };
 const UNRESOLVED = { aiCalls: 0, aiKnownUsd: 0, apolloCalls: 1, apolloCreditsAtMost: 1 };
-const BUDGET = { aiMonthlyUsd: 25, aiSpentUsd: 9.14, apolloMonthlyCredits: 200, apolloSpentCredits: 64, apolloMode: "on" as const };
+const BUDGET = { aiMonthlyUsd: 25, aiOwnUsd: 25, aiSpentUsd: 9.14, apolloMonthlyCredits: 200, apolloSpentCredits: 64, apolloMode: "on" as const, plan: null };
 
 // By month: AI dollars, Apollo credits, calls.
 const BY_MONTH: [number, number, number][] = [

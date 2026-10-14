@@ -2,8 +2,8 @@
 
 import { useAction, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import { Button, buttonLook } from "@/components/Button";
 import { Icons } from "@/components/icons";
@@ -14,13 +14,15 @@ import { DRIVE_EXPLAINER } from "../resumes/Drive";
 import { useConfirm } from "../shell/ShellContext";
 import { pickFolder } from "./drivePicker";
 import { DRIVE_TOUR } from "../tours/drive";
+import { useConnectionReturn } from "../shell/useConnectionReturn";
 import { useTour } from "../shell/useTour";
 import { monthDay, Rows, saved, SettingRow, SettingsPane } from "./ui";
 
 // Google Drive: connect (Google's own consent screen, for the files CareerBot makes and nothing else), then the
 // account, the CareerBot folder (open it; choose where it lives with Google's Picker once the Picker key is set up)
 // and how syncing went (Sync now, or Try again after a failure). Disconnect asks first; the files stay in Drive.
-// Coming back from Google (?drive=connected|failed|denied) says how it went, once (here, or on Getting started's step).
+// Coming back from Google (?drive=connected|failed|denied) finishes connecting and says how it went, once (here, or on
+// Getting started's step).
 
 export const DRIVE_RETURNED: Record<string, Toast> = {
   connected: { message: "Google Drive is connected. Your resumes are on their way to your CareerBot folder.", icon: "done" },
@@ -39,20 +41,12 @@ export function Drive({ size }: { size: ScreenSize }) {
   const unsetFolder = useMutation(api.drive.unsetFolder);
   const ask = useConfirm();
   const [choosing, setChoosing] = useState(false);
-  const params = useSearchParams();
   const router = useRouter();
   const small = size === "small";
   const btn = small ? "lg" : "sm";
   useTour(DRIVE_TOUR, status !== undefined);
 
-  const outcome = params.get("drive");
-  const said = useRef(false);
-  useEffect(() => {
-    if (said.current || !outcome || !DRIVE_RETURNED[outcome]) return;
-    said.current = true;
-    toast(DRIVE_RETURNED[outcome]);
-    router.replace("/settings?section=drive", { scroll: false });
-  }, [outcome, router]);
+  useConnectionReturn("drive", DRIVE_RETURNED, () => router.replace("/settings?section=drive", { scroll: false }));
 
   const start = () => void connect({}).then((url) => window.location.assign(url), (e: unknown) => fail(e, "Couldn’t start connecting. Try again."));
   const connectButton = (again: boolean) => (

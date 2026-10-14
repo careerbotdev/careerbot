@@ -16,6 +16,7 @@ import { monthDay, SettingsPane } from "./ui";
 
 // The workspace's keys: each masked to its last four with when it was added, Replace (a field that checks the new key
 // before it takes the old one's place) and Remove (asks first). Apollo also shows what's left on the plan this cycle.
+// On careerbot.dev an OpenRouter key is optional: without one, CareerBot's AI runs within the allowance (Allowance).
 // The demo carries no keys and calls out to nothing, which is all it says there.
 
 type Status = { set: false } | { set: true; last4: string; setAt?: number };
@@ -40,23 +41,29 @@ function OwnKeys({ size }: { size: ScreenSize }) {
   useEffect(() => {
     if (apolloSetAt !== null) void readBalance({}).then(setBalance, () => setBalance(null));
   }, [apolloSetAt, readBalance]);
+  const plan = useQuery(api.budgets.status)?.plan;
+  const allowance = plan ? `up to $${plan.allowanceUsd.toLocaleString("en-US")} a month` : null;
 
   return (
     <SettingsPane title="Keys" size={size}>
       <div className="flex flex-col border-b">
         <KeyRow
           name="OpenRouter"
-          line="Pays for every AI task, from your own OpenRouter account. Set a monthly limit on the key at OpenRouter too, as a second cap on AI spending."
+          line={
+            allowance
+              ? `Optional. Without one, CareerBot’s AI is included, ${allowance}; with one, AI is paid from your own OpenRouter account, within your own budget.`
+              : "Pays for every AI task, from your own OpenRouter account. Set a monthly limit on the key at OpenRouter too, as a second cap on AI spending."
+          }
           status={useQuery(api.openrouterKey.status)}
           save={api.openrouterKey.save}
           remove={api.openrouterKey.remove}
-          removing="AI work stops until you add a key again."
+          removing={allowance ? `CareerBot’s AI takes over again, ${allowance}.` : "AI work stops until you add a key again."}
           placeholder="sk-or-…"
           size={size}
         />
         <KeyRow
           name="Apollo"
-          line="Finds companies, their details and job postings. Needs a master key, or one with company search, organization enrichment and credit usage."
+          line="Optional. Finds companies, their details and job postings. Needs a master key, or one with company search, organization enrichment and credit usage. CareerBot uses your own Apollo account and key, only for your own search. You're responsible for making sure your use follows Apollo's terms."
           status={apollo}
           save={api.apolloKey.save}
           remove={api.apolloKey.remove}

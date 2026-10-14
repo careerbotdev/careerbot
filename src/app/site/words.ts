@@ -17,6 +17,8 @@ export const CAREERBOT_URL = "https://careerbot.dev";
 export const DEMO_URL = process.env.DEMO_URL ? new URL("/demo", process.env.DEMO_URL).href : undefined;
 // The public source, on GitHub (AGPL-3.0).
 export const SOURCE_URL = "https://github.com/careerbotdev/careerbot";
+// Where people on careerbot.dev write for help, or to ask for more AI allowance in the beta (Settings, Budgets).
+export const SUPPORT_EMAIL = "team@careerbot.dev";
 
 // The headline. The owner picked it (2026-09-30); its last words are marked in amber. The others are kept for a later
 // wording test.
@@ -455,6 +457,29 @@ export const SIGN_IN = {
     body: "Join the waitlist and we’ll email you when the hosted version opens.",
     other: "Try another account",
   },
+};
+
+// An invite's page (/invite/<token>; InviteScreen): what the beta is, then the ways to sign in. included: what comes
+// with it, the AI each month first. Its other states: expired, withdrawn, used, or no invite at that link; and a
+// refused sign-in: the account they came back with isn't the invited one, or it's suspended.
+export const INVITE = {
+  heading: "You’re invited",
+  body: (email: string) => `CareerBot’s hosted version is invite-only while we test it. Sign in with the Google or GitHub account for ${email}.`,
+  // Without CareerBot's AI set up here, the AI runs on their own OpenRouter key and OpenRouter bills them for it.
+  included: (allowance: string | null) =>
+    allowance
+      ? [`AI included, up to ${allowance} a month`, "No card and no charge", "Your record, stories and resumes stay yours"]
+      : ["The AI runs on your own OpenRouter key, and OpenRouter bills you for it", "No charge from CareerBot", "Your record, stories and resumes stay yours"],
+  expired: { heading: "This invite has expired", body: "Invites last 14 days. Ask the person who invited you for a new link. Already signed up? Sign in with the account you used." },
+  revoked: { heading: "This invite was withdrawn", body: "Ask the person who invited you if you think that’s a mistake. Already signed up? Sign in with the account you used." },
+  accepted: { heading: "This invite has been used", body: "Sign in with the account you signed up with." },
+  unknown: { heading: "This invite link doesn’t work", body: "It may have been replaced by a newer link. Ask the person who invited you for the latest one." },
+  wrongAccount: (invited: string, used: string | null) => ({
+    heading: "That isn’t the invited account",
+    body: `This invite is for ${invited}${used ? `, and you signed in as ${used}` : ""}. Sign in with the Google or GitHub account for ${invited}.`,
+  }),
+  suspended: { heading: "This account is suspended", body: `Write to ${SUPPORT_EMAIL} if you think that’s a mistake.` },
+  other: "Try another account",
 };
 
 // The demo (DEMO_URL; src/app/demo): its entry page, where Open the demo signs the visitor in as the made-up person at

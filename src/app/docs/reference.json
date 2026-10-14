@@ -1007,6 +1007,12 @@
     },
     {
       "screen": "today",
+      "label": "Skip",
+      "detail": "Leaves Apollo out of Getting started. Add a key any time in Settings, Keys, to find companies and people.",
+      "note": "Free · Undo with U"
+    },
+    {
+      "screen": "today",
       "label": "Open",
       "detail": "Opens the pursuit, with what’s next.",
       "note": "Free"
@@ -1904,6 +1910,24 @@
       "label": "Continue",
       "detail": "Picks the import up where it stopped.",
       "note": "Free"
+    },
+    {
+      "screen": "settings",
+      "label": "Continue",
+      "detail": "Picks the deletion up where it stopped.",
+      "note": "Free · Can’t be undone"
+    },
+    {
+      "screen": "settings",
+      "label": "Delete my account",
+      "detail": "Asks you to type your account’s name, then deletes your account and everything in this workspace.",
+      "note": "Free · Can’t be undone"
+    },
+    {
+      "screen": "settings",
+      "label": "Delete my account",
+      "detail": "Deletes your account and everything in this workspace, and signs you out.",
+      "note": "Free · Can’t be undone"
     }
   ],
   "oldAddresses": [

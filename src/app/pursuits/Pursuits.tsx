@@ -35,7 +35,8 @@ import { aboutUsd } from "../costs";
 // Pursuits: roles and the pursuits of them, as a list and the one open beside it (?role=, with ?direction= the
 // direction it's shown for; ?pursuit= for a pursuit with no open role), a third pane beside that when the work needs
 // it, and, with none open, how the pursuits went by direction. The tab is ?status= (Pursuing when any are under way,
-// else All roles); ?company= starts All roles filtered to one company. J and K move through the list, Esc closes what's
+// else All roles); ?company= starts All roles filtered to one company; ?sort=posted lists All roles and Interested newest
+// posted first (Sort by, on the list's menu; a chip in the filter bar clears it). J and K move through the list, Esc closes what's
 // open. On a phone the list comes first and an item opens full screen with a way back.
 
 const PAGE = 25;
@@ -44,6 +45,15 @@ const VIEWS: Record<string, Tab> = { roles: "all", shortlist: "interested", purs
 const TABS: Tab[] = ["all", "interested", "pursuing", "closed"];
 const TAB_LABELS: Record<Tab, string> = { all: "All roles", interested: "Interested", pursuing: "Pursuing", closed: "Closed" };
 const REMINDER_WORDS: Record<ReminderRule, string> = { followUp: "Follow up when it goes quiet", prepare: "Prepare before an interview", stale: "Check on a stalled pursuit" };
+const SORT_WORDS = {
+  sortBy: { detail: "The order of All roles and Interested. Change it back any time.", note: "Free" },
+  best: { hint: "Highest score first", detail: "Highest fit score first; roles against a preference after the rest; newest first within a score.", note: "Free" },
+  posted: {
+    hint: "Newest first",
+    detail: "The most recently posted roles first, across every role that passes your filters; roles that don’t say when they were posted go last. Changes only the order, nothing is ranked again; Best fit or the chip’s × puts it back.",
+    note: "Free",
+  },
+};
 const failed = (e: unknown, fallback: string) => toast({ message: e instanceof ConvexError ? String(e.data) : fallback, icon: "failed" });
 const busyElsewhere = (e: KeyboardEvent) =>
   !!(e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable='true'], [role=menu], [role=listbox], [role=dialog], [role=alertdialog], [role=list]"));
@@ -89,7 +99,8 @@ export function Pursuits() {
   const ready = !!overview?.directions.length && overview.ranked;
   const scope = picked ? { directionId: picked } : {};
   const listFilters = tab === "interested" ? { ...filters, rating: "interested" as const } : filters;
-  const roles = usePaginatedQuery(api.roles.list, isRoles && ready ? { ...scope, filters: listFilters } : "skip", { initialNumItems: PAGE });
+  const byPosted = params.get("sort") === "posted";
+  const roles = usePaginatedQuery(api.roles.list, isRoles && ready ? { ...scope, filters: listFilters, ...(byPosted ? { sort: "posted" as const } : {}) } : "skip", { initialNumItems: PAGE });
   const count = useQuery(api.roles.count, tab === "all" && ready ? { ...scope, filters } : "skip");
   const total = useQuery(api.roles.count, ready ? { ...scope, filters: {} } : "skip");
 
@@ -152,6 +163,7 @@ export function Pursuits() {
     return () => window.removeEventListener("keydown", onKey);
   }, [move, pane, sel, role, close, byDirection]);
 
+  const setSort = useCallback((posted: boolean) => router.replace(pursuitsHref(params, { sort: posted ? "posted" : null }), { scroll: false }), [router, params]);
   const setTab = useCallback((t: Tab) => {
     sel.done();
     router.replace(pursuitsHref(params, { status: t }), { scroll: false });
@@ -169,6 +181,20 @@ export function Pursuits() {
   const tour = useTour(PURSUITS_TOUR, !!data && !!overview);
   const menu: MenuEntry[] = [
     { label: "By direction", icon: "directions", detail: "Shows how your pursuits went for each direction, and where roles come from.", note: "Free", onSelect: showBy },
+    ...(isRoles
+      ? [
+          {
+            label: "Sort by",
+            icon: "sort" as const,
+            hint: byPosted ? "Newest posted" : "Best fit",
+            ...SORT_WORDS.sortBy,
+            items: [
+              { label: "Best fit", checked: !byPosted, ...SORT_WORDS.best, onSelect: () => setSort(false) },
+              { label: "Newest posted", checked: byPosted, ...SORT_WORDS.posted, onSelect: () => setSort(true) },
+            ],
+          },
+        ]
+      : []),
     ...(isRoles ? selectEntries(sel, groups.filter((g) => !g[0].pursuit).map((g) => g[0].id), "roles") : []),
     "separator",
     { label: "Rank again", icon: "tryAgain", hint: rankCost ?? undefined, ...rankWords, onSelect: rank, ...(busy ? { disabled: true, reason: "Ranking now" } : !overview?.directions.length ? { disabled: true, reason: "No directions yet" } : {}) },
@@ -272,6 +298,28 @@ export function Pursuits() {
           },
         ]
       : []),
+    ...(isRoles && byPosted
+      ? [
+          {
+            id: "sort",
+            label: "Sort",
+            value: "Newest posted",
+            onClear: () => setSort(false),
+            editor: (
+              <FilterOptions
+                label="Sort by"
+                multiple={false}
+                selected={["posted"]}
+                onChange={([v]) => setSort(v === "posted")}
+                options={[
+                  { value: "best", label: "Best fit" },
+                  { value: "posted", label: "Newest posted" },
+                ]}
+              />
+            ),
+          },
+        ]
+      : []),
     ...(isRoles && ready ? roleFilters({ form, setForm, start, overview, places, rating: tab === "all" }) : []),
   ];
   const onCheck = isRoles ? (id: string, on: boolean) => sel.check([id], on) : null;
@@ -299,7 +347,17 @@ export function Pursuits() {
       </Empty>
     );
   } else if (!groups.length && roles.status === "Exhausted") {
-    body = tab === "interested" ? <Empty title="No roles you’re interested in">Mark roles Interested to keep them here until you start them.</Empty> : <Empty title="No roles match">Change or clear the filters.</Empty>;
+    // Only Posted within set (beyond their limits): say so, rather than the general No roles match.
+    const { postedWithinDays: posted, ...others } = filters;
+    const onlyPosted = posted && JSON.stringify(others) === JSON.stringify(toFilters(start));
+    body =
+      tab === "interested" ? (
+        <Empty title="No roles you’re interested in">Mark roles Interested to keep them here until you start them.</Empty>
+      ) : onlyPosted ? (
+        <Empty title={`No roles posted in the last ${posted.value === 1 ? "day" : `${posted.value} days`}`}>Choose more days under Posted within, or clear it.</Empty>
+      ) : (
+        <Empty title="No roles match">Change or clear the filters.</Empty>
+      );
   } else {
     body = (
       <RoleRows
@@ -309,6 +367,7 @@ export function Pursuits() {
         checked={sel.checked}
         onCheck={onCheck}
         selecting={sel.on}
+        byPosted={byPosted}
         more={<More status={roles.status === "CanLoadMore" && groups.length < want ? "LoadingMore" : roles.status} onMore={() => setWant(want + PAGE)} />}
       >
         {tab === "all" && overview.against.count > 0 && <AgainstFold key={`against:${picked ?? ""}`} scope={scope} count={overview.against} selected={role} onOpen={open} />}

@@ -1,8 +1,9 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { query, type QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { itemsOf } from "./itemShapes";
+import { allowanceOf } from "./plan";
 import { resumeOf } from "./pursuits";
 import { PATH_LABELS, type Path, pathOf } from "./pursuitSteps";
 import { rolesOf } from "./roles";
@@ -125,11 +126,12 @@ async function firstPursuit(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
   return best?.first ?? null;
 }
 
-// Getting started: Setup (signed in; an OpenRouter key and an AI budget; a first story; a fact approved from it; a
-// direction or limit approved; a base resume; an Apollo key; a target company or ranked roles; Google Drive connected
-// or skipped), then the first pursuit. Each step done or not, worked out from what the workspace already holds,
-// with the line a done step shows; whether they put it away until later; and what reading a story has cost them per
-// word so far (null before their first), for the estimate beside Done, read it.
+// Getting started: Setup (signed in; an OpenRouter key and an AI budget, or on careerbot.dev CareerBot's AI within its
+// allowance (plan.ts); a first story; a fact approved from it; a direction or limit approved; a base resume; an Apollo
+// key; a target company or ranked roles; Google Drive connected or skipped), then the first pursuit. Each step done or
+// not, worked out from what the workspace already holds, with the line a done step shows; whether they put it away
+// until later; and what reading a story has cost them per word so far (null before their first), for the estimate
+// beside Done, read it.
 export const setup = query({
   args: {},
   handler: async (ctx) => {
@@ -140,6 +142,7 @@ export const setup = query({
     const key = await ctx.db.query("apiKeys").withIndex("by_workspace_service", (q) => q.eq("workspaceId", workspaceId).eq("service", "openrouter")).unique();
     const apollo = await ctx.db.query("apiKeys").withIndex("by_workspace_service", (q) => q.eq("workspaceId", workspaceId).eq("service", "apollo")).unique();
     const budget = await ctx.db.query("budgets").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
+    const plan = await allowanceOf(ctx, workspaceId);
     const drive = await ctx.db.query("driveConnections").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
     const stories = (await ctx.db.query("narratives").withIndex("by_workspace_kind", (q) => q.eq("workspaceId", workspaceId).eq("kind", "career")).collect()).filter((n) => n.rejectedAt === undefined);
     const facts = (await itemsOf(ctx, workspaceId, "fact", "approved")).length;
@@ -165,12 +168,16 @@ export const setup = query({
       words += n.body.split(/\s+/).filter(Boolean).length;
     }
     const credits = budget?.apolloMonthlyCredits ?? 0;
+    // careerbot.dev: AI on CareerBot's key within the monthly allowance, so there's no key to add (Getting started
+    // leaves that step out, and Apollo's is optional: Skip). Null on a self-hosted copy, or once they've added their own key.
+    const platformAi = plan?.source === "platform" ? { allowanceUsd: plan.allowanceUsd } : null;
 
     return {
       // Keys what this browser keeps for them (a story draft) to their workspace.
       workspaceId: workspaceId as string,
       hidden: workspace?.setupHidden ?? false,
       storyUsdPerWord: words > 0 ? usd / words : null,
+      platformAi,
       firstStory: stories[0] ? { id: stories[0]._id, title: stories[0].title } : null,
       // The optional steps they left out (Skip).
       skipped,
@@ -178,14 +185,18 @@ export const setup = query({
         // Always done here: they're signed in. The email they signed in with. (A self-hosted copy's owner account, made
         // with a username and password on first run, shows its username and "owner of this copy" instead once password
         // sign-in lands.)
-        signIn: step(true, user?.email ?? null),
-        key: step(!!key && (budget?.aiMonthlyUsd ?? 0) > 0, key ? `Key added${budget?.aiMonthlyUsd ? ` · $${budget.aiMonthlyUsd} a month` : ""}` : null),
+        // On careerbot.dev's own AI, with the AI it includes each month.
+        signIn: step(true, [user?.email, platformAi && `AI included up to $${platformAi.allowanceUsd} a month`].filter(Boolean).join(" · ") || null),
+        key:
+          plan?.source === "platform"
+            ? step(true, `CareerBot’s AI · $${Math.min(plan.allowanceUsd, budget?.aiMonthlyUsd ?? Infinity)} a month`)
+            : step(!!key && (budget?.aiMonthlyUsd ?? 0) > 0, key ? `Key added${budget?.aiMonthlyUsd ? ` · $${budget.aiMonthlyUsd} a month` : ""}` : null),
         story: step(stories.length > 0, stories.length ? stories.map((s) => s.title).join(", ") : null),
         // Done once anything from their story is approved; what's still waiting is Review's, not setup's.
         review: step(facts > 0, facts ? `${plural(facts, "fact", "facts")} approved` : null),
         goals: step(directions + limits > 0, directions + limits ? [directions && plural(directions, "direction", "directions"), limits && plural(limits, "limit", "limits")].filter(Boolean).join(" · ") : null),
         resume: step(!!base, base ? "Written" : null),
-        apollo: step(!!apollo, apollo ? `Key added${credits > 0 ? ` · ${credits.toLocaleString("en-US")} credits a month` : ""}` : null),
+        apollo: step(!!apollo || skipped.includes("apollo"), apollo ? `Key added${credits > 0 ? ` · ${credits.toLocaleString("en-US")} credits a month` : ""}` : skipped.includes("apollo") ? "Skipped" : null),
         companies: step(targets > 0 || !!ranked, targets ? `${targets} target ${targets === 1 ? "company" : "companies"}` : ranked ? "Roles ranked" : null),
         // Optional: connected, or left out with Skip.
         drive: step(!!drive || skipped.includes("drive"), drive ? `Connected · ${drive.account}` : skipped.includes("drive") ? "Skipped" : null),
@@ -204,11 +215,13 @@ export const hideSetup = mutation({
   },
 });
 
-// Leave Google Drive out of Getting started, or bring it back (Undo).
+// Leave Google Drive out of Getting started, or bring it back (Undo); Apollo too, on careerbot.dev's own AI, where
+// everything up to the first resume works without it.
 export const skipStep = mutation({
-  args: { step: v.literal("drive"), skipped: v.boolean() },
+  args: { step: v.union(v.literal("drive"), v.literal("apollo")), skipped: v.boolean() },
   handler: async (ctx, { step: name, skipped }) => {
     const { workspaceId } = await requireWorkspace(ctx);
+    if (name === "apollo" && (await allowanceOf(ctx, workspaceId))?.source !== "platform") throw new ConvexError("Apollo can’t be skipped here: it needs a key.");
     const workspace = await ctx.db.get(workspaceId);
     const rest = (workspace?.setupSkipped ?? []).filter((s) => s !== name);
     const next = skipped ? [...rest, name] : rest;

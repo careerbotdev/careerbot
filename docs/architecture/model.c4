@@ -8,7 +8,7 @@ model {
     description 'Writes narratives, reviews what CareerBot proposes, sets goals, models and budgets.'
   }
   operator = actor 'Operator' {
-    description 'Runs admin fixes from the Convex CLI. Never reachable from a client.'
+    description 'Runs admin fixes from the Convex CLI, never reachable from a client; on careerbot.dev an operator (granted from the CLI only) also has the Admin screen.'
   }
   openrouter = external 'OpenRouter' {
     description 'Routes every AI call to the model the workspace chose. Billed to the person’s own key.'
@@ -41,7 +41,7 @@ model {
         }
       }
       today = screen 'Today' {
-        description 'Signed out, / is the Website; the sign-in (Invite only: Continue with Google, Continue with GitHub, and Get notified to the website’s waitlist) is at /sign-in and at any other address, and comes back to it. An account that isn’t invited is told so, with the waitlist and its email filled in (joined from sign-in), or Try another account. Signed in, the date and how many things need them, in groups: Review (how many decisions, the first groups, to Review), Pursuits (each reminder due: follow up, prepare, reply to an offer, check in; Snooze until a day), New strong roles (strong fits ranked in the last week not yet rated: Interested, Not for me with a reason), Resumes (a new version to keep or discard, or lines changed since it was written: Rewrite), Working (running work). The line opens beside the list (the pursuit, the role or the resume update). Until it is put away (Hide until later, or Show Today once every step is done; Show getting started in the \u22ef menu brings it back), Getting started shows instead, each step ticking itself off from the workspace, opening beside the list (?step=) with what it unlocks and its Learn more page under /docs/start. Setup: sign in, the OpenRouter key, AI budget and model (in place), the first story (in place, with what to cover; Talk to say it instead of typing, with the browser\u2019s own speech recognition, or where it can\u2019t, a pointer to the device\u2019s dictation; Done, read it with its cost), review, goals, the base resume (the first resume, in one sitting), the Apollo key, credits and automated Apollo work (in place), companies, and Google Drive (optional: Connect Google Drive, coming back to the step, or Skip). Once Setup is done it folds to one row and Your first pursuit follows, on the pursuit furthest along: pick a role and Start (their strongest new roles), tailor the resume, Choose a path (Outreach and Apply as check boxes, both allowed), then the steps of the path or paths chosen: Outreach, find contacts (people found, Reveal email at its cost) and send the outreach message; Apply, the cover letter and answers and apply (open the posting, Mark Applied); then Follow up. A path not chosen stays as a row, Outreach or Apply before choosing and Outreach too or Apply too after, that adds it; either path finishes it. Each opens the pursuit at its tab.'
+        description 'Signed out, / is the Website; the sign-in (Invite only: Continue with Google, Continue with GitHub, and Get notified to the website’s waitlist) is at /sign-in and at any other address, and comes back to it. On careerbot.dev an invite link shows the invite there instead (Invite). An account that isn’t invited is told so, with the waitlist and its email filled in (joined from sign-in), or Try another account; a suspended one is told only that. Signed in, the date and how many things need them, in groups: Review (how many decisions, the first groups, to Review), Pursuits (each reminder due: follow up, prepare, reply to an offer, check in; Snooze until a day), New strong roles (strong fits ranked in the last week not yet rated: Interested, Not for me with a reason), Resumes (a new version to keep or discard, or lines changed since it was written: Rewrite), Working (running work). The line opens beside the list (the pursuit, the role or the resume update). Until it is put away (Hide until later, or Show Today once every step is done; Show getting started in the \u22ef menu brings it back), Getting started shows instead, each step ticking itself off from the workspace, opening beside the list (?step=) with what it unlocks and its Learn more page under /docs/start. Setup: sign in, the OpenRouter key, AI budget and model (in place; left out on careerbot.dev’s own AI, where sign in says the AI included each month and the Apollo key is optional), the first story (in place, with what to cover; Talk to say it instead of typing, with the browser\u2019s own speech recognition, or where it can\u2019t, a pointer to the device\u2019s dictation; Done, read it with its cost), review, goals, the base resume (the first resume, in one sitting), the Apollo key, credits and automated Apollo work (in place), companies, and Google Drive (optional: Connect Google Drive, coming back to the step, or Skip). Once Setup is done it folds to one row and Your first pursuit follows, on the pursuit furthest along: pick a role and Start (their strongest new roles), tailor the resume, Choose a path (Outreach and Apply as check boxes, both allowed), then the steps of the path or paths chosen: Outreach, find contacts (people found, Reveal email at its cost) and send the outreach message; Apply, the cover letter and answers and apply (open the posting, Mark Applied); then Follow up. A path not chosen stays as a row, Outreach or Apply before choosing and Outreach too or Apply too after, that adds it; either path finishes it. Each opens the pursuit at its tab.'
         metadata {
           path '/ (signed in), /sign-in'
         }
@@ -95,9 +95,9 @@ model {
         }
       }
       pursuitsScreen = screen 'Pursuits' {
-        description 'The main screen, an inbox of roles and pursuits: the list, the item beside it, and the tailored resume, Ask or a message as a third pane (a drawer on medium, a sheet on a phone). The address holds what is open (/pursuits?role=<posting>&direction=&status=, ?company= for one company\u2019s roles). With nothing open: By direction (started, contacted, applied, interviewed, offers, closed and why; what stands out; where roles come from, with Check again).'
+        description 'The main screen, an inbox of roles and pursuits: the list, the item beside it, and the tailored resume, Ask or a message as a third pane (a drawer on medium, a sheet on a phone). The address holds what is open (/pursuits?role=<posting>&direction=&status=, ?company= for one company\u2019s roles, ?sort=posted for All roles and Interested newest posted first: Sort by on the list\u2019s \u22ef, a Sort chip in the filter bar). With nothing open: By direction (started, contacted, applied, interviewed, offers, closed and why; what stands out; where roles come from, with Check again).'
         metadata {
-          path '/pursuits (?role=, ?status=; /roles, /roles/[id] and /pursuits/[id] redirect there)'
+          path '/pursuits (?role=, ?status=, ?sort=; /roles, /roles/[id] and /pursuits/[id] redirect there)'
         }
       }
       rolesScreen = screen 'Pursuits list' {
@@ -177,6 +177,21 @@ model {
         description 'The way into the demo at demo.careerbot.dev (a build with CAREERBOT_MODE=demo, whose only workspace is the demo): No sign-up, the heading Demo, who Renata Alvarez is (made up) and that nothing changed is saved, the one action Open the demo (signs in as the demo\u2019s shared person, no account, and lands on Today), and Want your own? Get notified when it opens (careerbot.dev\u2019s waitlist). Refused: The demo is busy. Try again in a minute. On the demo build it is what / and every other address show when signed out, the website pages are not there (the header has Docs and Open the demo), and nothing is indexed. On careerbot.dev, once the demo is live (DEMO_URL set in the build, Infisical dev and prod), /demo goes to demo.careerbot.dev/demo, Home has Open the demo under its form and Questions offers it; without DEMO_URL none of them appear. The demo runs on its own Convex deployment (careerbot project, reference demo) and its own Worker (careerbot-demo, wrangler env demo), deployed and seeded again by CI after each production release.'
         metadata {
           path '/demo (demo build: also / and every address when signed out)'
+        }
+      }
+      inviteScreen = screen 'Invite' {
+        description 'careerbot.dev only, signed out: an invite link. You’re invited, that the hosted version is invite-only while it’s tested and which Google or GitHub account to sign in with (the invited email), what comes with it (AI included up to the monthly allowance, no card and no charge, your record, stories and resumes stay yours), then Continue with Google and Continue with GitHub. An invite that expired (14 days), was withdrawn or was used, or a link that is no invite’s (replaced by a newer one), says so and still offers sign-in to people who already signed up. Signing in with another account than the invited one says so, with Try another account. Once signed in it goes on to Today and Getting started.'
+        metadata {
+          path '/invite/[token]'
+          files 'src/app/InviteSignIn.tsx, src/app/invite/[token]/page.tsx'
+        }
+      }
+      adminScreen = screen 'Admin' {
+        #operatorOnly
+        description 'careerbot.dev’s operators only (Admin in the account menu and \u2318K; anyone else is told it isn\u2019t theirs). Sections: People (Invite someone by email, which copies the link to send; everyone with an account or an invite: name and email, Active, Invited until a day, Expired, Withdrawn or Suspended, last active, AI spent this month against their allowance; for a person Set allowance, Suspend (asks first) and Restore; for an invite Copy invite link, Send a new link and Withdraw), Cost by step (this month\u2019s AI cost per person, and per step, how many people it ran for, the median, the 95th percentile and the total) and Log (every operator action, newest first, with who did it). Nothing from anyone\u2019s workspace shows: no record, stories, goals or resumes.'
+        metadata {
+          path '/admin (?section=)'
+          files 'src/app/admin/Admin.tsx, src/app/admin/page.tsx'
         }
       }
     }
@@ -505,6 +520,12 @@ model {
           functions 'budgets:status, budgets:set'
         }
       }
+      plan = service 'Plan' {
+        description 'On careerbot.dev (the invite-only beta), a workspace with no OpenRouter key of its own uses CareerBot\u2019s key (PLATFORM_OPENROUTER_API_KEY) within a monthly allowance it can\u2019t raise: the default (PLATFORM_AI_ALLOWANCE_USD, $5), or one an operator set (plans). The person\u2019s own AI budget can only lower it; adding their own key takes it away, so their budget alone applies on their key. Only the recommended models go on CareerBot\u2019s key, and a workspace that hasn\u2019t chosen a model has the first of them. Every call on CareerBot\u2019s key is also held against the platform\u2019s monthly limit across every workspace (PLATFORM_AI_LIMIT_USD; platformAiSpend) in the same step as the workspace\u2019s own, so workspaces calling at once can\u2019t jointly spend past it; a call that doesn\u2019t fit waits for calls already running to settle, or pauses until next month. Never on a self-hosted copy, the demo, or a deployment without both the key and the limit.'
+        metadata {
+          functions 'plan:onPlatform'
+        }
+      }
       aiSettings = service 'AI models' {
         description 'One main model and reasoning per workspace (aiDefaults) that every task uses, chosen from a few recommended models with their price and what they would cost a month at the workspace\u2019s last 30 days of use; a task may have its own model (Advanced), and clearTask sends it back to the main one. Decision tasks (sorting roles with Jev) keep their own choice and never fall back. adoptDefault (operator, once) made each workspace\u2019s most used model its main one.'
         metadata {
@@ -514,7 +535,7 @@ model {
       apolloKey = service 'Apollo key' {
         description 'The person’s own Apollo key, sealed; checked against Apollo’s credit usage stats before saving, and the live balance shown.'
         metadata {
-          functions 'apolloKey:status, apolloKey:balance, apolloKey:myWorkspace, apolloKey:save, apolloKey:store, apolloKey:remove, apolloKey:sealedFor'
+          functions 'apolloKey:status, apolloKey:balance, apolloKey:save, apolloKey:store, apolloKey:remove, apolloKey:sealedFor'
         }
       }
       screening = aiStep 'Screen companies' {
@@ -525,14 +546,14 @@ model {
         }
       }
       enrich = aiStep 'Fill in companies' {
-        description 'Free details for places to work, strongest-sourced first, in batches of 40 (fit in batches of 15; each schedules the next). A site that turns away server requests is read through Jina Reader (r.jina.ai, public URL only); with no readable site, a summary from general knowledge, labelled, only for companies the model knows. Job board found by, in order: a board link the person gave; a link on the company site or careers page; a Brave Search result that names the company or its site (optional key); a guessed board name kept only if the board page links back to the site; last, only if turned on, Apollo job postings (1 credit). Readers: Greenhouse, Lever, Ashby, Workday and Oracle Recruiting Cloud (total + a search per target title), SmartRecruiters, Breezy, Personio, Rippling, Gem, Workable, Recruitee, BambooHR, Pinpoint, Teamtailor, Jobvite, iCIMS (search pages), JazzHR, Dover. Open and remote counts and roles matching approved directions’ titles, counted only inside the approved Location limit (its countries; remote only if remote is allowed; a role naming only other countries never counts). One AI call per batch writes a one-sentence summary from site text only. Once details are in, further batches judge fit per approved-criteria direction (strong/some/weak/none with a reason) from the summary, roles, direction and approved limits. The person rates each company Excited (a target), Maybe or Not for me. Only public https hosts fetched; every redirect re-checked. With goals judgment on (the lens: Rank or Hide), the same call also judges each company against the approved company goals (fits / partly / doesn’t / can’t tell, with a reason; general knowledge of well-known companies allowed and labelled); a signal only; Keep anyway overrides; named companies are never set aside. Check again (one company or a selection) and Edit website clear that company’s details and verdicts and put it first in the next pass; Judge all again keeps details and redoes fit and goals. One pass at a time.'
+        description 'Free details for places to work, strongest-sourced first, in batches of 40 (fit in batches of 15; each schedules the next). A site that turns away server requests is read through Jina Reader (r.jina.ai, public URL only); with no readable site, a summary from general knowledge, labelled, only for companies the model knows. Job board found by, in order: a board link the person gave; a link on the company site or careers page; a Brave Search result that names the company or its site (optional key); a guessed board name kept only if the board page links back to the site; last, only if turned on, Apollo job postings (1 credit). Readers (convex/boards.ts, one shape for every provider, tested on recorded replies; scripts/board-canary.ts checks them live): Greenhouse, Lever, Ashby, Workday, Oracle Recruiting Cloud and large Eightfold boards (total + a search per target title), Breezy, Personio, Rippling, Gem, Workable, Recruitee, BambooHR, Pinpoint, Jobvite, iCIMS (search pages, or the company’s iCIMS career site its search page sends visitors to: read whole up to 300 roles, else searched per target title, one request at a time 5 s apart as its robots.txt asks), JazzHR, Dover, Eightfold. SmartRecruiters and Teamtailor boards are recognised but never read (their published rules ask automated readers, or AI, to stay away; boards.ts NOT_READ), and a pasted one is refused. Open and remote counts and roles matching approved directions’ titles, counted only inside the approved Location limit (its countries; remote only if remote is allowed; a role naming only other countries never counts). One AI call per batch writes a one-sentence summary from site text only. Once details are in, further batches judge fit per approved-criteria direction (strong/some/weak/none with a reason) from the summary, roles, direction and approved limits. The person rates each company Excited (a target), Maybe or Not for me. Only public https hosts fetched; every redirect re-checked. With goals judgment on (the lens: Rank or Hide), the same call also judges each company against the approved company goals (fits / partly / doesn’t / can’t tell, with a reason; general knowledge of well-known companies allowed and labelled); a signal only; Keep anyway overrides; named companies are never set aside. Check again (one company or a selection) and Edit website clear that company’s details and verdicts and put it first in the next pass; Judge all again keeps details and redoes fit and goals. One pass at a time.'
         metadata {
           functions 'enrich:todo, enrich:save, enrich:next, enrich:start, enrich:setApolloJobs, enrich:saveFit, enrich:rate, enrich:keepAnyway, enrich:rejudge, enrich:recheck, enrich:setWebsite, enrich:setBoard'
           model_task 'companies'
         }
       }
       watchRoles = service 'Watch roles' {
-        description 'Every open role at Targets and Maybe companies, read from their own job boards (all roles; Workday and Oracle searched by title as in enrichment; Apollo job postings only for a company found that way, and only while turned on). One pass at a time per workspace (starting one, ranking again or a check while a pass is paused for the budget takes that pass up again instead); a company they ask to check again while a pass runs is read before that pass ends (roles:finish looks and ends the pass in one write, else queues another run of it). Boards first, 10 companies a run, each scheduling the next. A role listed twice (same board id, or same title and location at one company) is one row. A role gone from a complete read is closed; a partial or failed read closes nothing. Then every open role in the Location area is queued for its next step (description, sort, judging) and 32 workers run side by side: each claims a few roles in one write, the ones nobody holds at and after a random spot in the step\u2019s queue (every queued role has a random spot), so workers claiming at once rarely reach for the same roles (no two workers hold the same role; a claim older than 10 minutes is free again), works on them, saves (a save from a worker that lost its claim is dropped) and claims again. Descriptions: 10 a claim, fetched 3 at a time, plain text (up to 8,000 characters) from the listing or each board\u2019s job detail endpoint; a role with none is marked. Sorting (Sort roles, 40 a claim) waits until every description is in, and first works out what each company repeats across its postings (a line in postings under at least 3 of its titles, or over 30% of them) and stores each description without it, the raw text kept. Judging (Rank roles) 5 a claim. Everything that goes through every role (queueing, the result, rankAgain) or every description of a company (what it repeats: counted a page of 200 at a time, then cleaned a page at a time; one worker per company at a time, the others put those roles off, and a company another worker finished meanwhile isn\u2019t worked out again) works a page at a time, so no function reads more than its limit however large a company or workspace is. A role whose own input fails (an unreadable reply, a request too long) 3 times in a pass is set aside until the next pass, with why; roles that fail together are tried alone first, and if every one fails alone the cause is taken to be ours. Any other failure (our limits and bugs, OpenRouter down) sets nothing aside and is counted for the pass; after 20 the pass stops and fails with the last one. admin:clearRoleFailures forgets recorded failures. Workers stop claiming after 6 minutes; the pass\u2019s run watches them, ends when nothing is left, pauses the pass once the AI budget refused a worker\u2019s call (budgets:reserve) in a way waiting won\u2019t change and no AI call is still running, with why (workers take no more sorting or judging once it refuses; descriptions go on); a call refused for what calls still running hold frees its roles to be tried again after a short pause, as those calls settle, stops when asked, and otherwise hands over to a new run with fresh workers. Nothing is ranked again by itself: rankAgain clears one direction\u2019s (or, with none named, every approved direction\u2019s) sort and verdicts on every open role, 50 roles a write in writes of their own after the request (roles:rankAgainPage, so a running pass\u2019s workers saving the same roles can\u2019t make it fail), then starts a pass that reads no boards (or leaves them to the pass already running) and sorts and judges them for those directions alone. setSortMethod picks how roles are sorted (admin:setRoleSort for the operator). An operator pass (admin:startJob with only: company ids) reads, describes, sorts and judges only those companies\u2019 roles and takes the rest out of the queue; the next full pass queues them again. Each board\u2019s own details (pay, work setup, employment type, locations where the board states them: Greenhouse pay transparency, Ashby compensation, Lever salary range and workplace type, Workday time type, and the like) are kept with the role from every read and win over what judging read. Lists judged roles for one approved direction or all of them together (each at its best direction), best score then newest, filtered (score, pay as yearly US dollars, place, setup, posted within, company, seniority, years asked, employment type, rating, travel, clearance, visa; each keeps roles that don\u2019t say when asked): the database checks every filter as it reads a page except place, which is checked on a page of up to 200 rows; count (up to 2,000); roles sorted out apart, newest first, with the rule that set them aside; whether a direction changed after its roles were ranked; coverage per company (read vs board total, last read, stale after 3 days); one role with its merged details, brief, description, sort and verdicts; the person\u2019s Interested / Not for me rating. Each role\u2019s rows on the Roles page (roleRanks: one per direction and one for all directions, with what the filters read) are kept in step whenever a role opens, closes, is read, sorted, judged, ranked again or rated; every pass brings every role in step, and so does refreshRanks for one company after its rating or place-to-work call changes.'
+        description 'Every open role at Targets and Maybe companies, read from their own job boards (all roles; Workday, Oracle and large Eightfold boards searched by title as in enrichment; Apollo job postings only for a company found that way, and only while turned on). One pass at a time per workspace (starting one, ranking again or a check while a pass is paused for the budget takes that pass up again instead); a company they ask to check again while a pass runs is read before that pass ends (roles:finish looks and ends the pass in one write, else queues another run of it). Boards first, 10 companies a run, each scheduling the next. A role listed twice (same board id, or same title and location at one company) is one row. A role gone from a complete read is closed; a partial or failed read closes nothing. Then every open role in the Location area is queued for its next step (description, sort, judging) and 32 workers run side by side: each claims a few roles in one write, the ones nobody holds at and after a random spot in the step\u2019s queue (every queued role has a random spot), so workers claiming at once rarely reach for the same roles (no two workers hold the same role; a claim older than 10 minutes is free again), works on them, saves (a save from a worker that lost its claim is dropped) and claims again. Descriptions: 10 a claim, fetched 3 at a time, plain text (up to 8,000 characters) from the listing or each board\u2019s job detail endpoint; a role with none is marked. Sorting (Sort roles, 40 a claim) waits until every description is in, and first works out what each company repeats across its postings (a line in postings under at least 3 of its titles, or over 30% of them) and stores each description without it, the raw text kept. Judging (Rank roles) 5 a claim. Everything that goes through every role (queueing, the result, rankAgain) or every description of a company (what it repeats: counted a page of 200 at a time, then cleaned a page at a time; one worker per company at a time, the others put those roles off, and a company another worker finished meanwhile isn\u2019t worked out again) works a page at a time, so no function reads more than its limit however large a company or workspace is. A role whose own input fails (an unreadable reply, a request too long) 3 times in a pass is set aside until the next pass, with why; roles that fail together are tried alone first, and if every one fails alone the cause is taken to be ours. Any other failure (our limits and bugs, OpenRouter down) sets nothing aside and is counted for the pass; after 20 the pass stops and fails with the last one. admin:clearRoleFailures forgets recorded failures. Workers stop claiming after 6 minutes; the pass\u2019s run watches them, ends when nothing is left, pauses the pass once the AI budget refused a worker\u2019s call (budgets:reserve) in a way waiting won\u2019t change and no AI call is still running, with why (workers take no more sorting or judging once it refuses; descriptions go on); a call refused for what calls still running hold frees its roles to be tried again after a short pause, as those calls settle, stops when asked, and otherwise hands over to a new run with fresh workers. Nothing is ranked again by itself: rankAgain clears one direction\u2019s (or, with none named, every approved direction\u2019s) sort and verdicts on every open role, 50 roles a write in writes of their own after the request (roles:rankAgainPage, so a running pass\u2019s workers saving the same roles can\u2019t make it fail), then starts a pass that reads no boards (or leaves them to the pass already running) and sorts and judges them for those directions alone. setSortMethod picks how roles are sorted (admin:setRoleSort for the operator). An operator pass (admin:startJob with only: company ids) reads, describes, sorts and judges only those companies\u2019 roles and takes the rest out of the queue; the next full pass queues them again. Each board\u2019s own details (pay, work setup, employment type, locations where the board states them: Greenhouse pay transparency, Ashby compensation, Lever salary range and workplace type, Workday time type, Rippling pay ranges, BambooHR pay in the company’s words when its currency and period are certain, Workable and Eightfold workplace, and the like) are kept with the role from every read and win over what judging read. Lists judged roles for one approved direction or all of them together (each at its best direction), best score then newest, filtered (score, pay as yearly US dollars, place, setup, posted within, company, seniority, years asked, employment type, rating, travel, clearance, visa; each keeps roles that don\u2019t say when asked): the database checks every filter as it reads a page except place, which is checked on a page of up to 200 rows; count (up to 2,000); roles sorted out apart, newest first, with the rule that set them aside; whether a direction changed after its roles were ranked; coverage per company (read vs board total, last read, stale after 3 days); one role with its merged details, brief, description, sort and verdicts; the person\u2019s Interested / Not for me rating. Each role\u2019s rows on the Roles page (roleRanks: one per direction and one for all directions, with what the filters read) are kept in step whenever a role opens, closes, is read, sorted, judged, ranked again or rated; every pass brings every role in step, and so does refreshRanks for one company after its rating or place-to-work call changes.'
         metadata {
           functions 'roles:stopped, roles:halt, roles:todo, roles:plan, roles:claim, roles:release, roles:progress, roles:outcome, roles:work, roles:textInput, roles:saveJobs, roles:finishRead, roles:failRead, roles:saveTexts, roles:next, roles:finish, roles:start, roles:checkCompany, roles:startAll, roles:rankAgain, roles:rankAgainPage, roles:setSortMethod, roles:setStretch, roles:list, roles:count, roles:sortedOut, roles:against, roles:overview, roles:places, roles:refreshRanks, roles:get, roles:rate, roles:sortMethodChoice'
         }
@@ -580,11 +601,18 @@ model {
         }
       }
       github = service 'GitHub connection' {
-        description 'Per workspace. connect makes a one-time link; /github/connect keeps it in a cookie and sends them to install the app (all repositories or some); /github/setup holds the installation GitHub returns and asks GitHub who they are; /github/authorized keeps it only if the installation is among theirs (their token is used for that check alone, then revoked), so no one can claim another person’s installation. repos lists the repositories it has; disconnect forgets this workspace’s connection only (the app stays installed on GitHub, where they uninstall it; other workspaces using it stay connected); the webhook (signature checked) forgets an installation uninstalled on GitHub, for every workspace, and follows changes to which repositories it has.'
+        description 'Per workspace. connect makes a one-time link; /github/connect keeps it in a cookie and sends them to install the app (all repositories or some); /github/setup holds the installation GitHub returns and asks GitHub who they are; /github/authorized holds it only if the installation is among theirs (their token is used for that check alone, then revoked), so no one can claim another person’s installation, and sends them back to Projects, which finishes connecting (Pending connections) only for the person who started it. repos lists the repositories it has; disconnect forgets this workspace’s connection only (the app stays installed on GitHub, where they uninstall it; other workspaces using it stay connected); the webhook (signature checked) forgets an installation uninstalled on GitHub, for every workspace, and follows changes to which repositories it has.'
         metadata {
-          functions 'github:status, github:connect, github:installFor, github:mine, github:claim, github:saveInstall, github:forget, github:setSelection, github:repos, github:disconnect'
+          functions 'github:status, github:connect, github:installFor, github:mine, github:claim, github:forget, github:setSelection, github:repos, github:disconnect'
           routes 'GET /github/connect, GET /github/setup, GET /github/authorized, POST /github/webhook'
           files 'convex/github.ts, convex/http.ts'
+        }
+      }
+      connections = service 'Pending connections' {
+        description 'A GitHub or Google Drive connection back from its consent screen is only held (hold), under a random token sent back to the screen connecting began on; the signed-in app there finishes it (finish), which keeps it only when the person and workspace are the ones that started it, within ten minutes, once. A link someone else started, a late or a used token is refused (This connection was started from another account. Start it again here.) and dropped, Drive\u2019s tokens revoked; one never finished is dropped when its time is up (expire).'
+        metadata {
+          functions 'connections:hold, connections:finish, connections:expire'
+          files 'convex/connections.ts'
         }
       }
       keys = service 'OpenRouter key' {
@@ -594,17 +622,17 @@ model {
         }
       }
       auth = service 'Auth and workspaces' {
-        description 'Convex Auth with an allowlist; one workspace per person, created on first sign-in. The ways to sign in (Google, GitHub) are each on when their keys are in the deployment\u2019s environment; on a self-hosted copy (CAREERBOT_MODE=self-hosted) username and password too, and the allowlist covers only Google and GitHub. signInMethods tells the sign-in screen which. Each new session records when they last signed in. A fourth way, demo (a credentials provider with no account), signs a visitor in as the demo\u2019s shared user, only where a demo workspace exists (Demo). current says whether the workspace is the demo.'
+        description 'Convex Auth; one workspace per person, created on first sign-in. Who may sign in with Google or GitHub: on careerbot.dev someone with an account or an invite (Invites); on a self-hosted copy (CAREERBOT_MODE=self-hosted) the allowlist (SIGNUP_ALLOWLIST), with username and password too. The ways to sign in (Google, GitHub) are each on when their keys are in the deployment\u2019s environment. signInMethods tells the sign-in screen which. Each new session records when they last signed in. A fourth way, demo (a credentials provider with no account), signs a visitor in as the demo\u2019s shared user, only where a demo workspace exists (Demo). current says whether the workspace is the demo.'
         metadata {
-          functions 'users:me, workspaces:current, auth:signIn, auth:signOut, auth:store, auth:isAuthenticated, auth:signInMethods'
+          functions 'users:me, workspaces:current, workspaces:callerWorkspace, auth:signIn, auth:signOut, auth:store, auth:isAuthenticated, auth:signInMethods'
           routes 'GET /.well-known/jwks.json, GET /.well-known/openid-configuration, GET /api/auth/callback/*, GET /api/auth/signin/*, POST /api/auth/callback/*'
           files 'convex/auth.ts, convex/http.ts, convex/allowlist.ts'
         }
       }
       accounts = service 'Self-hosted accounts' {
-        description 'Username and password sign-in for a self-hosted copy (a Convex Auth credentials provider, passwords hashed with Scrypt, wrong ones rate-limited per account). The first account is the owner, made with the setup code: newSetupCode (the installer runs it while there is no owner, and docker compose run --rm convex-setup new-setup-code) keeps a SHA-256 hash; only the newest code works, once, and stops after ten wrong tries; ownerNeeded tells the sign-in screen to offer Create your account. The owner adds people (addPerson), resets their passwords (resetPersonPassword) and removes them (removePerson: their account at once, their workspace by purgeWorkspace, a page of one table at a time); a temporary password signs in only by choosing a new one, which ends every other session, as changing a password does. resetPassword is the owner\u2019s own way back in, from the command line or the Convex dashboard.'
+        description 'Username and password sign-in for a self-hosted copy (a Convex Auth credentials provider, passwords hashed with Scrypt, wrong ones rate-limited per account). The first account is the owner, made with the setup code: newSetupCode (the installer runs it while there is no owner, and docker compose run --rm convex-setup new-setup-code) keeps a SHA-256 hash; only the newest code works, once, and stops after ten wrong tries; ownerNeeded tells the sign-in screen to offer Create your account. The owner adds people (addPerson), resets their passwords (resetPersonPassword) and removes them (removePerson: signed out everywhere and unable to sign in at once; the rest is deleted as Account deletion deletes anyone\u2019s own); a temporary password signs in only by choosing a new one, which ends every other session, as changing a password does. resetPassword is the owner\u2019s own way back in, from the command line or the Convex dashboard.'
         metadata {
-          functions 'account:newSetupCode, account:ownerName, account:storeSetupCode, account:useSetupCode, account:ownerNeeded, account:passwordChosen, account:markTemporary, account:accountFor, account:resetPassword, account:ownerId, account:people, account:addPerson, account:personToChange, account:resetPersonPassword, account:removePerson, account:removeUser, account:purgeWorkspace'
+          functions 'account:newSetupCode, account:ownerName, account:storeSetupCode, account:useSetupCode, account:ownerNeeded, account:passwordChosen, account:markTemporary, account:accountFor, account:resetPassword, account:ownerId, account:people, account:addPerson, account:personToChange, account:resetPersonPassword, account:removePerson'
           files 'convex/account.ts, convex/passwordRules.ts'
         }
       }
@@ -621,6 +649,26 @@ model {
           functions 'waitlist:join, waitlist:list, waitlist:remove'
         }
       }
+      invites = service 'Invites' {
+        description 'careerbot.dev\u2019s invites, in place of an allowlist: one per email (lowercased), its link (/invite/<token>, a random token) good for 14 days. admit, on every Google or GitHub sign-in: refused when suspended; let in when they already have a workspace; else their account\u2019s email needs an open invite not expired, which this sign-in uses up (accepted, by this account); expired, withdrawn, used by another account or not invited are each refused with why. lookup: what the invite page shows for a link (where it stands, the email, the monthly AI included); a replaced token reads as unknown. fromAllowlist (operator, internal, once): carries SIGNUP_ALLOWLIST over, an email already signed in with as a used invite of theirs, any other as an open invite with its link printed, each logged.'
+        metadata {
+          functions 'invites:lookup, invites:fromAllowlist'
+          files 'convex/invites.ts, convex/suspensions.ts'
+        }
+      }
+      operators = service 'Operators' {
+        description 'careerbot.dev\u2019s operators, never on a self-hosted copy: requireOperator starts every admin function and refuses anyone else; isOperator tells the app whether to offer Admin. grant and revoke (internal) from the Convex CLI only, by the email someone signed in with.'
+        metadata {
+          functions 'operators:isOperator, operators:grant, operators:revoke'
+        }
+      }
+      adminPeople = service 'Admin' {
+        #operatorOnly
+        description 'The Admin screen\u2019s functions, each starting with requireOperator and each change logged (adminLog). people: everyone with a workspace (less the demo) or an invite not used, with status, last active (last sign-in or newest job), AI spent this month and their allowance; never anything in their workspace. costByStep: this month\u2019s AI cost per person and per step (the median, 95th percentile and total across people who spent). log: the newest 200 actions. invite (refused for someone with an account), resendInvite (a new link, 14 more days, the old one stops working), revokeInvite, setAllowance (or back to the default), suspend (not themselves: their sessions and refresh tokens deleted, allowance 0 meanwhile, sign-in refused) and restore (the allowance they had).'
+        metadata {
+          functions 'adminPeople:people, adminPeople:costByStep, adminPeople:log, adminPeople:invite, adminPeople:resendInvite, adminPeople:revokeInvite, adminPeople:setAllowance, adminPeople:suspend, adminPeople:restore'
+        }
+      }
       demo = service 'Demo' {
         description 'The read-only demo at demo.careerbot.dev: one workspace marked demo, a fictional person\u2019s search seeded from a frozen test-persona run (testdata/demo, pnpm demo). Every public mutation and action is defined through convex/functions.ts, which refuses before its handler runs when the caller\u2019s workspace is the demo (This is a demo, so nothing in it can be changed); a lint rule keeps them from being defined any other way. Actions ask through callerIsDemo. signInUser finds the demo\u2019s shared user for the demo sign-in and refuses where there is no demo, or past 60 sign-ins a minute across the deployment (The demo is busy). dropOldSessions (hourly) deletes the demo user\u2019s sessions older than a day with their refresh tokens. The roles pass and the nightly settling of spending skip the demo. The demo is held at its snapshot\u2019s moment (workspaces.asOf): what\u2019s new, due, recent or this month\u2019s counts from then on the server (workspaces.clockOf: Today\u2019s new roles, Activity, budgets, Reports, roles\u2019 filters and coverage) and in the app (src/app/clock.ts), so it never ages between releases. demoSeed (operator, internal): reads a workspace\u2019s rows for the export, and replaces the demo whole: clears and drops the old demo workspace, its user and their sessions, then creates the new one (held at the snapshot\u2019s export time) with its user and membership and inserts the snapshot\u2019s rows with new ids, references filled in on a second pass.'
         metadata {
@@ -634,6 +682,13 @@ model {
           functions 'yourData:status, yourData:startExport, yourData:exportRow, yourData:page, yourData:idTables, yourData:about, yourData:documents, yourData:exportProgress, yourData:exportDone, yourData:exportFailed, yourData:expire, yourData:prepareImport, yourData:partIn, yourData:joined, yourData:clearImport, yourData:startImport, yourData:importRow, yourData:importChecked, yourData:putIn, yourData:clearSettings, yourData:insertRows, yourData:fileIn, yourData:patchRows, yourData:importFinished, yourData:importFailed, yourData:forgetIds, yourDataRun:runExport, yourDataRun:checkImport, yourDataRun:runImport'
           routes 'POST /your-data/import, OPTIONS /your-data/import'
           files 'convex/yourData.ts, convex/yourDataRun.ts, convex/exportFormat.ts, convex/exportRules.ts, convex/readableExport.ts, convex/workspaceCopy.ts, convex/workspaceRows.ts, convex/http.ts'
+        }
+      }
+      accountDelete = service 'Account deletion' {
+        description 'Deleting an account, from Settings, Your data (start: the person types its name, their email or, on a self-hosted copy, their username; refused in the demo, and for a self-hosted copy\u2019s owner while others can sign in) or by a self-hosted copy\u2019s owner (remove, from account:removePerson, which ends their sessions first and takes their sign-in at once). One row per deletion, run in the background a step at a time, each safe to run again: revoke (Google revokes the Drive refresh token; CareerBot\u2019s GitHub App installation is uninstalled when no other workspace uses it; best effort, and the deletion carries on after two minutes regardless), purge (every table with a workspaceId, found from the schema as the copy finds them, work in progress first, a page of 100 rows through its workspace index with the stored files those rows name; once through, it goes round again if anything was written meanwhile), then signingOut (the person\u2019s screens sign out, after ten seconds\u2019 grace) and finish (membership, workspace, sign-in accounts with their rate limits and codes, sessions and refresh tokens, rows naming the person outside a workspace, a waitlist entry with their email, and the person). status answers from the session alone, so an open screen learns it is done; the row is forgotten an hour later. A stalled deletion is picked up again by starting it again.'
+        metadata {
+          functions 'accountDelete:status, accountDelete:start, accountDelete:remove, accountDelete:resume, accountDelete:connections, accountDelete:revoke, accountDelete:revoked, accountDelete:purge, accountDelete:finish, accountDelete:forget'
+          files 'convex/accountDelete.ts, convex/workspaceCopy.ts'
         }
       }
       crons = service 'Schedules' {
@@ -668,7 +723,7 @@ model {
       driveApi = service 'Google Drive' {
         description 'Their own Google Drive, connected with a separate consent for drive.file only (CareerBot sees only what it makes and the folder they pick); tokens sealed, never sent to a client. Keeps a CareerBot folder: Base resume, Directions/<direction>/Resume, Tailored/<company>/<role>/Resume, Cover letter and Answers, as Google Docs updated in place when a version is kept or restored (the link stays; Drive keeps the history). Each Doc is written as the Word document Download Word saves (docxFiles.ts), which Drive converts, so it reads like the PDF. A tailored resume, letter and answers are frozen once the pursuit leaves Preparing, written as they were sent. Choose a folder (Google\u2019s Picker) moves the CareerBot folder, with Undo; the CareerBot folder or one inside it is refused. Sync runs as automatic jobs a few seconds after a change, and every 10 minutes as a check; no AI, no cost. Disconnect revokes and leaves the files.'
         metadata {
-          functions 'drive:status, drive:fileFor, drive:connect, drive:link, drive:dropLink, drive:saveConnection, drive:setFolder, drive:unsetFolder, drive:mine, drive:forget, drive:disconnect, drive:syncNow, drive:check, drive:checkAll, drive:syncInputs, drive:saveAccess, drive:markBroken, drive:saveFile, drive:failFile'
+          functions 'drive:status, drive:fileFor, drive:connect, drive:link, drive:dropLink, drive:revoke, drive:setFolder, drive:unsetFolder, drive:mine, drive:forget, drive:disconnect, drive:syncNow, drive:check, drive:checkAll, drive:syncInputs, drive:saveAccess, drive:markBroken, drive:saveFile, drive:failFile'
           routes 'GET /google/drive/connect, GET /google/drive/callback'
           files 'convex/drive.ts, convex/driveSoon.ts, convex/drivePaths.ts, convex/docxFiles.ts, convex/http.ts'
         }
@@ -748,6 +803,18 @@ model {
       tBudgets = table 'budgets' {
         metadata {
           table 'budgets'
+        }
+      }
+      tPlans = table 'plans' {
+        description 'A workspace\u2019s AI allowance on CareerBot\u2019s key, set by an operator in place of the default.'
+        metadata {
+          table 'plans'
+        }
+      }
+      tPlatformAiSpend = table 'platformAiSpend' {
+        description 'AI spending on CareerBot\u2019s key across every workspace per month, in shards: settled, and what calls not settled yet hold, checked against the platform\u2019s limit before each call on it.'
+        metadata {
+          table 'platformAiSpend'
         }
       }
       tJobs = table 'jobs' {
@@ -884,7 +951,7 @@ model {
         }
       }
       tRoleRanks = table 'roleRanks' {
-        description 'Where each listed role stands for each approved direction, and for all of them together (its best verdict): judged (level, score), sorted out, or against (judged, but what it states is against a firm eligibility limit: a clearance above the one they hold, or no visa sponsorship when they need it; or outside a firm location limit: a setup or place they won’t work; set apart from the list, with the reason in words); meetsPreferences (false when against such a limit, firm or a preference, so it ranks after the rest); and what the Roles page filters on, copied from the role, its details (board first) and its company: rating, company rating, pay as yearly US dollars, setup, seniority, employment type, years asked, travel, clearance, visa, places and their countries, posted and newest dates; when the direction last changed as of its ranking. Derived from postings and kept in step with them, so the Roles page reads a page at a time, best score first, filtered.'
+        description 'Where each listed role stands for each approved direction, and for all of them together (its best verdict): judged (level, score), sorted out, or against (judged, but what it states is against a firm eligibility limit: a clearance above the one they hold, or no visa sponsorship when they need it; or outside a firm location limit: a setup or place they won’t work; set apart from the list, with the reason in words); meetsPreferences (false when against such a limit, firm or a preference, so it ranks after the rest); and what the Roles page filters on, copied from the role, its details (board first) and its company: rating, company rating, pay as yearly US dollars, setup, seniority, employment type, years asked, travel, clearance, visa, places and their countries, posted and newest dates; when the direction last changed as of its ranking. Derived from postings and kept in step with them, so the Roles page reads a page at a time, best score first, filtered. Indexed by_posted (postedAt) so roles:list can sort newest posted first, undated last.'
         metadata {
           table 'roleRanks'
         }
@@ -953,6 +1020,12 @@ model {
         metadata {
           table 'driveLinks'
         }
+      tPendingConnections = table 'pendingConnections' {
+        description 'Connections back from GitHub or Google waiting for the person who started them to finish them in the app: the workspace and person, a random token, when it lapses (ten minutes), and what to keep (the installation, or Drive\u2019s sealed tokens).'
+        metadata {
+          table 'pendingConnections'
+        }
+      }
       }
       tNotes = table 'notes' {
         description 'Their own notes on a pursuit, company, role or record item: text, when, when edited. Never read by an AI step.'
@@ -988,6 +1061,36 @@ model {
         description 'Emails left on the website to hear when CareerBot opens up: when, and where on the page. Not tied to a workspace.'
         metadata {
           table 'waitlist'
+        }
+      }
+      tInvites = table 'invites' {
+        description 'careerbot.dev\u2019s invites, one per email: its link\u2019s token, open, accepted (by which account, when) or withdrawn, when it expires and which operator invited. Not tied to a workspace.'
+        metadata {
+          table 'invites'
+        }
+      }
+      tOperators = table 'operators' {
+        description 'Who runs careerbot.dev (the Admin screen). Granted from the Convex CLI only.'
+        metadata {
+          table 'operators'
+        }
+      }
+      tSuspensions = table 'suspensions' {
+        description 'People an operator suspended: when, by whom, and the allowance they had, put back on restore.'
+        metadata {
+          table 'suspensions'
+        }
+      }
+      tAdminLog = table 'adminLog' {
+        description 'Every operator action (invited, sent a new link, withdrew, set an allowance, suspended, restored, carried over from the allowlist): when, who, and the email it was about as written.'
+        metadata {
+          table 'adminLog'
+        }
+      }
+      tAccountDeletions = table 'accountDeletions' {
+        description 'An account being deleted, by the person or a self-hosted copy\u2019s owner: the workspace it deletes (the one only they use), the step (revoking, deleting, signingOut, done), where it is in the workspace\u2019s tables, rows deleted so far, and a last sign of life. Not one of the workspace\u2019s own tables, so it outlives it; forgotten an hour after it is done.'
+        metadata {
+          table 'accountDeletions'
         }
       }
     }
@@ -1035,6 +1138,16 @@ model {
   careerbot.platform.modelPrices -[calls]-> openrouter 'each model\u2019s endpoints and their prices'
   careerbot.platform.modelPrices -[writes]-> careerbot.data.tModelPrices
   careerbot.platform.jobs -[reads]-> careerbot.data.tAiSpend 'whether calls still hold the budget, before pausing for them'
+  careerbot.platform.metering -[uses]-> careerbot.platform.plan 'CareerBot\u2019s key when the workspace has none of its own'
+  careerbot.platform.metering -[reads]-> careerbot.data.tPlans 'the workspace\u2019s allowance, before each call'
+  careerbot.platform.metering -[reads]-> careerbot.data.tPlatformAiSpend 'what every workspace spent and holds on CareerBot\u2019s key, before each call on it'
+  careerbot.platform.metering -[writes]-> careerbot.data.tPlatformAiSpend 'each call on CareerBot\u2019s key: its reservation, then its cost'
+  careerbot.platform.plan -[reads]-> careerbot.data.tPlans
+  careerbot.platform.plan -[reads]-> careerbot.data.tPlatformAiSpend
+  careerbot.platform.jobs -[reads]-> careerbot.data.tPlatformAiSpend 'whether calls still hold CareerBot\u2019s key, before pausing for them'
+  careerbot.platform.budgetsApi -[reads]-> careerbot.data.tPlans 'the allowance, which a budget can\u2019t go above'
+  careerbot.platform.aiSettings -[reads]-> careerbot.data.tPlans 'whether only the recommended models can be chosen'
+  careerbot.core.todayApi -[reads]-> careerbot.data.tPlans 'Getting started: CareerBot\u2019s AI counts as the OpenRouter key and budget step'
   careerbot.platform.jobs -[writes]-> careerbot.data.tJobs
   careerbot.platform.crons -[calls]-> careerbot.platform.jobs 'resume paused; recover interrupted'
   careerbot.platform.crons -[calls]-> careerbot.platform.watchRoles 'daily roles pass'
@@ -1217,8 +1330,21 @@ model {
   careerbot.platform.yourData -[writes]-> careerbot.data.tJobs 'import: finished work only'
   careerbot.platform.yourData -[writes]-> careerbot.data.tBudgets 'import: the file\u2019s settings replace the workspace\u2019s'
   careerbot.platform.yourData -[calls]-> careerbot.pursue.driveApi 'the current resumes, letters and answers, for the readable copies'
-  careerbot.platform.accounts -[writes]-> careerbot.data.tMemberships 'removing someone'
-  careerbot.platform.accounts -[writes]-> careerbot.data.tWorkspaces 'removing someone deletes their workspace and everything in it'
+  careerbot.platform.accounts -[calls]-> careerbot.platform.accountDelete 'removing someone: their sign-in at once, then everything else'
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.accountDelete 'Your data: Delete account (status, Delete my account, Continue)'
+  careerbot.ui.shell -[calls]-> careerbot.platform.accountDelete 'status: Deleting your account in Activity; signs out once it is done'
+  careerbot.platform.accountDelete -[writes]-> careerbot.data.tAccountDeletions
+  careerbot.platform.accountDelete -[writes]-> careerbot.data.tWorkspaces 'deletes the workspace and every row with its id (every table with a workspaceId), with their stored files'
+  careerbot.platform.accountDelete -[writes]-> careerbot.data.tMemberships 'deletes the person\u2019s membership'
+  careerbot.platform.accountDelete -[writes]-> careerbot.data.tUsers 'deletes the person, their sign-in accounts and sessions'
+  careerbot.platform.accountDelete -[writes]-> careerbot.data.tWaitlist 'deletes an entry with the person\u2019s email'
+  careerbot.platform.accountDelete -[writes]-> careerbot.data.tInvites 'deletes the invite for the person\u2019s email or used by them'
+  careerbot.platform.accountDelete -[writes]-> careerbot.data.tOperators 'deletes the person\u2019s operator row'
+  careerbot.platform.accountDelete -[writes]-> careerbot.data.tSuspensions 'deletes the person\u2019s suspension'
+  careerbot.platform.accountDelete -[reads]-> careerbot.data.tDriveConnections 'the refresh token to revoke'
+  careerbot.platform.accountDelete -[reads]-> careerbot.data.tGithubInstalls 'installations only this workspace uses'
+  careerbot.platform.accountDelete -[calls]-> googleDrive 'revoke CareerBot\u2019s tokens'
+  careerbot.platform.accountDelete -[calls]-> githubApi 'uninstall the app installation'
   careerbot.platform.admin -[writes]-> careerbot.data.tItems
   careerbot.platform.admin -[writes]-> careerbot.data.tNarratives
   careerbot.platform.admin -[writes]-> careerbot.data.tAiSettings
@@ -1333,6 +1459,12 @@ model {
   careerbot.platform.github -[uses]-> careerbot.platform.githubApp 'app token, installation token'
   careerbot.platform.github -[writes]-> careerbot.data.tGithubLinks 'connect links, the installation held'
   careerbot.platform.github -[writes]-> careerbot.data.tGithubInstalls 'kept, forgotten, repositories all or selected'
+  careerbot.platform.github -[calls]-> careerbot.platform.connections 'the installation, held for the person who started connecting'
+  careerbot.ui.recordScreen -[calls]-> careerbot.platform.connections 'back from GitHub: finish connecting'
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.connections 'back from Google: finish connecting Drive'
+  careerbot.ui.today -[calls]-> careerbot.platform.connections 'Getting started, back from Google: finish connecting Drive'
+  careerbot.platform.connections -[writes]-> careerbot.data.tPendingConnections 'held, finished, refused or lapsed'
+  careerbot.platform.connections -[writes]-> careerbot.data.tGithubInstalls 'kept once finished'
   githubApi -> careerbot.platform.github 'webhook: uninstalled, repositories changed'
   careerbot.ai.readProject -[reads]-> careerbot.data.tGithubInstalls 'their installation'
   careerbot.ai.readProject -[uses]-> careerbot.platform.githubApp 'a read-only token for that repository alone'
@@ -1430,7 +1562,7 @@ model {
   careerbot.platform.screening -[uses]-> careerbot.platform.metering 'AI call'
 
   companyWebsites = external 'Company websites and job boards' {
-    description 'Public pages and Greenhouse/Lever/Ashby posting APIs. Free.'
+    description 'Public pages and the public job board data each provider’s own careers page loads (convex/boards.ts lists them). Free; read only for companies the person targets.'
   }
   careerbot.platform.discovery -[calls]-> careerbot.platform.enrich 'after each run'
   careerbot.ui.companiesScreen -[calls]-> careerbot.platform.enrich 'Fill in details'
@@ -1453,14 +1585,14 @@ model {
   careerbot.platform.watchRoles -[writes]-> careerbot.data.tCompanies 'coverage: last read, roles read, board total'
   careerbot.platform.watchRoles -[calls]-> companyWebsites 'job board listings and job detail pages; public hostnames only'
   careerbot.platform.watchRoles -[uses]-> careerbot.platform.metering 'Apollo job postings, only while turned on'
-  careerbot.platform.watchRoles -[reads]-> careerbot.data.tItems.directions 'approved directions (titles to search Workday and Oracle; when each last changed, to mark roles ranked before it); approved Location limit; approved Eligibility limits, checked against what judged roles state (no AI) to set them apart or rank them lower; firm ones start the clearance and visa filters' {
+  careerbot.platform.watchRoles -[reads]-> careerbot.data.tItems.directions 'approved directions (titles to search Workday, Oracle and Eightfold; when each last changed, to mark roles ranked before it); approved Location limit; approved Eligibility limits, checked against what judged roles state (no AI) to set them apart or rank them lower; firm ones start the clearance and visa filters' {
     #approvedOnly
   }
   careerbot.platform.watchRoles -[writes]-> careerbot.data.tPostings 'roles, seen and closed; what each board states about them; next step, claims and failures; directions to rank again'
   careerbot.platform.watchRoles -[uses]-> careerbot.core.roleDetailsSchema 'board details, merging, yearly pay'
   careerbot.platform.watchRoles -[writes]-> careerbot.data.tPostingTexts 'full descriptions'
   careerbot.platform.watchRoles -[writes]-> careerbot.data.tRoleRanks 'each role\u2019s standing per direction and for all directions, with what the filters read, kept in step with the role'
-  careerbot.platform.watchRoles -[reads]-> careerbot.data.tRoleRanks 'a filtered page of judged roles, best score first; counts; sorted out; against a firm limit; ranked before a direction changed'
+  careerbot.platform.watchRoles -[reads]-> careerbot.data.tRoleRanks 'a filtered page of judged roles, best score first (posted within counts from the start of a UTC day, so a page’s query holds steady all day); counts; sorted out; against a firm limit; ranked before a direction changed'
   careerbot.platform.watchRoles -[uses]-> careerbot.core.limitSchema 'firm limit checks on judged roles: eligibility, location, pay, seniority, travel, schedule, excluded employers (eligibilityProblems; firmProblems; places.locationProblems)'
   careerbot.core.goalsApi -[calls]-> careerbot.platform.watchRoles 'an Eligibility or Location limit added or changed: refreshRanks'
   careerbot.core.reviewApi -[calls]-> careerbot.platform.watchRoles 'an Eligibility or Location limit approved or unapproved: refreshRanks'
@@ -1597,6 +1729,34 @@ model {
   careerbot.platform.waitlist -[writes]-> careerbot.data.tWaitlist
   careerbot.platform.waitlist -[reads]-> careerbot.data.tWaitlist 'already on it; joins in the last ten minutes'
   operator -> careerbot.platform.waitlist 'reads the list'
+  careerbot.ui.inviteScreen -[calls]-> careerbot.platform.invites 'lookup: where the invite stands'
+  careerbot.ui.inviteScreen -[calls]-> careerbot.platform.auth 'sign in with Google or GitHub'
+  careerbot.platform.auth -[calls]-> careerbot.platform.invites 'admit, on careerbot.dev'
+  careerbot.platform.invites -[reads]-> careerbot.data.tInvites
+  careerbot.platform.invites -[writes]-> careerbot.data.tInvites 'uses an invite up on sign-in; fromAllowlist'
+  careerbot.platform.invites -[reads]-> careerbot.data.tSuspensions
+  careerbot.platform.invites -[reads]-> careerbot.data.tMemberships 'already has a workspace'
+  careerbot.platform.invites -[writes]-> careerbot.data.tAdminLog 'fromAllowlist'
+  careerbot.platform.invites -[reads]-> careerbot.data.tPlans 'the monthly AI included, for the invite page'
+  operator -> careerbot.platform.invites 'carries the allowlist over (fromAllowlist), once'
+  operator -> careerbot.platform.operators 'grants and revokes operators'
+  operator -> careerbot.ui.adminScreen 'uses'
+  careerbot.platform.operators -[reads]-> careerbot.data.tOperators
+  careerbot.platform.operators -[writes]-> careerbot.data.tOperators 'grant, revoke'
+  careerbot.ui.shell -[calls]-> careerbot.platform.operators 'isOperator: whether to offer Admin'
+  careerbot.ui.adminScreen -[calls]-> careerbot.platform.operators 'isOperator'
+  careerbot.ui.adminScreen -[calls]-> careerbot.platform.adminPeople
+  careerbot.platform.adminPeople -[uses]-> careerbot.platform.operators 'requireOperator'
+  careerbot.platform.adminPeople -[reads]-> careerbot.data.tUsers 'name, email, last sign-in'
+  careerbot.platform.adminPeople -[reads]-> careerbot.data.tMemberships
+  careerbot.platform.adminPeople -[reads]-> careerbot.data.tJobs 'when their newest work started, for last active'
+  careerbot.platform.adminPeople -[reads]-> careerbot.data.tSpendTotals 'this month\u2019s AI cost by step'
+  careerbot.platform.adminPeople -[reads]-> careerbot.data.tPlans 'allowances'
+  careerbot.platform.adminPeople -[writes]-> careerbot.data.tPlans 'set allowance; 0 while suspended'
+  careerbot.platform.adminPeople -[writes]-> careerbot.data.tInvites 'invite, send a new link, withdraw'
+  careerbot.platform.adminPeople -[writes]-> careerbot.data.tSuspensions 'suspend, restore'
+  careerbot.platform.adminPeople -[writes]-> careerbot.data.tAdminLog 'every action'
+  careerbot.platform.adminPeople -[reads]-> careerbot.data.tAdminLog 'the log'
   careerbot.ui.shell -[calls]-> careerbot.pursue.pursuitsApi 'list: how many pursuits have a reminder due'
   careerbot.ui.shell -[calls]-> careerbot.core.reviewQueue 'summary: how many decisions wait'
   careerbot.ui.shell -[calls]-> careerbot.core.activityApi 'list: Activity'
@@ -1608,7 +1768,7 @@ model {
   careerbot.ui.today -[calls]-> careerbot.core.todayApi 'roles, setup, hideSetup, skipStep'
   careerbot.ui.today -[calls]-> careerbot.platform.keys 'Getting started: the OpenRouter key'
   careerbot.ui.today -[calls]-> careerbot.platform.apolloKey 'Getting started: the Apollo key'
-  careerbot.ui.today -[calls]-> careerbot.platform.budgetsApi 'Getting started: the AI budget, Apollo credits and automated Apollo work'
+  careerbot.ui.today -[calls]-> careerbot.platform.budgetsApi 'Getting started: the AI budget, Apollo credits and automated Apollo work; on careerbot.dev, whether this month\u2019s AI allowance is used up'
   careerbot.ui.today -[calls]-> careerbot.pursue.driveApi 'Getting started: status, connect (back to the step)'
   careerbot.ui.today -[calls]-> careerbot.pursue.peopleApi 'Getting started: contacts found for the first pursuit, reveal'
   careerbot.ui.today -[calls]-> careerbot.platform.watchRoles 'rate: Interested, Not for me with its reason'
@@ -1712,6 +1872,9 @@ model {
   careerbot.pursue.driveApi -[reads]-> careerbot.data.tPursuits 'letters, answers, and whether it was sent'
   careerbot.pursue.driveApi -[writes]-> careerbot.data.tDriveFiles
   careerbot.pursue.driveApi -[writes]-> careerbot.data.tDriveConnections
+  careerbot.pursue.driveApi -[calls]-> careerbot.platform.connections 'the sealed tokens, held for the person who started connecting'
+  careerbot.platform.connections -[writes]-> careerbot.data.tDriveConnections 'kept once finished'
+  careerbot.platform.connections -[calls]-> careerbot.pursue.driveApi 'revoke the tokens of one not kept'
   careerbot.platform.discovery -[reads]-> careerbot.data.tCompanies 'Targets as lookalike seeds; Not for me never found again (while Learn from your ratings is on)'
   careerbot.platform.enrich -[reads]-> careerbot.data.tCompanies 'companies they turned down, and why, as preferences' {
     #rejectedAsGuard

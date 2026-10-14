@@ -178,7 +178,7 @@ function People({ size }: { size: ScreenSize }) {
   };
   const askToRemove = async (person: Person) => {
     const name = person.username ?? person.name ?? person.email ?? "this person";
-    if (!(await ask({ title: `Remove ${name}?`, body: `Removes ${name}’s account and deletes their workspace: stories, record, resumes and pursuits.`, confirmLabel: "Remove" }))) return;
+    if (!(await ask({ title: `Remove ${name}?`, body: `Removes ${name}’s account and deletes their workspace with everything in it, keys, files and Google Drive and GitHub connections included.`, confirmLabel: "Remove" }))) return;
     try {
       await remove({ userId: person.id });
       if (issued?.userId === person.id) setIssued(null);
@@ -267,7 +267,7 @@ function PersonRow({ person, small, onReset, onRemove }: { person: Person; small
               ...(canReset && small
                 ? [{ label: "Reset password", detail: `Makes a temporary password for ${name} and signs them out everywhere. Their old password stops working.`, note: "Free · Can’t be undone", onSelect: onReset }]
                 : []),
-              { label: "Remove", tone: "danger" as const, detail: `Removes ${name}’s account and deletes their workspace: stories, record, resumes and pursuits.`, note: "Free · Asks first · Can’t be undone", onSelect: onRemove },
+              { label: "Remove", tone: "danger" as const, detail: `Removes ${name}’s account and deletes their workspace with everything in it, keys, files and connections included.`, note: "Free · Asks first · Can’t be undone", onSelect: onRemove },
             ]}
           />
         </>

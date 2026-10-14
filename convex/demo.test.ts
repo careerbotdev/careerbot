@@ -1,11 +1,12 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { makeFunctionReference } from "convex/server";
-import { ConvexError, jsonToConvex, type JSONValue, type Value, type ValidatorJSON } from "convex/values";
+import { ConvexError, type Value } from "convex/values";
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { DEMO_BUSY, type DemoSignInRefusal, isDemoRefusal, NO_DEMO } from "./demoRefusal";
 import { SIGN_INS_PER_MINUTE } from "./demo";
+import { functionsInSource, jsonOf, publicFunctions, type PublicFunction, valueFor } from "./publicFunctions.testing";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -20,82 +21,13 @@ const as = (t: T, userId: Id<"users">) => t.withIdentity({ subject: `${userId}|s
 
 // ---- Every public mutation and action ----
 
-type Write = { path: string; kind: "mutation" | "action"; args: ValidatorJSON };
-
-// Convex Auth's own: signIn and signOut act on the caller's session, not on a workspace (signing in or out of the demo
-// must keep working), and store is internal. They're the only public actions not defined through functions.ts.
-const AUTH_OWN = new Set(["auth:signIn", "auth:signOut"]);
-
-// Every public mutation and action the deployment registers, found from the modules themselves.
-async function publicWrites(): Promise<Write[]> {
-  const found: Write[] = [];
-  for (const [file, load] of Object.entries(modules)) {
-    if (file.startsWith("./_generated/") || file.endsWith(".test.ts")) continue;
-    const exported = (await load()) as Record<string, unknown>;
-    for (const [name, fn] of Object.entries(exported)) {
-      if (typeof fn !== "function" || !("isPublic" in fn) || !fn.isPublic || !("exportArgs" in fn) || typeof fn.exportArgs !== "function") continue;
-      const kind = "isMutation" in fn && fn.isMutation ? "mutation" : "isAction" in fn && fn.isAction ? "action" : null;
-      const path = `${file.slice(2, -3)}:${name}`;
-      if (!kind || AUTH_OWN.has(path)) continue;
-      found.push({ path, kind, args: JSON.parse(fn.exportArgs() as string) as ValidatorJSON });
-    }
-  }
-  return found.sort((a, b) => a.path.localeCompare(b.path));
-}
-
-// The same count read from the source (`export const x = mutation(` or `action(`), so a module the glob misses, or a
-// registered function the check above doesn't recognize, fails the test instead of passing with fewer calls.
-function writesInSource() {
-  let n = 0;
-  for (const [file, text] of Object.entries(sources)) if (!file.endsWith(".test.ts")) n += text.match(/^export const \w+ = (mutation|action)\(/gm)?.length ?? 0;
-  return n;
-}
-
-// A value that passes a validator: required fields only, the first choice of a union, empty lists and records, and
-// for an id, a real row of that table in the caller's workspace (idOf).
-async function valueFor(json: ValidatorJSON, idOf: (table: string) => Promise<string>): Promise<Value> {
-  switch (json.type) {
-    case "null":
-      return null;
-    case "number":
-      return 1;
-    case "bigint":
-      return BigInt(1);
-    case "boolean":
-      return false;
-    case "string":
-      return "demo";
-    case "bytes":
-      return new ArrayBuffer(1);
-    case "any":
-      return "demo";
-    case "literal":
-      return jsonToConvex(json.value as JSONValue);
-    case "id":
-      return idOf(json.tableName);
-    case "array":
-      return [];
-    case "record":
-      return {};
-    case "union":
-      return valueFor(json.value[0], idOf);
-    case "object": {
-      const out: Record<string, Value> = {};
-      for (const [field, { fieldType, optional }] of Object.entries(json.value)) if (!optional) out[field] = await valueFor(fieldType, idOf);
-      return out;
-    }
-    default:
-      throw new Error(`No value for validator ${json.type}`);
-  }
-}
+const publicWrites = () => publicFunctions(modules, ["mutation", "action"]) as Promise<(PublicFunction & { kind: "mutation" | "action" })[]>;
+type Write = Awaited<ReturnType<typeof publicWrites>>[number];
 
 type TableName = keyof typeof schema.tables;
 
-// Convex leaves a validator's JSON form off its public type; every validator has it at run time.
-function jsonOf(validator: object): ValidatorJSON {
-  if (!("json" in validator)) throw new Error("A validator without its JSON form");
-  return validator.json as ValidatorJSON;
-}
+// Every string "demo", the first choice of every union, required fields only.
+const fill = { text: "demo", pick: 0, full: false };
 
 // A person with a workspace (demo or not), and arguments for every write made of rows in that workspace: each table an
 // argument names gets one row, made from the schema's own validator (its ids pointing at rows made the same way).
@@ -118,14 +50,14 @@ async function personWithArgs(t: T, writes: Write[], demo: boolean) {
       let id: string;
       if (table === "_storage") id = await ctx.storage.store(new Blob(["demo"]));
       else {
-        const doc = (await valueFor(jsonOf(schema.tables[table as TableName].validator), idOf)) as Record<string, Value>;
+        const doc = (await valueFor(jsonOf(schema.tables[table as TableName].validator), { ...fill, idOf })) as Record<string, Value>;
         id = await ctx.db.insert(table as TableName, doc as never);
       }
       made.set(table, id);
       return id;
     };
     const args: Record<string, Record<string, Value>> = {};
-    for (const w of writes) args[w.path] = (await valueFor(w.args, idOf)) as Record<string, Value>;
+    for (const w of writes) args[w.path] = (await valueFor(w.args, { ...fill, idOf })) as Record<string, Value>;
     return { userId, workspaceId, args };
   });
 }
@@ -170,7 +102,7 @@ test("every public mutation and action is found, from the modules and from the s
   const writes = await publicWrites();
   // Today there are 184 (plus Convex Auth's own two); a broken glob would find none.
   expect(writes.length).toBeGreaterThanOrEqual(150);
-  expect(writes.length).toBe(writesInSource());
+  expect(writes.length).toBe(functionsInSource(sources, ["mutation", "action"]));
 });
 
 test("in the demo, every public mutation and action is refused before it runs, and nothing changes", async () => {

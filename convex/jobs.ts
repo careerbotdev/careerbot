@@ -3,7 +3,8 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { type ActionCtx, internalAction, internalMutation, internalQuery, query } from "./_generated/server";
 import { mutation } from "./functions";
-import { aiHeld, BUDGET_REACHED, type BudgetReached, isHeldReason } from "./budgets";
+import { aiHeld, BUDGET_REACHED, type BudgetReached, isHeldReason, monthStart } from "./budgets";
+import { HELD_BY_PLATFORM, platformMonth } from "./plan";
 import { runExtract, runRework } from "./extract";
 import { chat, spendingFor } from "./metering";
 import { dayOf, tally } from "./tallies";
@@ -116,8 +117,11 @@ export const setState = internalMutation({
   },
   handler: async (ctx, { jobId, ...patch }) => {
     const job = await ctx.db.get(jobId);
-    // Waiting on calls that have all settled since it was refused: it starts again instead (budgets.aiHeld).
-    if (job && patch.status === "paused" && isHeldReason(patch.error) && !(await aiHeld(ctx, job.workspaceId))) {
+    // Waiting on calls that have all settled since it was refused: it starts again instead (budgets.aiHeld; on
+    // CareerBot's key, plan.platformMonth's held).
+    const settledSince =
+      patch.error === HELD_BY_PLATFORM ? (await platformMonth(ctx, monthStart())).heldUsd === 0 : isHeldReason(patch.error) && !!job && !(await aiHeld(ctx, job.workspaceId));
+    if (job && patch.status === "paused" && settledSince) {
       await ctx.db.patch(jobId, { status: "queued" });
       await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId });
       return;

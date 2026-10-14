@@ -20,16 +20,16 @@ import { type YourDataState, yourDataFixtures } from "./yourDataFixtures";
 // password, removing someone, changing your password, with Google and GitHub set up, and someone who isn't the owner;
 // and its owner's Updates (the Releases boards): a new version with steps to read first, up to date, not checked yet,
 // and the check off; and Your data (the Your data boards): export ready, running and done, import in a workspace that
-// isn't empty, the place to choose a file, a file's preview, importing, done and stopped partway, and each file it
-// refuses.
+// isn't empty, the place to choose a file, a file's preview, importing, done and stopped partway, each file it
+// refuses, and deleting the account.
 // Resize the window for medium (768 to 1279) and the phone (under 768), where the sections list comes first
 // ("Sections").
 
 type SelfHosted = { oauth?: boolean; owner?: boolean; updates?: UpdateState };
 
-function Fixture({ query = "", drive = true, selfHosted, yourData }: { query?: string; drive?: boolean; selfHosted?: SelfHosted; yourData?: YourDataState }) {
+function Fixture({ query = "", drive = true, selfHosted, yourData, allowance }: { query?: string; drive?: boolean; selfHosted?: SelfHosted; yourData?: YourDataState; allowance?: { spentUsd: number } }) {
   const [answers] = useState(() => ({
-    ...settingsFixtures({ drive }),
+    ...settingsFixtures({ drive, allowance }),
     ...compareFixtures(),
     ...(selfHosted ? accountFixtures(selfHosted) : {}),
     ...(selfHosted?.updates ? updateFixtures(selfHosted.updates) : {}),
@@ -168,6 +168,12 @@ export const CompareInsights: Story = {
 };
 
 export const Budgets: Story = { name: "Budgets and spending", render: () => <Fixture query="section=budgets" /> };
+// On careerbot.dev without an OpenRouter key of their own: CareerBot's AI within its allowance, and the allowance used
+// up (Settings — large, Budgets, CareerBot's AI and allowance used up).
+export const BudgetsAllowance: Story = { name: "Budgets, CareerBot's AI", render: () => <Fixture query="section=budgets" allowance={{ spentUsd: 3.12 }} /> };
+export const BudgetsAllowanceUsedUp: Story = { name: "Budgets, allowance used up", render: () => <Fixture query="section=budgets" allowance={{ spentUsd: 5 }} /> };
+export const BudgetsAllowanceUsedUpPhone: Story = { name: "Budgets, allowance used up, phone", globals: { viewport: { value: "mobile2" } }, render: () => <Fixture query="section=budgets" allowance={{ spentUsd: 5 }} /> };
+export const KeysAllowance: Story = { name: "Keys, CareerBot's AI", render: () => <Fixture query="section=keys" allowance={{ spentUsd: 3.12 }} /> };
 export const Keys: Story = { render: () => <Fixture query="section=keys" /> };
 
 export const KeysReplacing: Story = {
@@ -226,3 +232,16 @@ export const YourDataTooLarge: Story = { name: "Your data, file too large", rend
 export const YourDataReadyPhone: Story = { name: "Your data, export, phone", globals: phone, render: () => yourData("ready") };
 export const YourDataPreviewPhone: Story = { name: "Your data, import preview, phone", globals: phone, render: () => yourData("preview") };
 export const YourDataImportingPhone: Story = { name: "Your data, importing, phone", globals: phone, render: () => yourData("importing") };
+
+// Delete account (the Delete account boards): the dialog with the name typed, the deletion running and stopped partway,
+// and a self-hosted copy's owner held back while others use it.
+const askToDelete = async () => {
+  await userEvent.click(await page().findByRole("button", { name: "Delete my account" }));
+  await userEvent.type(await page().findByLabelText("Type wren@example.com to confirm"), "wren@example.com");
+};
+export const YourDataDelete: Story = { name: "Your data, delete account", render: () => yourData("ready"), play: askToDelete };
+export const YourDataDeleting: Story = { name: "Your data, deleting account", render: () => yourData("deleting") };
+export const YourDataDeleteStopped: Story = { name: "Your data, deleting account stopped partway", render: () => yourData("deleteStopped") };
+export const YourDataDeleteOwner: Story = { name: "Your data, delete account, self-hosted owner", render: () => yourData("ownerBlocked") };
+export const YourDataDeletePhone: Story = { name: "Your data, delete account, phone", globals: phone, render: () => yourData("ready"), play: askToDelete };
+export const YourDataDeletingPhone: Story = { name: "Your data, deleting account, phone", globals: phone, render: () => yourData("deleting") };

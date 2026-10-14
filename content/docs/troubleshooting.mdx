@@ -40,7 +40,12 @@ message names something specific (a story, a company, a date), only its fixed wo
 ## Signing in
 
 <Messages>
-  <Message text="This account isn't allowed to sign in." where="Sign-in page">The email you signed in with isn't on the list of who can join. Try another account. On your own copy, add the email to `SIGNUP_ALLOWLIST` in `.env` and run `docker compose up -d` again.</Message>
+  <Message text="This account isn’t invited yet" where="Sign-in page, careerbot.dev">The hosted version is invite-only. Sign in with the Google or GitHub account for the email you were invited with, or join the waitlist.</Message>
+  <Message text="This invite has expired" where="Invite link, careerbot.dev">Invites last 14 days. Ask the person who invited you for a new link. Already signed up? Sign in with the account you used.</Message>
+  <Message text="This invite was withdrawn" where="Invite link, careerbot.dev">The invite no longer lets anyone sign up. Ask the person who invited you.</Message>
+  <Message text="This invite link doesn’t work" where="Invite link, careerbot.dev">A newer link replaced it. Ask for the latest one.</Message>
+  <Message text="That isn’t the invited account" where="Invite link, careerbot.dev">Choose **Try another account** and sign in with the Google or GitHub account for the invited email.</Message>
+  <Message text="This account is suspended" where="Sign-in page, careerbot.dev">Write to the address on the page if you think that's a mistake.</Message>
   <Message text="This account can’t sign in to this copy. Ask its owner to add you." where="Sign-in page, a copy someone runs">This copy only lets in the people its owner adds, or emails on its list for Google and GitHub sign-in. Ask the owner.</Message>
   <Message text="No way to sign in is set up. Add Google or GitHub sign-in keys to this copy’s Convex settings." where="Sign-in page">This copy has no Google or GitHub sign-in yet. Add `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`, or `AUTH_GITHUB_ID` and `AUTH_GITHUB_SECRET`, then run `docker compose up -d` again. See [Keys and accounts](/docs/self-hosting/keys).</Message>
   <Message text="Sign-in didn’t work. Try again." where="Sign-in page">Google or GitHub didn't finish signing you in. Try again; if it keeps happening on your own copy, check the OAuth app's callback URL against `.env.example`.</Message>
@@ -99,6 +104,7 @@ See [Sign-in and who can join](/docs/self-hosting/sign-in) for setup codes, pass
   <Message text="The last search stopped." where="Companies">A company search ended early. The reason shows instead when there is one. Run the search again; what it already finished isn't paid for twice.</Message>
   <Message text="Couldn’t read its board" where="A company's details">CareerBot couldn't read that company's job board on the date shown. Check the board link with **Edit website and job board**, or choose **Check again**.</Message>
   <Message text="CareerBot can't read that kind of job board yet." where="Editing a job board">Paste the board's own page, such as a Lever or Workday address, rather than a careers page.</Message>
+  <Message text="CareerBot doesn't read SmartRecruiters boards" where="Editing a job board">SmartRecruiters and Teamtailor ask automated readers not to read their boards, so CareerBot leaves them alone. Turning on **Job postings from Apollo** may still bring in the company's roles.</Message>
   <Message text="Use the company's website, like nvidia.com." where="Editing a website">Enter the company's own domain, not a link to a job site or profile.</Message>
   <Message text="Roles are read for Targets and Maybe companies. Rate it first." where="Companies">Rate the company **Target** or **Maybe**, then check its roles.</Message>
   <Message text="Couldn’t check roles" where="Activity">The roles pass stopped. The reason is under it. Choose **Check roles again** in Pursuits once it's fixed.</Message>
@@ -109,6 +115,8 @@ See [Sign-in and who can join](/docs/self-hosting/sign-in) for setup codes, pass
 <Messages>
   <Message text="Not available yet" where="Settings, Google Drive">**Connect** stays off until this copy has Google sign-in set up (`AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`).</Message>
   <Message text="Google Drive didn’t connect. Try again." where="Settings, Google Drive">Connect again, and allow access when Google asks.</Message>
+  <Message text="This connection was started from another account. Start it again here." where="Settings, Google Drive; Today">Someone else's link was used, or you're signed in to a different account than the one that started connecting. Nothing was connected. Choose **Connect Google Drive** here.</Message>
+  <Message text="This connection took too long to finish. Start it again here." where="Settings, Google Drive; Today">Connecting wasn't finished within a few minutes, or the link was already used. Connect again.</Message>
   <Message text="Google Drive isn’t connected: CareerBot needs access to the files it makes." where="Settings, Google Drive">Access wasn't allowed. Connect again and allow it; CareerBot sees only the files it makes and the folder you choose.</Message>
   <Message text="Google Drive stopped accepting CareerBot. Connect it again." where="Settings, Google Drive">Access was removed in your Google account. Connect again.</Message>
   <Message text="Google’s folder picker didn’t load. Try again." where="Settings, Google Drive">Try again. On your own copy, the folder picker also needs `GOOGLE_PICKER_KEY`.</Message>
@@ -122,6 +130,8 @@ See [Sign-in and who can join](/docs/self-hosting/sign-in) for setup codes, pass
 
 <Messages>
   <Message text="Not available yet" where="Record, Projects">**Connect GitHub** stays off until this copy has its GitHub App set up.</Message>
+  <Message text="This connection was started from another account. Start it again here." where="Record, Projects">Someone else's link was used, or you're signed in to a different account than the one that started connecting. Nothing was connected. Choose **Connect GitHub** here.</Message>
+  <Message text="This connection took too long to finish. Start it again here." where="Record, Projects">Connecting wasn't finished within a few minutes, or the link was already used. Connect again.</Message>
   <Message text="GitHub isn’t connected any more. Connect it again in Projects." where="Record, Projects">The app was uninstalled in GitHub. Connect GitHub again.</Message>
   <Message text="CareerBot can’t see that repository. Choose it on GitHub, then read it again." where="A project">The repository isn't among the ones you allowed. Choose it with **Choose repositories**, then **Read again**.</Message>
   <Message text="GitHub refused access. Try again." where="A project">Try again in a minute; if it keeps happening, connect GitHub again.</Message>

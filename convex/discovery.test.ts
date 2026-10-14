@@ -308,6 +308,14 @@ test("checking again un-screens rule and AI calls but never yours, and a new web
   expect((await t.run((ctx) => ctx.db.get(byAi)))?.recheckAt).toBeUndefined();
 });
 
+test("a pasted SmartRecruiters or Teamtailor board is refused with why, and nothing changes", async () => {
+  const { t, w, as } = await setup();
+  const id = await t.run((ctx) => ctx.db.insert("companies", { workspaceId: w, name: "Acme", domain: "acme.com", at: 0, found: [{ via: "criteria", at: 0 }] }));
+  await expect(as.mutation(api.enrich.setBoard, { id, url: "https://jobs.smartrecruiters.com/Acme" })).rejects.toThrow("CareerBot doesn't read SmartRecruiters boards: its rules ask automated readers to stay away.");
+  await expect(as.mutation(api.enrich.setBoard, { id, url: "https://acme.teamtailor.com/jobs" })).rejects.toThrow("CareerBot doesn't read Teamtailor boards");
+  expect((await t.run((ctx) => ctx.db.get(id)))?.boardUrl).toBeUndefined();
+});
+
 test("checking again skips a company with no website, so it never waits on a check that can't run", async () => {
   const { t, w, as } = await setup();
   const id = await t.run((ctx) => ctx.db.insert("companies", { workspaceId: w, name: "No Site", at: 0, found: [{ via: "criteria", at: 0 }] }));

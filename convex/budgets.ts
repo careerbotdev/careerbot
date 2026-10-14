@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, query, type QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
+import { allowanceOf, type Plan, platformMonth, PLATFORM_USED_UP, reservePlatform } from "./plan";
 import { origin } from "./schema";
 import { clockOf, requireWorkspace } from "./workspaces";
 
@@ -49,6 +50,25 @@ async function aiSpent(ctx: QueryCtx, workspaceId: Id<"workspaces">, month = mon
   const rows = await ctx.db.query("aiSpend").withIndex("by_workspace_month", (q) => q.eq("workspaceId", workspaceId).eq("month", month)).collect();
   return rows.some((r) => r.shard === 0) ? rows.reduce((n, r) => n + r.usd, 0) : spent(ctx, workspaceId, "openrouter", month);
 }
+
+// This month's settled AI spending, for the operator's view of a workspace (admin).
+export const aiSpentThisMonth = (ctx: QueryCtx, workspaceId: Id<"workspaces">) => aiSpent(ctx, workspaceId);
+
+// The most a workspace's AI may spend this month: its own budget (0: none set, so nothing runs). On CareerBot's AI
+// (plan.ts; `platform`: a call on CareerBot's key, else whether the workspace's plan is on it now) the plan's allowance,
+// which their own budget can only lower and which they have as their budget until they set one. byPlan: the allowance
+// is what limits it, not a lower budget of their own.
+async function aiCap(ctx: QueryCtx, workspaceId: Id<"workspaces">, platform?: boolean) {
+  const own = (await budgetRow(ctx, workspaceId))?.aiMonthlyUsd;
+  const plan = await allowanceOf(ctx, workspaceId);
+  if (!plan || !(platform ?? plan.source === "platform")) return { capUsd: own ?? 0, byPlan: false, plan };
+  return own !== undefined && own < plan.allowanceUsd ? { capUsd: own, byPlan: false, plan } : { capUsd: plan.allowanceUsd, byPlan: true, plan };
+}
+
+// Why AI work stops at its cap: the person's own budget, or on CareerBot's AI the plan's allowance.
+export const ALLOWANCE_USED_UP = "This month's AI allowance is used up.";
+const usedUp = (byPlan: boolean) => (byPlan ? ALLOWANCE_USED_UP : "This month's AI budget is used up.");
+const noBudget = (byPlan: boolean) => (byPlan ? ALLOWANCE_USED_UP : "Set a monthly AI budget to continue.");
 
 // An AI call's cost (usd) and reservation (held) change the running total of the month it started in. Before that
 // month's total has started they're left out: starting it sums the usage rows, this call's included.
@@ -107,25 +127,31 @@ export const BUDGET_REACHED = "BUDGET_REACHED";
 export type BudgetReached = { code: typeof BUDGET_REACHED; service: "openrouter" | "apollo"; message: string };
 
 // Why automated AI work can't start right now, or null when it can: no budget, or this month's settled spending has
-// reached it. Every AI call checks this before reading its model's price (metering's chat); a pass with many calls at
-// once also checks it while it runs, so it pauses as a whole.
-export async function aiBudgetReached(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
-  const b = await budgetRow(ctx, workspaceId);
-  if (!b || b.aiMonthlyUsd <= 0) return "Set a monthly AI budget to continue.";
-  if ((await aiSpent(ctx, workspaceId)) >= b.aiMonthlyUsd) return "This month's AI budget is used up.";
+// reached it (on CareerBot's key, `platform`: also when every workspace together has reached the platform's limit).
+// Every AI call checks this before reading its model's price (metering's chat); a pass with many calls at once also
+// checks it while it runs, so it pauses as a whole.
+export async function aiBudgetReached(ctx: QueryCtx, workspaceId: Id<"workspaces">, platform?: boolean) {
+  const { capUsd, byPlan } = await aiCap(ctx, workspaceId, platform);
+  if (capUsd <= 0) return noBudget(byPlan);
+  if ((await aiSpent(ctx, workspaceId)) >= capUsd) return usedUp(byPlan);
+  if (platform) {
+    const { spentUsd, limitUsd } = await platformMonth(ctx, monthStart());
+    if (limitUsd === null || spentUsd >= limitUsd) return PLATFORM_USED_UP;
+  }
   return null;
 }
 
 export const aiCheck = internalQuery({
-  args: { workspaceId: v.id("workspaces") },
-  handler: (ctx, { workspaceId }) => aiBudgetReached(ctx, workspaceId),
+  args: { workspaceId: v.id("workspaces"), platform: v.optional(v.boolean()) },
+  handler: (ctx, { workspaceId, platform }) => aiBudgetReached(ctx, workspaceId, platform),
 });
 
 // Records a call before it's made, holding the most it could cost, checked against the budget in the same transaction.
 // Apollo: credits, against Apollo's balance and the person's own cap. AI: dollars (the call's worst case at its model's
-// prices, metering.chat), against this month's budget less what's settled and what calls still running hold; the
-// month's running total (a few rows) is what's read, so the check stays small. Without a budget, nothing is recorded or
-// spent.
+// prices, metering.chat), against this month's budget (aiCap) less what's settled and what calls still running hold; the
+// month's running total (a few rows) is what's read, so the check stays small. A call on CareerBot's key (platform) is
+// also held against the platform's limit across every workspace (plan.reservePlatform). Without a budget, nothing is
+// recorded or spent.
 export const reserve = internalMutation({
   args: {
     workspaceId: v.id("workspaces"),
@@ -142,12 +168,14 @@ export const reserve = internalMutation({
     jobId: v.optional(v.id("jobs")),
     origin: v.optional(origin),
     pursuitId: v.optional(v.id("pursuits")),
+    // AI only: the call goes on CareerBot's key (plan.aiKeyFor).
+    platform: v.optional(v.boolean()),
   },
-  handler: async (ctx, { workspaceId, service, automated, amount, purpose, model, endpoint, accountLeft, cycleStart, jobId, origin, pursuitId }) => {
+  handler: async (ctx, { workspaceId, service, automated, amount, purpose, model, endpoint, accountLeft, cycleStart, jobId, origin, pursuitId, platform }) => {
     const reached = (message: string): BudgetReached => ({ code: BUDGET_REACHED, service, message });
     if (service === "openrouter") {
-      const b = await budgetRow(ctx, workspaceId);
-      if (!b || b.aiMonthlyUsd <= 0) throw new ConvexError(reached("Set a monthly AI budget to continue."));
+      const { capUsd, byPlan } = await aiCap(ctx, workspaceId, platform);
+      if (capUsd <= 0) throw new ConvexError(reached(noBudget(byPlan)));
       // The month's first call starts its running total with what was spent and held so far.
       const month = monthStart();
       if (!(await aiSpendShard(ctx, workspaceId, month, 0))) {
@@ -158,11 +186,15 @@ export const reserve = internalMutation({
       const total = await ctx.db.query("aiSpend").withIndex("by_workspace_month", (q) => q.eq("workspaceId", workspaceId).eq("month", month)).collect();
       const settled = total.reduce((n, r) => n + r.usd, 0);
       const held = heldOf(total);
-      if (settled >= b.aiMonthlyUsd) throw new ConvexError(reached("This month's AI budget is used up."));
-      if (settled + amount > b.aiMonthlyUsd) throw new ConvexError(reached("This call could cost more than what's left of this month's AI budget."));
+      if (settled >= capUsd) throw new ConvexError(reached(usedUp(byPlan)));
+      if (settled + amount > capUsd) throw new ConvexError(reached(`This call could cost more than what's left of this month's AI ${byPlan ? "allowance" : "budget"}.`));
       // Held by calls running now, which will settle and give back what they don't spend; or by calls that won't settle
       // until the nightly check (read in the same transaction, so a call settling meanwhile can't be missed).
-      if (settled + held + amount > b.aiMonthlyUsd) throw new ConvexError(reached((await aiRunning(ctx, workspaceId)) ? HELD_BY_RUNNING : HELD_BY_UNSETTLED));
+      if (settled + held + amount > capUsd) throw new ConvexError(reached((await aiRunning(ctx, workspaceId)) ? HELD_BY_RUNNING : HELD_BY_UNSETTLED));
+      if (platform) {
+        const refused = await reservePlatform(ctx, month, amount);
+        if (refused) throw new ConvexError(reached(refused));
+      }
       await addAiSpend(ctx, workspaceId, Date.now(), { held: amount });
     } else {
       const b = await budgetRow(ctx, workspaceId);
@@ -194,22 +226,39 @@ export const reserve = internalMutation({
       jobId,
       origin,
       pursuitId,
+      ...(service === "openrouter" && platform ? { platform: true as const } : {}),
       at: Date.now(),
     });
   },
 });
 
 // The month's budgets and what's been spent against them in the month of `at` (UTC; the workspace's clock, clockOf): AI,
-// and Apollo credits (Apollo's own billing cycle is only known when a call is made).
-export async function budgetStatus(ctx: QueryCtx, workspaceId: Id<"workspaces">, at: number) {
+// and Apollo credits (Apollo's own billing cycle is only known when a call is made). aiMonthlyUsd: the most AI may
+// spend (aiCap); aiOwnUsd: the budget the person set (null: none); plan: on careerbot.dev, the workspace's plan
+// (plan.allowanceOf), with platformUsedUp when CareerBot's AI as a whole has reached its limit this month.
+export type BudgetStatus = {
+  aiMonthlyUsd: number;
+  aiOwnUsd: number | null;
+  aiSpentUsd: number;
+  apolloMonthlyCredits: number;
+  apolloSpentCredits: number;
+  apolloMode: "on" | "onRequest" | "paused";
+  plan: { source: Plan["source"]; allowanceUsd: number; platformUsedUp: boolean } | null;
+};
+
+export async function budgetStatus(ctx: QueryCtx, workspaceId: Id<"workspaces">, at: number): Promise<BudgetStatus> {
   const b = await budgetRow(ctx, workspaceId);
   const month = monthStart(at);
+  const { capUsd, plan } = await aiCap(ctx, workspaceId);
+  const platform = plan?.source === "platform" ? await platformMonth(ctx, month) : null;
   return {
-    aiMonthlyUsd: b?.aiMonthlyUsd ?? 0,
+    aiMonthlyUsd: capUsd,
+    aiOwnUsd: b?.aiMonthlyUsd ?? null,
     aiSpentUsd: await aiSpent(ctx, workspaceId, month),
     apolloMonthlyCredits: b?.apolloMonthlyCredits ?? 0,
     apolloSpentCredits: await spent(ctx, workspaceId, "apollo", month),
-    apolloMode: b?.apolloMode ?? ("paused" as const),
+    apolloMode: b?.apolloMode ?? "paused",
+    plan: plan && { source: plan.source, allowanceUsd: plan.allowanceUsd, platformUsedUp: !!platform && (platform.limitUsd === null || platform.spentUsd >= platform.limitUsd) },
   };
 }
 
@@ -230,6 +279,9 @@ export const set = mutation({
   handler: async (ctx, args) => {
     const { workspaceId } = await requireWorkspace(ctx);
     if (args.aiMonthlyUsd < 0 || args.apolloMonthlyCredits < 0) throw new Error("Budgets can't be negative.");
+    // On CareerBot's AI the plan's allowance is the most: a budget of their own can only lower it.
+    const plan = await allowanceOf(ctx, workspaceId);
+    if (plan?.source === "platform" && args.aiMonthlyUsd > plan.allowanceUsd) throw new Error(`Your AI allowance is $${plan.allowanceUsd} a month, so your budget can be up to that.`);
     const b = await budgetRow(ctx, workspaceId);
     if (b) await ctx.db.patch(b._id, args);
     else await ctx.db.insert("budgets", { workspaceId, ...args });

@@ -12,7 +12,7 @@ import { EXPORT_TOO_LARGE, EXPORT_TOO_MANY_FILES, MAX_DATA_BYTES, MAX_ENTRIES, M
 import { fileName, readableFiles } from "./readableExport";
 import { toMarkdown } from "./resumeDoc";
 import { VERSION } from "./version";
-import { CARRIED, carried, copyRows, type Done, filesIn, type Known, namedIds, type Row, thisSchema } from "./workspaceCopy";
+import { CARRIED, carried, copyRows, type Done, type Known, linksIn, namedIds, type Row, thisSchema } from "./workspaceCopy";
 
 // The background half of Settings, Your data (yourData.ts): making an export's ZIP, checking a chosen file, and putting
 // one in. Node, for the memory a whole workspace's ZIP takes. None of it calls AI, Apollo or email.
@@ -43,6 +43,16 @@ function pathOf(node: DriveNode, byKey: Map<string, DriveNode>) {
   return ["Resumes and letters", ...parts.map((p) => fileName(p, "Untitled"))].join("/");
 }
 
+// Of these strings, the ids of rows on this deployment, with their tables.
+async function idsHere(ctx: ActionCtx, named: string[]) {
+  const here: Record<string, string> = {};
+  for (let i = 0; i < named.length; i += 500) {
+    const found: Record<string, string | null> = await ctx.runQuery(internal.yourData.idTables, { ids: named.slice(i, i + 500) });
+    for (const [id, table] of Object.entries(found)) if (table) here[id] = table;
+  }
+  return here;
+}
+
 export const runExport = internalAction({
   args: { exportId: v.id("exports") },
   handler: async (ctx, { exportId }) => {
@@ -59,19 +69,14 @@ export const runExport = internalAction({
         if (rows.length) tables[table] = rows;
         done++;
       }
-      const named = namedIds(String(workspaceId), tables);
-      const outside: Record<string, string> = {};
-      for (let i = 0; i < named.length; i += 500) {
-        const found: Record<string, string | null> = await ctx.runQuery(internal.yourData.idTables, { ids: named.slice(i, i + 500) });
-        for (const [id, table] of Object.entries(found)) if (table) outside[id] = table;
-      }
+      const outside = await idsHere(ctx, namedIds(String(workspaceId), tables));
 
       await ctx.runMutation(internal.yourData.exportProgress, { exportId, step: "Files", done });
       const zip = new JSZip();
       const files: Record<string, FileAbout> = {};
       for (const [table, rows] of Object.entries(tables))
         for (const r of rows)
-          for (const id of filesIn(schema.tables[table], r)) {
+          for (const id of linksIn(schema.tables[table], r, "_storage")) {
             if (files[id]) continue;
             const blob = await ctx.storage.get(id as Id<"_storage">);
             if (!blob) continue;
@@ -181,18 +186,31 @@ async function openFile(ctx: ActionCtx, fileId: Id<"_storage">) {
 const rowCount = (f: ExportFile) => Object.values(f.tables).reduce((n, rows) => n + rows.length, 0);
 
 // What goes in: the file's rows less work that hadn't finished, which never comes in whatever the file says; what
-// names that work is left out as the file's own leftovers are.
-function planOf(file: ExportFile) {
+// names that work is left out as the file's own leftovers are. So is what names a row on this deployment that the file
+// doesn't carry (`here`), whatever the file's own `outside` says: a file can be edited, and its rows must never point
+// at another workspace's.
+function planOf(file: ExportFile, here: string[]) {
   const tables = Object.fromEntries(Object.entries(file.tables).map(([t, rows]) => [t, carried(t, rows)]));
   const unfinished = (file.tables.jobs ?? []).filter((j) => !tables.jobs?.includes(j)).map((j) => j._id);
-  return { workspaceId: file.workspace._id, outside: [...Object.keys(file.outside), ...unfinished], tables };
+  return { workspaceId: file.workspace._id, outside: [...Object.keys(file.outside), ...unfinished, ...here], tables };
+}
+
+// The ids the file's rows name without carrying them (its stored files aside) that are ids of rows on this deployment:
+// whatever looks like an id anywhere in them, and whatever their id fields hold, whatever it looks like.
+async function namedHere(ctx: ActionCtx, file: ExportFile) {
+  const schema = thisSchema();
+  const named = new Set(namedIds(file.workspace._id, file.tables));
+  const carriedIds = new Set([file.workspace._id, ...Object.values(file.tables).flatMap((rows) => rows.map((r) => r._id))]);
+  for (const [table, rows] of Object.entries(file.tables))
+    if (schema.tables[table]) for (const r of rows) for (const id of linksIn(schema.tables[table], r)) if (!carriedIds.has(id)) named.add(id);
+  return Object.keys(await idsHere(ctx, [...named].filter((id) => !file.files[id])));
 }
 
 // The rows that would be left out, found by running the copy without writing anything.
-async function leftOut(file: ExportFile) {
+async function leftOut(file: ExportFile, here: string[]) {
   const known: Known = { map: new Map([[file.workspace._id, file.workspace._id], ...Object.keys(file.files).map((id) => [id, id] as [string, string])]), pending: new Set(), outside: new Set() };
   let n = 0;
-  const r = await copyRows(planOf(file), thisSchema(), known, { insert: async (_table, rows) => rows.map(() => `new${n++}`), patch: async () => {} }, { loose: true });
+  const r = await copyRows(planOf(file, here), thisSchema(), known, { insert: async (_table, rows) => rows.map(() => `new${n++}`), patch: async () => {} }, { loose: true });
   return omissionsOf(r.left, r.dropped, r.droppedText);
 }
 
@@ -212,7 +230,7 @@ export const checkImport = internalAction({
       }
       const { zip, file, from } = await openFile(ctx, fileId);
       if (Object.values(file.files).some((f) => !zip.file(f.path))) throw new Refusal(MISSING_FILES);
-      const omitted = await leftOut(file);
+      const omitted = await leftOut(file, await namedHere(ctx, file));
       if (omitted.some((o) => o.essential)) throw new Refusal(lostEssential(omitted));
       const preview = { format: from, version: file.careerbotVersion, exportedAt: file.exportedAt, counts: countsOf(file.tables), omitted: omitted.map(({ kind, n }) => ({ kind, n })) };
       await ctx.runMutation(internal.yourData.importChecked, { importId, preview, total: rowCount(file) });
@@ -244,7 +262,7 @@ export const runImport = internalAction({
       }
       if (!done.size) await ctx.runMutation(internal.yourData.clearSettings, { importId, tables: Object.keys(file.tables) });
 
-      const plan = planOf(file);
+      const plan = planOf(file, await namedHere(ctx, file));
       const known: Known = { map: new Map([[file.workspace._id, String(row.workspaceId)]]), pending: new Set(), outside: new Set() };
 
       let files = 0;

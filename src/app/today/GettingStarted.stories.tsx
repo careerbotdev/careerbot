@@ -12,12 +12,13 @@ import { Today } from "./Today";
 // Getting started on Today, at each stage: Setup at its OpenRouter key, its first story, its Apollo key (large and on
 // a phone, the list and the step) and Google Drive; then your first pursuit starting, choosing a path, on the Outreach
 // path (the outreach message to send, with Apply too), on the Apply path (applying, with Outreach too), following up
-// after each, and all done. On a phone the list shows alone until a step is opened (?step=), and the step's main action
-// sits in the bottom bar. Start, the path check boxes, Outreach too and Apply too, Mark Applied, Skip and Hide until
-// later work as they would.
+// after each, and all done. On careerbot.dev's own AI there's no key step: Setup goes from signing in to the first
+// story. On a phone the list shows alone until a step is opened (?step=), and the step's main action sits in the bottom
+// bar. Start, the path check boxes, Outreach too and Apply too, Mark Applied, Skip and Hide until later work as they
+// would.
 
-function Screen({ stage, step }: { stage: Stage; step?: string }) {
-  const [answers] = useState(() => gettingStartedFixtures(stage));
+function Screen({ stage, step, platform = false }: { stage: Stage; step?: string; platform?: boolean }) {
+  const [answers] = useState(() => gettingStartedFixtures(stage, Date.now(), { platform }));
   return (
     <ShellProvider>
       <StoryConvex answers={answers}>
@@ -50,6 +51,10 @@ export const KeyAndBudget: Story = { name: "Setup, key and budget", render: () =
 export const KeyAndBudgetPhone: Story = { name: "Setup, key and budget, phone", globals: phone, render: () => <Screen stage="key" step="key" /> };
 export const FirstStory: Story = { name: "Setup, first story", render: () => <Screen stage="story" /> };
 export const FirstStoryPhone: Story = { name: "Setup, first story, phone", globals: phone, render: () => <Screen stage="story" step="story" /> };
+export const PlatformFirstStory: Story = { name: "Setup on careerbot.dev, first story", render: () => <Screen stage="story" platform /> };
+export const PlatformFirstStoryPhone: Story = { name: "Setup on careerbot.dev, phone", globals: phone, render: () => <Screen stage="story" platform /> };
+export const PlatformApollo: Story = { name: "Setup on careerbot.dev, Apollo key optional", render: () => <Screen stage="apollo" platform /> };
+export const PlatformApolloPhone: Story = { name: "Setup on careerbot.dev, Apollo key optional, phone", globals: phone, render: () => <Screen stage="apollo" step="apollo" platform /> };
 export const SetupInProgress: Story = { name: "Setup in progress", render: () => <Screen stage="apollo" /> };
 export const SetupInProgressPhone: Story = { name: "Setup in progress, phone", globals: phone, render: () => <Screen stage="apollo" /> };
 export const ApolloPhone: Story = { name: "Setup, Apollo key, phone", globals: phone, render: () => <Screen stage="apollo" step="apollo" /> };

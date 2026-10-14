@@ -8,6 +8,7 @@ import type { DataModel } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 import { passwords } from "./account";
 import { assertAllowed, selfHosted } from "./allowlist";
+import { admit } from "./invites";
 import { ensureWorkspace } from "./workspaces";
 
 // Where sign-in may send someone back to: a path on the site (SITE_URL), the site itself, or another origin listed in
@@ -50,8 +51,10 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [GitHub, Google, passwords, demo],
   callbacks: {
     redirect: async ({ redirectTo }) => redirectBack(redirectTo),
+    // careerbot.dev: invited people and those who already have a workspace (invites.ts); a self-hosted copy: its
+    // allowlist and password accounts (allowlist.ts).
     beforeSessionCreation: async (ctx, { userId }) => {
-      await assertAllowed(ctx, userId);
+      await (selfHosted() ? assertAllowed(ctx, userId) : admit(ctx, userId));
       await ensureWorkspace(ctx, userId);
       await ctx.db.patch(userId, { lastSignInAt: Date.now() });
     },

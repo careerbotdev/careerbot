@@ -43,21 +43,18 @@ export const status = query({
 export const balance = action({
   args: {},
   handler: async (ctx): Promise<ApolloBalance | null> => {
-    const ws = await ctx.runQuery(internal.apolloKey.myWorkspace, {});
-    const key = ws && (await apolloKeyFor(ctx, ws));
+    const ws = await ctx.runQuery(internal.workspaces.callerWorkspace, {});
+    const key = await apolloKeyFor(ctx, ws);
     return key ? apolloBalance(key) : null;
   },
-});
-
-export const myWorkspace = internalQuery({
-  args: {},
-  handler: async (ctx) => (await requireWorkspace(ctx)).workspaceId,
 });
 
 // Check the key can read the account's credit balance (so every spend can be kept inside it), then store it encrypted.
 export const save = action({
   args: { key: v.string() },
   handler: async (ctx, { key }): Promise<{ ok: true } | { ok: false; message: string }> => {
+    // Whose key it is first, so nobody signed out can have CareerBot try keys with Apollo.
+    await ctx.runQuery(internal.workspaces.callerWorkspace, {});
     const trimmed = key.trim();
     if (!trimmed) return { ok: false, message: "Paste your Apollo key." };
     const b = await apolloBalance(trimmed);

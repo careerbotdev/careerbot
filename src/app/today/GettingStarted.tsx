@@ -5,7 +5,7 @@ import type { FunctionReturnType } from "convex/server";
 import { ConvexError } from "convex/values";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { type KeyboardEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useCallback, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import { pursuitHref as hrefOf, type Path, takesApply, takesOutreach } from "../../../convex/pursuitSteps";
 import type { FirstPursuit, SetupStep } from "../../../convex/today";
@@ -33,15 +33,20 @@ import { PersonRow } from "../pursuits/People";
 import { DRIVE_RETURNED } from "../settings/Drive";
 import { useModelCatalog } from "../useModelCatalog";
 import { useBar } from "../shell/ShellContext";
+import { useConnectionReturn } from "../shell/useConnectionReturn";
 import { DONE, docsHref, type Go, type Learn, type Named, PATH_ROWS, type PathDef, type PathKey, PURSUIT_STEPS, type PursuitKey, SETUP_STEPS, type SetupKey, type StepKey, STORY_GUIDE, WHAT_TO_COVER } from "./steps";
 
 export type Setup = FunctionReturnType<typeof api.today.setup>;
 
 const failed = (e: unknown, fallback: string) => toast({ message: e instanceof ConvexError ? String(e.data) : e instanceof Error ? e.message : fallback, icon: "failed" });
 const NOT_YET: SetupStep = { done: false, detail: null, at: null };
-const REQUIRED = SETUP_STEPS.filter((s) => !s.optional);
 const HIDE = { detail: "Puts Getting started away; Today shows what needs you instead. Bring it back from Today’s ⋯ menu.", note: "Free · Undo with U" };
 const SHOW_TODAY = { detail: "Puts Getting started away and shows Today’s new roles and reminders. Bring it back from Today’s ⋯ menu.", note: "Free · Undo with U" };
+
+// The Setup steps a workspace takes: on careerbot.dev's own AI (setup.platformAi) there's no OpenRouter key to add, so
+// that step is left out, and the Apollo key is optional (Skip).
+const setupSteps = (setup: Setup) =>
+  setup.platformAi ? SETUP_STEPS.filter((s) => s.key !== "key").map((s) => (s.key === "apollo" ? { ...s, optional: true } : s)) : SETUP_STEPS;
 
 // Where Getting started stands: Setup until its steps are done (Google Drive connected or skipped), then the first
 // pursuit, then done. The first pursuit's steps: the shared ones and those of the path or paths it takes (either path
@@ -49,24 +54,24 @@ const SHOW_TODAY = { detail: "Puts Getting started away and shows Today’s new 
 // through).
 function progress(setup: Setup) {
   const first = setup.firstPursuit;
-  const setupDone = SETUP_STEPS.every((s) => setup.steps[s.key].done);
+  const setupDefs = setupSteps(setup);
+  const setupDone = setupDefs.every((s) => setup.steps[s.key].done);
   const stepOf = (key: PursuitKey) => first?.steps[key] ?? NOT_YET;
   const path = first?.path ?? null;
   const takes = (part: "outreach" | "apply") => (part === "outreach" ? takesOutreach(path) : takesApply(path));
   const steps = PURSUIT_STEPS.filter((s) => s.part === "shared" || takes(s.part));
   const paths = PATH_ROWS.filter((r) => !takes(r.path) && (r.path === "outreach" || !first || first.postingId !== null));
   const allDone = setupDone && steps.every((s) => stepOf(s.key).done);
-  const current: StepKey | "done" = !setupDone ? SETUP_STEPS.find((s) => !setup.steps[s.key].done)!.key : (steps.find((s) => !stepOf(s.key).done)?.key ?? "done");
-  return { first, setupDone, stepOf, steps, paths, allDone, current };
+  const current: StepKey | "done" = !setupDone ? setupDefs.find((s) => !setup.steps[s.key].done)!.key : (steps.find((s) => !stepOf(s.key).done)?.key ?? "done");
+  return { first, setupDefs, setupDone, stepOf, steps, paths, allDone, current };
 }
 
 // The steps not done yet, of those showing: Setup's, then (once Setup is done) the first pursuit's.
 export const stepsLeft = (setup: Setup) => {
-  const { setupDone, steps, stepOf } = progress(setup);
-  return SETUP_STEPS.filter((s) => !setup.steps[s.key].done).length + (setupDone ? steps.filter((s) => !stepOf(s.key).done).length : 0);
+  const { setupDefs, setupDone, steps, stepOf } = progress(setup);
+  return setupDefs.filter((s) => !setup.steps[s.key].done).length + (setupDone ? steps.filter((s) => !stepOf(s.key).done).length : 0);
 };
 
-const isSetupKey = (k: string): k is SetupKey => SETUP_STEPS.some((s) => s.key === k);
 const isPursuitKey = (k: string): k is PursuitKey => PURSUIT_STEPS.some((s) => s.key === k);
 const isPathKey = (k: string): k is PathKey => PATH_ROWS.some((r) => r.key === k);
 
@@ -92,7 +97,8 @@ export function GettingStarted({ setup }: { setup: Setup }) {
   const hide = useMutation(api.today.hideSetup);
   // Bring your data from another copy: only while the workspace is still empty.
   const data = useQuery(api.yourData.status);
-  const { first, setupDone, stepOf, steps, paths, allDone, current } = progress(setup);
+  const { first, setupDefs, setupDone, stepOf, steps, paths, allDone, current } = progress(setup);
+  const isSetupKey = (k: string): k is SetupKey => setupDefs.some((s) => s.key === k);
   const named: Named = { company: first?.company ?? null, direction: first?.direction ?? null };
   const asked = params.get("step") ?? "";
   const valid =
@@ -115,13 +121,14 @@ export function GettingStarted({ setup }: { setup: Setup }) {
   );
   useBar(small && allDone && chosen === null ? { kind: "actions", actions: showToday("lg") } : null);
 
-  const required = REQUIRED.filter((s) => setup.steps[s.key].done).length;
+  const required = setupDefs.filter((s) => !s.optional);
+  const requiredDone = required.filter((s) => setup.steps[s.key].done).length;
   const pursuitDone = steps.filter((s) => stepOf(s.key).done).length;
-  const [value, of] = setupDone ? [pursuitDone, steps.length] : [required, REQUIRED.length];
+  const [value, of] = setupDone ? [pursuitDone, steps.length] : [requiredDone, required.length];
   const drive = setup.steps.drive.done ? (setup.skipped.includes("drive") ? " · Google Drive skipped" : " · Google Drive connected") : "";
   const chosenPath = first?.path ?? null;
 
-  const setupRows = SETUP_STEPS.map((s, i) => {
+  const setupRows = setupDefs.map((s, i) => {
     const state = setup.steps[s.key];
     const isCurrent = s.key === current;
     return (
@@ -195,7 +202,7 @@ export function GettingStarted({ setup }: { setup: Setup }) {
               <ul role="list" className="flex flex-col gap-0.5">
                 <ListRow
                   title="Setup"
-                  line={`${required} of ${REQUIRED.length}${drive}`}
+                  line={`${requiredDone} of ${required.length}${drive}`}
                   lead={<Marker n={0} done current={false} />}
                   onOpen={() => setSetupOpen((o) => !o)}
                   tag={<Icons.goIn size={16} aria-label={setupOpen ? "Open" : "Closed"} className={`text-muted transition-transform duration-100 ${setupOpen ? "rotate-90" : ""}`} />}
@@ -241,7 +248,7 @@ export function GettingStarted({ setup }: { setup: Setup }) {
     chosen === null || chosen === "done"
       ? DONE.learn
       : isSetupKey(chosen)
-        ? SETUP_STEPS.find((s) => s.key === chosen)!.learn
+        ? setupDefs.find((s) => s.key === chosen)!.learn
         : pathRow
           ? pathRow.learn
           : PURSUIT_STEPS.find((s) => s.key === chosen)!.learn;
@@ -249,7 +256,7 @@ export function GettingStarted({ setup }: { setup: Setup }) {
     chosen === null || chosen === "done"
       ? { part: "Getting started", step: "Done", back: "Getting started" }
       : isSetupKey(chosen)
-        ? { part: "Setup", step: `Step ${SETUP_STEPS.findIndex((s) => s.key === chosen) + 1} of ${SETUP_STEPS.length}`, back: "" }
+        ? { part: "Setup", step: `Step ${setupDefs.findIndex((s) => s.key === chosen) + 1} of ${setupDefs.length}`, back: "" }
         : pathRow
           ? { part: "Your first pursuit", step: chosenPath ? pathRow.too : pathRow.title, back: "" }
           : { part: "Your first pursuit", step: `Step ${steps.findIndex((s) => s.key === chosen) + 1} of ${steps.length}`, back: "" };
@@ -382,9 +389,10 @@ function Actions({ small, main, children }: { small: boolean; main?: (size: Butt
 }
 
 function SetupStepPane({ k, setup, small, onNext }: { k: SetupKey; setup: Setup; small: boolean; onNext: (key: StepKey) => void }) {
-  const s = SETUP_STEPS.find((d) => d.key === k)!;
+  const defs = setupSteps(setup);
+  const s = defs.find((d) => d.key === k)!;
   const state = setup.steps[k];
-  const next = SETUP_STEPS[SETUP_STEPS.indexOf(s) + 1]?.key ?? "pursuit";
+  const next = defs[defs.indexOf(s) + 1]?.key ?? "pursuit";
   const go = s.go;
   const body =
     k === "key" && !state.done ? (
@@ -392,7 +400,7 @@ function SetupStepPane({ k, setup, small, onNext }: { k: SetupKey; setup: Setup;
     ) : k === "story" && !state.done ? (
       <StoryWriter setup={setup} small={small} />
     ) : k === "apollo" && !state.done ? (
-      <ApolloStep small={small} onSaved={() => onNext(next)} />
+      <ApolloStep small={small} skippable={!!setup.platformAi} onSaved={() => onNext(next)} />
     ) : k === "drive" ? (
       <DriveStep setup={setup} small={small} onDone={() => onNext(next)} />
     ) : go ? (
@@ -612,17 +620,9 @@ function DriveStep({ setup, small, onDone }: { setup: Setup; small: boolean; onD
   const status = useQuery(api.drive.status);
   const connect = useMutation(api.drive.connect);
   const skip = useMutation(api.today.skipStep);
-  const params = useSearchParams();
   const router = useRouter();
   const path = usePathname();
-  const outcome = params.get("drive");
-  const said = useRef(false);
-  useEffect(() => {
-    if (said.current || !outcome || !DRIVE_RETURNED[outcome]) return;
-    said.current = true;
-    toast(DRIVE_RETURNED[outcome]);
-    router.replace(`${path}?step=drive`, { scroll: false });
-  }, [outcome, router, path]);
+  useConnectionReturn("drive", DRIVE_RETURNED, () => router.replace(`${path}?step=drive`, { scroll: false }));
 
   const connected = !!status?.connected;
   const skipped = setup.skipped.includes("drive");
@@ -963,12 +963,14 @@ const APOLLO_MODES = [
 type ApolloMode = (typeof APOLLO_MODES)[number]["value"];
 
 // Setup, step 7 in place: the Apollo key (checked with Apollo), the credits set aside each month, and whether Apollo
-// work runs on its own, saved together by Save and continue.
-function ApolloStep({ small, onSaved }: { small: boolean; onSaved: () => void }) {
+// work runs on its own, saved together by Save and continue. skippable: on careerbot.dev's own AI the step is optional
+// (Skip), since everything up to the first resume works without it.
+function ApolloStep({ small, skippable, onSaved }: { small: boolean; skippable: boolean; onSaved: () => void }) {
   const key = useQuery(api.apolloKey.status);
   const budgets = useQuery(api.budgets.status);
   const saveKey = useAction(api.apolloKey.save);
   const setBudgets = useMutation(api.budgets.set);
+  const skip = useMutation(api.today.skipStep);
   const [typed, setTyped] = useState("");
   const [credits, setCredits] = useState<number | null>(null);
   const [mode, setMode] = useState<ApolloMode | null>(null);
@@ -1060,7 +1062,31 @@ function ApolloStep({ small, onSaved }: { small: boolean; onSaved: () => void })
           <SegmentedControl label="Automated Apollo work" hideLabel value={runs} onChange={setMode} options={APOLLO_MODES} />
         </div>
       </div>
-      {!small && action("md")}
+      {skippable ? (
+        <div className={`flex gap-2 ${small ? "" : "items-center"}`}>
+          {!small && action("md")}
+          <Button
+            variant="ghost"
+            size={small ? "lg" : "md"}
+            className={small ? "flex-1" : ""}
+            detail="Leaves Apollo out of Getting started. Add a key any time in Settings, Keys, to find companies and people."
+            note="Free · Undo with U"
+            onClick={() =>
+              void skip({ step: "apollo", skipped: true }).then(
+                () => {
+                  toast({ message: "Apollo skipped", action: { label: "Undo", key: "U", run: () => void skip({ step: "apollo", skipped: false }) } });
+                  onSaved();
+                },
+                (e: unknown) => failed(e, "Couldn’t save that."),
+              )
+            }
+          >
+            Skip
+          </Button>
+        </div>
+      ) : (
+        !small && action("md")
+      )}
     </div>
   );
 }

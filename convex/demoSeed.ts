@@ -53,7 +53,7 @@ export const create = internalMutation({
     began: v.number(),
     asOf: v.optional(v.number()),
     setupHidden: v.optional(v.boolean()),
-    setupSkipped: v.optional(v.array(v.union(v.literal("drive"), v.literal("people")))),
+    setupSkipped: v.optional(v.array(v.union(v.literal("drive"), v.literal("apollo"), v.literal("people")))),
     toursOffered: v.optional(v.array(v.string())),
   },
   handler: async (ctx, { name, userName, demo, ...fields }) => {

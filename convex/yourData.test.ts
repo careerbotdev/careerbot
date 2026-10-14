@@ -203,6 +203,38 @@ test("an upload is the sender's own import: another workspace's import and file 
   expect((await b.as.query(api.yourData.status, {})).import!.id).toBe(mine._id);
 }, 120_000);
 
+// A file can be edited before it's imported: one whose rows name another workspace's rows, and whose `outside` says
+// nothing of them, must not link the new rows to those (a pursuit would then show the other workspace's role).
+test("an import never links its rows to another workspace's, whatever the file says", async () => {
+  const t = convexTest(schema, modules);
+  const a = await person(t, "A");
+  const b = await person(t, "B");
+  const { company, posting } = await t.run(async (ctx) => {
+    const company = await ctx.db.insert("companies", { workspaceId: a.w, name: "A's company", found: [], at: 1 });
+    const posting = await ctx.db.insert("postings", { workspaceId: a.w, companyId: company, provider: "greenhouse", externalId: "1", url: "https://a.example", title: "A's secret role", remote: false, firstSeen: 1, lastSeen: 1 });
+    return { company, posting };
+  });
+  const ws = EMPTY.workspace._id;
+  const own = { _id: "c".repeat(32), _creationTime: 1, workspaceId: ws, name: "B's company", found: [], at: 1 };
+  const pursuit = { _id: "d".repeat(32), _creationTime: 2, workspaceId: ws, companyId: own._id, postingId: posting, title: "Role", company: "B's company", status: "preparing", timeline: [], changedAt: 2, at: 2 };
+  // A required link to someone else's company: the row can't come in at all.
+  const theirs = { ...pursuit, _id: "e".repeat(32), _creationTime: 3, companyId: company, postingId: undefined };
+  const ready = await choose(t, b.as, await zipOf({ [DATA_FILE]: JSON.stringify({ ...EMPTY, tables: { companies: [own], pursuits: [pursuit, theirs] } }) }));
+  expect(ready.status).toBe("refused");
+  expect(ready.error).toMatch(/can’t come in whole: Pursuits \(1\)/);
+
+  const c = await person(t, "C");
+  const fine = await choose(t, c.as, await zipOf({ [DATA_FILE]: JSON.stringify({ ...EMPTY, tables: { companies: [own], pursuits: [pursuit] } }) }));
+  expect(fine).toMatchObject({ status: "ready", preview: { omitted: [{ kind: "Links in pursuits", n: 1 }] } });
+  await c.as.mutation(api.yourData.startImport, { importId: fine.id, leaveOut: true });
+  await settle(t);
+  expect((await c.as.query(api.yourData.status, {})).import).toMatchObject({ status: "done", error: null });
+  const pursuits = await t.run((ctx) => ctx.db.query("pursuits").collect());
+  expect(pursuits.map((p) => ({ workspaceId: p.workspaceId, postingId: p.postingId, companyId: p.companyId }))).toEqual([
+    { workspaceId: c.w, postingId: undefined, companyId: expect.not.stringMatching(company) },
+  ]);
+}, 120_000);
+
 test("a ZIP that unpacks to far more than it looks is refused before it's read whole; one too large isn't stored", async () => {
   const t = convexTest(schema, modules);
   const b = await person(t, "B");

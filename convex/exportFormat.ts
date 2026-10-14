@@ -18,7 +18,7 @@ import { CARRIED, type Row } from "./workspaceCopy";
 export const FORMAT = 1;
 export const DATA_FILE = "careerbot-export.json";
 
-export type WorkspaceAbout = { _id: string; name: string; began: number; setupHidden?: boolean; setupSkipped?: ("drive" | "people")[]; toursOffered?: string[] };
+export type WorkspaceAbout = { _id: string; name: string; began: number; setupHidden?: boolean; setupSkipped?: ("drive" | "apollo" | "people")[]; toursOffered?: string[] };
 export type FileAbout = { path: string; contentType?: string; bytes: number };
 export type ExportFile = {
   format: number;

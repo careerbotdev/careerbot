@@ -140,6 +140,7 @@ export function RoleRows({
   onCheck,
   selecting,
   more,
+  byPosted = false,
   children,
 }: {
   groups: RoleGroup[];
@@ -149,12 +150,15 @@ export function RoleRows({
   onCheck: ((id: string, on: boolean) => void) | null;
   selecting: boolean;
   more?: ReactNode;
+  // Sorted by Newest posted: every row says when it was posted (or No posted date, for those listed last), so the order
+  // shows.
+  byPosted?: boolean;
   children?: ReactNode;
 }) {
   return (
     <List label="Roles" tour="pursuits.list" className={selecting ? "p-2 pb-16" : "p-2"}>
       {groups.map((g) => (
-        <RoleListRow key={g[0].id} roles={g} selected={selected} onOpen={onOpen} checked={checked.has(g[0].id)} onCheck={onCheck} selecting={selecting} />
+        <RoleListRow key={g[0].id} roles={g} selected={selected} onOpen={onOpen} checked={checked.has(g[0].id)} onCheck={onCheck} selecting={selecting} byPosted={byPosted} />
       ))}
       {more}
       {children}
@@ -162,7 +166,7 @@ export function RoleRows({
   );
 }
 
-function RoleListRow({ roles, selected, onOpen, checked, onCheck, selecting }: { roles: RoleRow[]; selected: string | null; onOpen: Open; checked: boolean; onCheck: ((id: string, on: boolean) => void) | null; selecting: boolean }) {
+function RoleListRow({ roles, selected, onOpen, checked, onCheck, selecting, byPosted = false }: { roles: RoleRow[]; selected: string | null; onOpen: Open; checked: boolean; onCheck: ((id: string, on: boolean) => void) | null; selecting: boolean; byPosted?: boolean }) {
   const rate = useMutation(api.roles.rate);
   const [why, setWhy] = useState(false);
   const r = roles[0];
@@ -209,7 +213,7 @@ function RoleListRow({ roles, selected, onOpen, checked, onCheck, selecting }: {
       line={[r.company.name, many ? null : place(r)].filter(Boolean).join(" · ")}
       lead={<ScoreBadge score={r.score} level={r.level} />}
       tag={tag}
-      meta={many ? `${roles.length} places` : postedWord(r)}
+      meta={byPosted ? (r.postedAt ? postedWord(r) : "No posted date") : many ? `${roles.length} places` : postedWord(r)}
       selected={roles.some((x) => x.id === selected)}
       muted={r.rating === "no"}
       onOpen={() => onOpen(r.id, r.direction?.id ?? null)}

@@ -28,7 +28,7 @@ type Story = StoryObj<typeof meta>;
 const phone = { viewport: { value: "mobile2" } };
 const refusal = (reason: PasswordRefusal["reason"], message: string): PasswordRefusal => ({ kind: "password", reason, message });
 const WRONG = refusal("wrongPassword", "That username and password don’t match. Try again, or reset your password.");
-const refused: NotAllowed = { kind: "notAllowed", message: "This account can’t sign in to this copy. Ask its owner to add you.", email: "sam.rivera@example.com", provider: "google" };
+const refused: NotAllowed = { kind: "notAllowed", reason: "notInvited", message: "This account can’t sign in to this copy. Ask its owner to add you.", email: "sam.rivera@example.com", provider: "google" };
 
 function Screen({
   ownerNeeded = false,

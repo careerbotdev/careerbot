@@ -11,6 +11,8 @@ sources:
   - src/components/CostEstimate.tsx
   - src/app/settings/Budgets.tsx
   - src/app/reports/SpendingView.tsx
+  - convex/plan.ts
+  - src/app/settings/Allowance.tsx
 ---
 
 CareerBot pays for AI with your own OpenRouter key and for company data with your own Apollo plan. Two budgets in
@@ -46,6 +48,27 @@ cost more than OpenRouter reported is checked each night against OpenRouter's ow
 When the budget runs out, work pauses instead of failing. It picks up where it left off when you raise the budget, and
 on the 1st of each month (UTC) when the budget resets. Where an action needs the budget that's spent, its button says
 why and offers **Raise budget**, which opens your budgets.
+
+## CareerBot's AI on careerbot.dev
+
+During the beta on careerbot.dev, you don't need an OpenRouter key: without one, AI runs on CareerBot's own key within a
+monthly allowance, $5 unless you've been given more. A copy you run yourself always uses your own key.
+
+- **AI allowance** in Budgets and spending shows it. The meter shows what's spent of it this month.
+- **Monthly budget** can lower it, if you want to spend less, but not raise it.
+- On CareerBot's AI, tasks use the recommended models. Other models need your own OpenRouter key.
+- When the allowance is used up, AI work pauses like it does at a budget, and Budgets and spending and
+  <Screen id="today" /> say so. It picks up again on the 1st. To keep going sooner, **Ask for more** writes to
+  team@careerbot.dev, and **Add your own key** opens Keys.
+- With your own OpenRouter key, the allowance no longer applies: AI is paid from your own account, within your own
+  **Monthly budget**. Remove the key and the allowance applies again.
+
+<Messages>
+  <Message text="This month's AI allowance is used up." where="Anywhere AI runs">Wait for the 1st, ask for more, or add your own key.</Message>
+  <Message text="CareerBot's AI has reached its limit for this month." where="Anywhere AI runs">CareerBot's AI as a whole is used up for the month. Wait for the 1st, or add your own key.</Message>
+  <Message text="Waiting for CareerBot's AI to free up from work already running." where="Anywhere AI runs">It starts again by itself as that work finishes.</Message>
+  <Message text="Choose one of the recommended models in AI settings. Other models need your own OpenRouter key." where="Anywhere AI runs">A task is set to a model CareerBot's AI doesn't offer.</Message>
+</Messages>
 
 ## Estimates beside buttons
 

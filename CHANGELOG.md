@@ -2,6 +2,43 @@
 
 What changed in each version of CareerBot, newest first. The same notes are at https://careerbot.dev/changelog.
 
+## 0.10.1 · 2026-10-14
+
+The release notes for 0.10.0 now describe careerbot.dev's own AI as coming once it's turned on. Until then you add your own OpenRouter key.
+
+### Fixed
+
+- The 0.10.0 notes now say careerbot.dev's own AI comes once it's turned on; until then you add your own OpenRouter key.
+
+All releases: https://careerbot.dev/changelog#v0.10.1
+
+## 0.10.0 · 2026-10-14
+
+You can delete your account from Settings, sort Pursuits by when roles were posted, and careerbot.dev now lets people in by invite. CareerBot reads more job boards, and connecting GitHub or Google Drive only finishes for the account that started it.
+
+### New
+
+- Delete your account in Settings, Your data, by typing its name; your workspace, files, keys and Drive and GitHub connections go with it, then you're signed out.
+- CareerBot now reads Eightfold boards and iCIMS career sites, and keeps more of what Workable, BambooHR, Rippling and JazzHR boards state about a role.
+- On careerbot.dev you join with an invite link that says what's included, and Getting started fits in one sitting.
+- careerbot.dev can now offer CareerBot's own AI within a monthly allowance, once it's turned on; Settings and Today say when it's used up and what you can do.
+- Pursuits can list roles newest posted first, across every role that passes your filters, from Sort by on the list's menu.
+
+### Better
+
+- The Apollo key in Settings and the Apollo docs now say it's optional, used only for your own search, and that your use must follow Apollo's terms.
+- CareerBot no longer reads SmartRecruiters or Teamtailor boards, because their published rules ask automated readers and AI to stay away.
+
+### Fixed
+
+- Connecting GitHub or Google Drive now finishes only in the account that started it, so nobody can send you a link that puts yours in their account.
+- Importing an edited export file can no longer link your rows to rows from another account on the same copy.
+- Filtering Pursuits by Posted within no longer makes the list start over again and again, and says so when no roles were posted in that time.
+- Checking an OpenRouter or Brave key and loading the model list now need you to be signed in.
+- The mouse wheel and trackpad scroll the page again with the pointer over an image, a row or a card, in the app and the docs.
+
+All releases: https://careerbot.dev/changelog#v0.10.0
+
 ## 0.9.6 · 2026-10-14
 
 Arrow keys now move through Review, next to J and K. Building the release images no longer depends on Docker Hub's anonymous download limit.

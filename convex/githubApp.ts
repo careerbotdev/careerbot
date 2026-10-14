@@ -53,9 +53,13 @@ export function manifest() {
 
 const LINK_MS = { app: 24 * 60 * 60 * 1000, connect: 30 * 60 * 1000 };
 
-export async function newLink(ctx: MutationCtx, purpose: "app" | "connect", workspaceId?: Id<"workspaces">) {
-  const token = Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
-  await ctx.db.insert("githubLinks", { token, purpose, workspaceId, expiresAt: Date.now() + LINK_MS[purpose] });
+// A token no one can guess, for a link or a connection waiting to be finished.
+export const newToken = () => Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
+
+// owner: who is connecting, and to which workspace ("connect").
+export async function newLink(ctx: MutationCtx, purpose: "app" | "connect", owner?: { workspaceId: Id<"workspaces">; userId: Id<"users"> }) {
+  const token = newToken();
+  await ctx.db.insert("githubLinks", { token, purpose, ...owner, expiresAt: Date.now() + LINK_MS[purpose] });
   return token;
 }
 

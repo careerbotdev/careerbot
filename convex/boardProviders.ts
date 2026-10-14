@@ -19,6 +19,7 @@ export const BOARD_PROVIDERS = [
   "oracle",
   "jazzhr",
   "dover",
+  "eightfold",
   "apollo",
 ] as const;
 export type BoardProvider = (typeof BOARD_PROVIDERS)[number];

@@ -39,11 +39,12 @@ const SETUP_DONE: Record<Stage, number> = { key: 1, story: 2, apollo: 6, drive: 
 // The path each stage's pursuit is on.
 const PATH: Partial<Record<Stage, Path>> = { outreach: "outreach", apply: "apply", outreachSent: "outreach", applied: "apply", done: "outreach" };
 
-export function gettingStartedFixtures(stage: Stage, now = Date.now()): Answers {
+// platform: careerbot.dev's own AI, so there's no key step (AI included up to $5 a month).
+export function gettingStartedFixtures(stage: Stage, now = Date.now(), { platform = false } = {}): Answers {
   let current = stage;
   let path: Path | null = PATH[stage] ?? null;
   let hidden = false;
-  const skipped = new Set<"drive">(SETUP_DONE[stage] === 9 ? ["drive"] : []);
+  const skipped = new Set<"drive" | "apollo">(SETUP_DONE[stage] === 9 ? ["drive"] : []);
   const pursuits = pursuitsFixtures({ now });
   const settings = settingsFixtures({ fresh: stage === "key", drive: false });
   const ranked = pursuits[getFunctionName(api.roles.list)] as (args: object) => { page: TodayRole[] };
@@ -82,7 +83,12 @@ export function gettingStartedFixtures(stage: Stage, now = Date.now()): Answers 
     const steps = Object.fromEntries(
       SETUP_ORDER.map((k, i) => [k, i < n ? done(k === "drive" && !skipped.has("drive") ? "Connected · wren@example.com" : DONE_LINES[k]) : k === "drive" && skipped.has("drive") ? done("Skipped") : todo]),
     ) as Setup["steps"];
-    return { workspaceId: "ws", hidden, storyUsdPerWord: stage === "story" ? null : 0.00002, firstStory: null, skipped: [...skipped], steps, firstPursuit: firstPursuit() };
+    if (platform) {
+      steps.signIn = done(`${DONE_LINES.signIn} · AI included up to $5 a month`);
+      steps.key = done("CareerBot’s AI · $5 a month");
+      if (skipped.has("apollo")) steps.apollo = done("Skipped");
+    }
+    return { workspaceId: "ws", hidden, storyUsdPerWord: stage === "story" ? null : 0.00002, platformAi: platform ? { allowanceUsd: 5 } : null, firstStory: null, skipped: [...skipped], steps, firstPursuit: firstPursuit() };
   };
 
   return {

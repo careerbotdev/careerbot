@@ -11,6 +11,8 @@ sources:
   - convex/account.ts
   - convex/auth.ts
   - convex/allowlist.ts
+  - convex/invites.ts
+  - src/app/InviteSignIn.tsx
 ---
 
 Signing in gives you a workspace that's yours alone: your stories, your record and your search. This step is done as soon as you're in. It's free.
@@ -19,12 +21,22 @@ How you sign in depends on where CareerBot runs.
 
 ## On careerbot.dev
 
-The hosted version is invite-only while it's tested. The sign-in page says so: "The hosted version of CareerBot is invite-only while we test it. Sign in with the account you were invited with."
+The hosted version is invite-only while it's tested. You get an invite as a link, for one email address. It works once and lasts 14 days.
+
+Opening the link shows **You’re invited**: which Google or GitHub account to sign in with, and what comes with the beta: AI included up to a monthly allowance, no card and no charge, and your record, stories and resumes stay yours.
+
+1. Choose **Continue with Google** or **Continue with GitHub**, with the account for the invited email.
+2. Approve CareerBot on Google's or GitHub's screen. You come back signed in, on Today, with Getting started open.
+
+Because CareerBot's own AI is included, there's no OpenRouter key to add: Getting started goes straight from signing in to your first story, and on to your first resume in one sitting. The Apollo key is optional too; choose **Skip** on its step and add one later in Settings, Keys.
+
+If the link says the invite **has expired**, **was withdrawn** or **has been used**, ask the person who invited you for a new link. A newer link replaces the old one. If you already signed up, sign in as usual: once you have an account, you don't need the invite again.
+
+If you sign in with a different account than the invited one, you see **That isn’t the invited account**; choose **Try another account**.
+
+Signing in without an invite, from the sign-in page, says so: "The hosted version of CareerBot is invite-only while we test it. Sign in with the account you were invited with."
 
 <Shot id="sign-in" alt="The careerbot.dev sign-in page: an Invite only label, the Sign in heading, and the buttons Continue with Google and Continue with GitHub, with a link to get notified when it opens." />
-
-1. Choose **Continue with Google** or **Continue with GitHub**, whichever account you were invited with.
-2. Approve CareerBot on Google's or GitHub's screen. You come back to the page you asked for, signed in.
 
 If the account you used isn't invited, you see **This account isn’t invited yet**, with a waitlist form that has the account's email filled in. Join it, or choose **Try another account** to sign in with a different one.
 
@@ -67,7 +79,7 @@ The step's link, **Change**, opens Settings, **Account**. It shows your name or 
 
 - **Sign out** signs you out on this device and clears anything you were writing here that isn't saved.
 - On a self-hosted copy with a password, **Change password** asks for your current password and a new one. Your other devices are signed out.
-- The owner of a self-hosted copy also sees **People**: who can sign in, each with a workspace of their own. From there the owner can **Reset password** for someone (they get a new temporary password and are signed out everywhere) or **Remove** them, which deletes their account and their workspace: stories, record, resumes and pursuits. Both can't be undone.
+- The owner of a self-hosted copy also sees **People**: who can sign in, each with a workspace of their own. From there the owner can **Reset password** for someone (they get a new temporary password and are signed out everywhere) or **Remove** them, which deletes their account and their workspace with everything in it. Both can't be undone. Anyone, the owner included once they're the only one left, can delete their own account in **Settings**, **Your data**.
 
 ## Next
 

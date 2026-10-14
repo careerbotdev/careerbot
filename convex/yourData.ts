@@ -448,7 +448,7 @@ export const importFinished = internalMutation({
       name: v.string(),
       began: v.number(),
       setupHidden: v.optional(v.boolean()),
-      setupSkipped: v.optional(v.array(v.union(v.literal("drive"), v.literal("people")))),
+      setupSkipped: v.optional(v.array(v.union(v.literal("drive"), v.literal("apollo"), v.literal("people")))),
       toursOffered: v.optional(v.array(v.string())),
     }),
     result: v.object({ rows: v.number(), files: v.number(), left: v.number(), omitted: v.array(v.object({ kind: v.string(), n: v.number() })) }),

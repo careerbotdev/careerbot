@@ -163,11 +163,16 @@
 }
 
 @layer base {
-  /* Solid, like a desktop tool: no rubber-band bounce, pull-to-refresh or scroll chaining, on the page or on any pane,
-     list or sheet that scrolls on its own (overscroll-behavior only affects elements that scroll). */
-  *,
-  ::before,
-  ::after {
+  /* Solid, like a desktop tool: no rubber-band bounce, pull-to-refresh or scroll chaining, on the page and on any pane,
+     list or sheet that scrolls up and down on its own. Only on those: an element with overflow hidden (a rounded image,
+     a clipped row) is a scroll container too, and with overscroll-behavior none it swallowed the wheel instead of
+     passing it to the page or pane around it. */
+  html,
+  body,
+  [class*="overflow-y-auto"],
+  [class*="overflow-auto"],
+  [class*="overflow-y-scroll"],
+  [class*="overflow-scroll"] {
     overscroll-behavior: none;
   }
   body {

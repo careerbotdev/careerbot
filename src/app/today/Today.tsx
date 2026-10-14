@@ -31,6 +31,7 @@ import { useFollowUp } from "../pursuits/FollowUp";
 import { ROLE_REASONS } from "../pursuits/RoleItem";
 import { INTERESTED, NOT_FOR_ME } from "../pursuits/words";
 import { TodayItem } from "./TodayItem";
+import { AllowanceNotice } from "../settings/Allowance";
 import { documentLine, lineTitle, pursuitLine, resumeLine, resumeTitle } from "./words";
 import { TODAY_TOUR } from "../tours/today";
 import { useTour } from "../shell/useTour";
@@ -84,6 +85,8 @@ function Lines({ data, setup }: { data: TodayData; setup: Setup }) {
   const [param, open] = useItemParam();
   const { jobs } = useActivity();
   const hide = useMutation(api.today.hideSetup);
+  // On CareerBot's AI, whether this month's allowance is used up (Allowance).
+  const budget = useQuery(api.budgets.status);
   const [allRoles, setAllRoles] = useState(false);
   const [showWorking, setShowWorking] = useState(false);
   const tour = useTour(TODAY_TOUR);
@@ -153,6 +156,9 @@ function Lines({ data, setup }: { data: TodayData; setup: Setup }) {
           <Menu label="More for Today" align="end" items={menu} trigger={<Button variant="ghost" iconOnly icon="more" aria-label="More for Today" data-tour="today.more" />} />
         )}
       </header>
+      <div className="empty:hidden px-4 pt-1 pb-3">
+        <AllowanceNotice status={budget} size={small ? "lg" : "md"} />
+      </div>
       {lines.length === 0 && running.length === 0 ? (
         <EmptyState icon="today" title="Nothing needs you" action={<Button {...OPEN_PURSUITS} onClick={() => router.push("/pursuits")}>Open Pursuits</Button>}>
           New roles, reminders and decisions show up here as they come in.

@@ -98,11 +98,15 @@ function Entries({ entries, P, container }: { entries: MenuEntry[]; P: Parts; co
     if (item.items) {
       return (
         <P.Sub key={i}>
-          <P.SubTrigger className={row} textValue={item.label} aria-disabled={item.disabled || undefined} disabled={item.disabled}>
-            {lead}
-            <Trailing item={item} />
-            <Icons.goIn aria-hidden="true" className="shrink-0 text-muted" />
-          </P.SubTrigger>
+          {explain(
+            item,
+            <P.SubTrigger className={row} textValue={item.label} aria-disabled={item.disabled || undefined} disabled={item.disabled}>
+              {lead}
+              <Trailing item={item} />
+              <Icons.goIn aria-hidden="true" className="shrink-0 text-muted" />
+            </P.SubTrigger>,
+            i,
+          )}
           <P.Portal container={container}>
             <P.SubContent sideOffset={8} alignOffset={-5} collisionPadding={8} className={`${panel} min-w-44`}>
               <Entries entries={item.items} P={P} container={container} />
@@ -117,11 +121,13 @@ function Entries({ entries, P, container }: { entries: MenuEntry[]; P: Parts; co
       else item.onSelect?.();
     };
     if (item.checked !== undefined) {
-      return (
+      return explain(
+        item,
         <P.CheckboxItem key={i} className={row} textValue={item.label} checked={item.checked} aria-disabled={item.disabled || undefined} onSelect={select}>
           {lead}
           <Trailing item={item} />
-        </P.CheckboxItem>
+        </P.CheckboxItem>,
+        i,
       );
     }
     return explain(

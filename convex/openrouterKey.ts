@@ -4,6 +4,7 @@ import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, query, type QueryCtx } from "./_generated/server";
 import { action, mutation } from "./functions";
 import { openrouterHeaders } from "./openrouterApp";
+import { allowanceOf } from "./plan";
 import { open, seal } from "./secretBox";
 import { requireWorkspace } from "./workspaces";
 
@@ -30,6 +31,8 @@ export const status = query({
 export const save = action({
   args: { key: v.string() },
   handler: async (ctx, { key }): Promise<{ ok: true } | { ok: false; message: string }> => {
+    // Whose key it is first, so nobody signed out can have CareerBot try keys with OpenRouter.
+    await ctx.runQuery(internal.workspaces.callerWorkspace, {});
     const trimmed = key.trim();
     if (!trimmed) return { ok: false, message: "Paste your OpenRouter key." };
     const res = await fetch("https://openrouter.ai/api/v1/key", { headers: openrouterHeaders({ Authorization: `Bearer ${trimmed}` }) });
@@ -47,6 +50,9 @@ export const store = internalMutation({
     const fields = { sealed, last4, setAt: Date.now() };
     if (row) await ctx.db.patch(row._id, fields);
     else await ctx.db.insert("apiKeys", { workspaceId, service: "openrouter", ...fields });
+    // On careerbot.dev their own key takes CareerBot's allowance away (plan.ts): work paused for it picks up on their
+    // own budget, and pauses again if that doesn't allow it.
+    if (await allowanceOf(ctx, workspaceId)) await ctx.runMutation(internal.jobs.resumePaused, { workspaceId });
   },
 });
 
@@ -56,6 +62,8 @@ export const remove = mutation({
     const { workspaceId } = await requireWorkspace(ctx);
     const row = await stored(ctx, workspaceId);
     if (row) await ctx.db.delete(row._id);
+    // On careerbot.dev, without a key of their own CareerBot's allowance applies again.
+    if (row && (await allowanceOf(ctx, workspaceId))) await ctx.runMutation(internal.jobs.resumePaused, { workspaceId });
   },
 });
 

@@ -39,33 +39,36 @@ const RETRY: Record<RetryName, FunctionReference<"mutation">> = {
 const time = (ms: number) => new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
 // The workspace's background work for the Activity indicator and Today's Working group, and this month's spending.
+// Deleting the account shows first, from its own row (convex/accountDelete.ts), as the workspace's work goes with it.
 export function useActivity(): { jobs: Job[] | undefined; spend: Spend | undefined } {
   const rows = useQuery(api.activity.list);
+  const deletion = useQuery(api.accountDelete.status)?.deletion;
   const budget = useQuery(api.budgets.status);
   const convex = useConvex();
   const now = useNow();
-  const jobs = useMemo(
-    () =>
-      rows?.map(
-        (r): Job => ({
-          id: r.id,
-          label: r.label,
-          state: r.state,
-          detail: r.detail ?? (r.steps ? `${r.steps} ${r.steps === 1 ? "step" : "steps"} done` : undefined),
-          time: r.state === "running" ? undefined : time(r.at),
-          onRetry: r.retry
-            ? () => {
-                const { fn, args } = r.retry!;
-                convex
-                  .mutation(RETRY[fn], args)
-                  .then(() => toast({ message: "Started again", icon: "tryAgain" }))
-                  .catch((e: unknown) => toast({ message: e instanceof ConvexError ? String(e.data) : "Couldn’t start it again.", icon: "failed" }));
-              }
-            : undefined,
-        }),
-      ),
-    [rows, convex],
-  );
+  const jobs = useMemo(() => {
+    const deleting: Job[] =
+      deletion && deletion.step !== "done" ? [{ id: "account-deletion", label: "Deleting your account", state: "running", detail: `${deletion.deleted.toLocaleString("en-US")} items deleted` }] : [];
+    const work = rows?.map(
+      (r): Job => ({
+        id: r.id,
+        label: r.label,
+        state: r.state,
+        detail: r.detail ?? (r.steps ? `${r.steps} ${r.steps === 1 ? "step" : "steps"} done` : undefined),
+        time: r.state === "running" ? undefined : time(r.at),
+        onRetry: r.retry
+          ? () => {
+              const { fn, args } = r.retry!;
+              convex
+                .mutation(RETRY[fn], args)
+                .then(() => toast({ message: "Started again", icon: "tryAgain" }))
+                .catch((e: unknown) => toast({ message: e instanceof ConvexError ? String(e.data) : "Couldn’t start it again.", icon: "failed" }));
+            }
+          : undefined,
+      }),
+    );
+    return work && [...deleting, ...work];
+  }, [rows, deletion, convex]);
   const spend = useMemo((): Spend | undefined => {
     if (!budget) return undefined;
     const lines = [`AI $${budget.aiSpentUsd.toFixed(2)} of $${budget.aiMonthlyUsd}`];

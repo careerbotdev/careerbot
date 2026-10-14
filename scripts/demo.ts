@@ -45,7 +45,7 @@ const WAIT_MS = 5 * 60_000;
 const STRIPPED: Record<string, string[]> = { usage: ["generationId", "lookup"] };
 
 // began: when the search began (the row's own began, else when the row was made), so the copy's Reports count from it.
-type WorkspaceRow = { _id: string; name: string; began: number; setupHidden?: boolean; setupSkipped?: ("drive" | "people")[]; toursOffered?: string[] };
+type WorkspaceRow = { _id: string; name: string; began: number; setupHidden?: boolean; setupSkipped?: ("drive" | "apollo" | "people")[]; toursOffered?: string[] };
 export type Snapshot = {
   about: Record<string, unknown>;
   workspace: WorkspaceRow;

@@ -73,10 +73,11 @@ async function fromModel(problems: string[]) {
   const model = await lc.computedModel();
   const elements = [...model.elements()];
 
-  // Screens: every app screen in the map belongs to exactly one docs screen key.
+  // Screens: every app screen in the map a person meets (not tagged #operatorOnly, like careerbot.dev's Admin) belongs
+  // to exactly one docs screen key.
   const screenOf = new Map<string, string>();
   for (const [key, s] of Object.entries(SCREENS)) for (const el of s.elements) screenOf.set(el, key);
-  const mapScreens = elements.filter((e) => e.kind === "screen").map((e) => lastPart(e.id));
+  const mapScreens = elements.filter((e) => e.kind === "screen" && !e.tags.includes("operatorOnly")).map((e) => lastPart(e.id));
   for (const id of mapScreens) {
     if (!WEBSITE_SCREENS.includes(id) && !screenOf.has(id)) problems.push(`${at(MODEL, `${id} = screen`, id)}  screen ${id} has no docs screen key in ${WORDS} (SCREENS)`);
   }
@@ -113,6 +114,10 @@ async function fromModel(problems: string[]) {
       const tag = r.tags.find((t) => t in FILTERS);
       reads.push({ text, filter: tag ? FILTERS[tag] : PUBLIC_SOURCES.includes(lastPart(r.target.id)) ? "public" : null });
     }
+    // In the order the plain wording lists them, not the map's: the map's order of relations can differ between copies
+    // (the public export's tree), and the reference must come out the same from both.
+    const wordOrder = Object.values(words.reads);
+    reads.sort((a, b) => wordOrder.indexOf(a.text) - wordOrder.indexOf(b.text));
     for (const label of Object.keys(words.reads)) {
       if (!labels.has(label)) problems.push(`${at(WORDS, label)}  AI_STEPS.${id}.reads has “${label}”, which ${id} in ${MODEL} no longer reads`);
     }

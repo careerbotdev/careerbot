@@ -8,12 +8,13 @@ import { api } from "../../convex/_generated/api";
 import type { NotAllowed } from "../../convex/allowlist";
 import { ErrorLine } from "@/components/Field";
 import { DemoEntry } from "./demo/DemoEntry";
+import { InviteScreen } from "./InviteSignIn";
 import { DEMO, SELF_HOSTED } from "./mode";
 import { SelfHostedSignIn } from "./SelfHostedSignIn";
 import { Analytics } from "./site/Analytics";
 import { Tag } from "./site/Tag";
 import { WAITLIST_ID, Waitlist } from "./site/Waitlist";
-import { SIGN_IN } from "./site/words";
+import { INVITE, SIGN_IN } from "./site/words";
 import { linkLook, OAuthButtons, type OAuthProvider, SignInFrame, SignInHeading } from "./signInParts";
 
 // The signed-out screen. On careerbot.dev (Sign in in Paper's Website v3 — Calm) the hosted version is invite-only, so
@@ -55,6 +56,9 @@ export function SignIn() {
   const path = usePathname();
   const notAllowed = useRefused();
   const methods = useQuery(api.auth.signInMethods);
+  // careerbot.dev's invite links (/invite/<token>) show the invite instead.
+  const token = !SELF_HOSTED && !DEMO && path.startsWith("/invite/") ? path.slice("/invite/".length) : null;
+  const invite = useQuery(api.invites.lookup, token ? { token } : "skip");
   const [failed, setFailed] = useState(false);
   const [going, setGoing] = useState<OAuthProvider>();
   const go = (provider: OAuthProvider) => {
@@ -68,6 +72,7 @@ export function SignIn() {
   };
   if (SELF_HOSTED) return <SelfHostedSignIn methods={methods} notAllowed={notAllowed} failed={failed} going={going} onOAuth={go} onTryAnother={() => setRefused(null)} />;
   if (DEMO) return <DemoEntry />;
+  if (token) return <InviteScreen invite={invite} notAllowed={notAllowed} methods={methods} failed={failed} going={going} onSignIn={go} onTryAnother={() => setRefused(null)} />;
   return (
     <>
       <SignInScreen notAllowed={notAllowed} methods={methods} failed={failed} going={going} onSignIn={go} onTryAnother={() => setRefused(null)} />
@@ -94,7 +99,11 @@ export function SignInScreen({
 }) {
   return (
     <SignInFrame>
-      {notAllowed ? <NotInvited email={notAllowed.email} onTryAnother={onTryAnother} /> : <Providers methods={methods} failed={failed} going={going} onSignIn={onSignIn} />}
+      {notAllowed ? (
+        <NotInvited email={notAllowed.email} suspended={notAllowed.reason === "suspended"} onTryAnother={onTryAnother} />
+      ) : (
+        <Providers methods={methods} failed={failed} going={going} onSignIn={onSignIn} />
+      )}
     </SignInFrame>
   );
 }
@@ -128,15 +137,17 @@ function Providers({ methods, failed, going, onSignIn }: { methods: readonly str
   );
 }
 
-// The account came back refused: the waitlist, with its email filled in when the provider gave one.
-function NotInvited({ email, onTryAnother }: { email: string | null; onTryAnother: () => void }) {
+// The account came back refused: the waitlist, with its email filled in when the provider gave one; or, for a
+// suspended account, only that.
+function NotInvited({ email, suspended, onTryAnother }: { email: string | null; suspended: boolean; onTryAnother: () => void }) {
   const [joined, setJoined] = useState(false);
+  const words = suspended ? INVITE.suspended : SIGN_IN.notInvited;
   return (
     <div role="alert" className="flex w-full max-w-110 flex-col items-start">
       <Tag icon="inviteOnly">{SIGN_IN.tag}</Tag>
-      <SignInHeading refused>{SIGN_IN.notInvited.heading}</SignInHeading>
-      <p className="pt-3 pb-7 text-site-body-lg-sm leading-site-body-lg-sm text-muted">{SIGN_IN.notInvited.body}</p>
-      <Waitlist source="sign-in" wide email={email ?? ""} joined={joined} onJoined={() => setJoined(true)} />
+      <SignInHeading refused>{words.heading}</SignInHeading>
+      <p className="pt-3 pb-7 text-site-body-lg-sm leading-site-body-lg-sm text-muted">{words.body}</p>
+      {!suspended && <Waitlist source="sign-in" wide email={email ?? ""} joined={joined} onJoined={() => setJoined(true)} />}
       <div className="flex min-h-11 items-center pt-4">
         <button type="button" className={linkLook} onClick={onTryAnother}>
           {SIGN_IN.notInvited.other}

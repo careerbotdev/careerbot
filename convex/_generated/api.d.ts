@@ -9,8 +9,10 @@
  */
 
 import type * as account from "../account.js";
+import type * as accountDelete from "../accountDelete.js";
 import type * as activity from "../activity.js";
 import type * as admin from "../admin.js";
+import type * as adminPeople from "../adminPeople.js";
 import type * as aiSettings from "../aiSettings.js";
 import type * as aiTasks from "../aiTasks.js";
 import type * as allowlist from "../allowlist.js";
@@ -19,6 +21,7 @@ import type * as apolloPricing from "../apolloPricing.js";
 import type * as ask from "../ask.js";
 import type * as auth from "../auth.js";
 import type * as boardProviders from "../boardProviders.js";
+import type * as boards from "../boards.js";
 import type * as boilerplate from "../boilerplate.js";
 import type * as braveKey from "../braveKey.js";
 import type * as breaks from "../breaks.js";
@@ -26,6 +29,7 @@ import type * as budgets from "../budgets.js";
 import type * as companySets from "../companySets.js";
 import type * as compare from "../compare.js";
 import type * as conflicts from "../conflicts.js";
+import type * as connections from "../connections.js";
 import type * as contactGroups from "../contactGroups.js";
 import type * as crons from "../crons.js";
 import type * as demo from "../demo.js";
@@ -55,6 +59,7 @@ import type * as githubApp from "../githubApp.js";
 import type * as goals from "../goals.js";
 import type * as http from "../http.js";
 import type * as insights from "../insights.js";
+import type * as invites from "../invites.js";
 import type * as itemShapes from "../itemShapes.js";
 import type * as jobs from "../jobs.js";
 import type * as lens from "../lens.js";
@@ -67,9 +72,11 @@ import type * as narratives from "../narratives.js";
 import type * as notes from "../notes.js";
 import type * as openrouterApp from "../openrouterApp.js";
 import type * as openrouterKey from "../openrouterKey.js";
+import type * as operators from "../operators.js";
 import type * as passwordRules from "../passwordRules.js";
 import type * as people from "../people.js";
 import type * as places from "../places.js";
+import type * as plan from "../plan.js";
 import type * as profile from "../profile.js";
 import type * as projects from "../projects.js";
 import type * as pursuitSteps from "../pursuitSteps.js";
@@ -96,6 +103,7 @@ import type * as secretBox from "../secretBox.js";
 import type * as skills from "../skills.js";
 import type * as sortFaceoff from "../sortFaceoff.js";
 import type * as sources from "../sources.js";
+import type * as suspensions from "../suspensions.js";
 import type * as tallies from "../tallies.js";
 import type * as today from "../today.js";
 import type * as tours from "../tours.js";
@@ -118,8 +126,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   account: typeof account;
+  accountDelete: typeof accountDelete;
   activity: typeof activity;
   admin: typeof admin;
+  adminPeople: typeof adminPeople;
   aiSettings: typeof aiSettings;
   aiTasks: typeof aiTasks;
   allowlist: typeof allowlist;
@@ -128,6 +138,7 @@ declare const fullApi: ApiFromModules<{
   ask: typeof ask;
   auth: typeof auth;
   boardProviders: typeof boardProviders;
+  boards: typeof boards;
   boilerplate: typeof boilerplate;
   braveKey: typeof braveKey;
   breaks: typeof breaks;
@@ -135,6 +146,7 @@ declare const fullApi: ApiFromModules<{
   companySets: typeof companySets;
   compare: typeof compare;
   conflicts: typeof conflicts;
+  connections: typeof connections;
   contactGroups: typeof contactGroups;
   crons: typeof crons;
   demo: typeof demo;
@@ -164,6 +176,7 @@ declare const fullApi: ApiFromModules<{
   goals: typeof goals;
   http: typeof http;
   insights: typeof insights;
+  invites: typeof invites;
   itemShapes: typeof itemShapes;
   jobs: typeof jobs;
   lens: typeof lens;
@@ -176,9 +189,11 @@ declare const fullApi: ApiFromModules<{
   notes: typeof notes;
   openrouterApp: typeof openrouterApp;
   openrouterKey: typeof openrouterKey;
+  operators: typeof operators;
   passwordRules: typeof passwordRules;
   people: typeof people;
   places: typeof places;
+  plan: typeof plan;
   profile: typeof profile;
   projects: typeof projects;
   pursuitSteps: typeof pursuitSteps;
@@ -205,6 +220,7 @@ declare const fullApi: ApiFromModules<{
   skills: typeof skills;
   sortFaceoff: typeof sortFaceoff;
   sources: typeof sources;
+  suspensions: typeof suspensions;
   tallies: typeof tallies;
   today: typeof today;
   tours: typeof tours;

@@ -102,9 +102,10 @@ export default defineSchema({
 
   // One person's search. Everything else CareerBot stores belongs to exactly one workspace. setupHidden: Getting started
   // on Today was put away until later (Today, Hide until later, or Show Today once it's done); it shows again when
-  // unset. setupSkipped: Getting started steps they chose to leave out (Google Drive; "people" is kept only so rows from
-  // before the first pursuit had paths still read; nothing sets or reads it). toursOffered: the screens whose tour was
-  // offered once already (tours.ts), so the offer never comes back on its own. demo: the read-only demo workspace
+  // unset. setupSkipped: Getting started steps they chose to leave out (Google Drive; Apollo, on careerbot.dev's own AI;
+  // "people" is kept only so rows from before the first pursuit had paths still read; nothing sets or reads it).
+  // toursOffered: the screens whose tour was offered once already (tours.ts), so the offer never comes back on its own.
+  // demo: the read-only demo workspace
   // (demo.ts): nothing in it can be changed, and its one member is the shared user the demo signs visitors in as. began:
   // when the search began, on a copy of another workspace (the demo, demoSeed.ts), whose row is newer than what it
   // holds; Reports count from it (unset: when the row was made). asOf: the moment a workspace is held at, the demo's
@@ -113,7 +114,7 @@ export default defineSchema({
   workspaces: defineTable({
     name: v.string(),
     setupHidden: v.optional(v.boolean()),
-    setupSkipped: v.optional(v.array(v.union(v.literal("drive"), v.literal("people")))),
+    setupSkipped: v.optional(v.array(v.union(v.literal("drive"), v.literal("apollo"), v.literal("people")))),
     toursOffered: v.optional(v.array(v.string())),
     demo: v.optional(v.boolean()),
     began: v.optional(v.number()),
@@ -171,6 +172,9 @@ export default defineSchema({
     pursuitId: v.optional(v.id("pursuits")),
     // Set once its settled cost is in spendTotals, so it's added once.
     inTotals: v.optional(v.boolean()),
+    // Paid with CareerBot's own OpenRouter key (plan.ts), not the workspace's: it counts against the platform's
+    // monthly limit too (platformAiSpend), and the daily check looks it up with that key.
+    platform: v.optional(v.literal(true)),
     at: v.number(),
   })
     .index("by_workspace_service_at", ["workspaceId", "service", "at"])
@@ -231,6 +235,24 @@ export default defineSchema({
     usd: v.number(),
     held: v.optional(v.number()),
   }).index("by_workspace_month", ["workspaceId", "month", "shard"]),
+
+  // AI spending on CareerBot's own OpenRouter key across every workspace, per month (UTC), as a running total (plan.ts),
+  // so workspaces calling at once can't jointly spend past the platform's limit. usd: settled cost; held: reservations
+  // of calls not settled yet. Each call adds to one of a few shards, picked at random.
+  platformAiSpend: defineTable({
+    month: v.number(),
+    shard: v.number(),
+    usd: v.number(),
+    held: v.number(),
+  }).index("by_month", ["month", "shard"]),
+
+  // A hosted workspace's AI allowance on CareerBot's own key, set by an operator in place of the default
+  // (PLATFORM_AI_ALLOWANCE_USD; plan.ts). No row: the default.
+  plans: defineTable({
+    workspaceId: v.id("workspaces"),
+    allowanceUsd: v.number(),
+    setAt: v.number(),
+  }).index("by_workspace", ["workspaceId"]),
 
   // Each AI model's highest prices across the providers OpenRouter may route it to (USD per token, and per request),
   // what AI calls reserve against the budget (modelPrices.ts). fixed: false for routers whose price depends on the
@@ -539,6 +561,7 @@ export default defineSchema({
     .index("by_posting", ["postingId"])
     .index("by_score", ["workspaceId", "directionId", "state", "meetsPreferences", "score", "newest"])
     .index("by_newest", ["workspaceId", "directionId", "state", "newest"])
+    .index("by_posted", ["workspaceId", "directionId", "state", "postedAt"])
     .index("by_ranked", ["workspaceId", "directionId", "at"]),
 
   // A role's full description as plain text (up to 8,000 characters), as read. Kept apart so lists of roles stay small.
@@ -878,11 +901,12 @@ export default defineSchema({
 
   // One-time links for GitHub's round trips, each good for a short while: "app" creates the GitHub App (made by the
   // operator); "connect" connects a workspace, holding the installation GitHub came back with until GitHub confirms it's
-  // theirs.
+  // theirs. userId: who started connecting (unset on links made before it was kept, which then can't be finished).
   githubLinks: defineTable({
     token: v.string(),
     purpose: v.union(v.literal("app"), v.literal("connect")),
     workspaceId: v.optional(v.id("workspaces")),
+    userId: v.optional(v.id("users")),
     installationId: v.optional(v.number()),
     expiresAt: v.number(),
   })
@@ -929,12 +953,36 @@ export default defineSchema({
   }).index("by_workspace_key", ["workspaceId", "key"]),
 
   // One-time links for connecting Google Drive, each good for half an hour, used once. from: where connecting began
-  // ("today": Getting started), so Google comes back there; unset: Settings.
+  // ("today": Getting started), so Google comes back there; unset: Settings. userId: who started it (unset on links
+  // made before it was kept, which then can't be finished).
   driveLinks: defineTable({
     token: v.string(),
     workspaceId: v.id("workspaces"),
+    userId: v.optional(v.id("users")),
     expiresAt: v.number(),
     from: v.optional(v.literal("today")),
+  })
+    .index("by_token", ["token"])
+    .index("by_workspace", ["workspaceId"]),
+
+  // A GitHub or Google Drive connection back from its consent screen, not kept yet (connections.ts): the signed-in app
+  // finishes it with the token, only for the person and workspace that started it, within a few minutes, once. Drive's
+  // tokens stay sealed here as in driveConnections.
+  pendingConnections: defineTable({
+    token: v.string(),
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    expiresAt: v.number(),
+    connection: v.union(
+      v.object({
+        kind: v.literal("github"),
+        installationId: v.number(),
+        account: v.string(),
+        selection: v.union(v.literal("all"), v.literal("selected")),
+        settingsUrl: v.string(),
+      }),
+      v.object({ kind: v.literal("drive"), account: v.string(), sealedRefresh: v.string(), sealedAccess: v.string(), accessExpiresAt: v.number() }),
+    ),
   })
     .index("by_token", ["token"])
     .index("by_workspace", ["workspaceId"]),
@@ -1072,4 +1120,70 @@ export default defineSchema({
   })
     .index("by_email", ["email"])
     .index("by_at", ["at"]),
+
+  // careerbot.dev's invites (invites.ts): who may sign up with Google or GitHub. One row per email (lowercased). token:
+  // the invite link's (/invite/<token>), replaced when it's sent again. status: "open" until it's used (accepted, by
+  // acceptedUserId) or withdrawn (revoked); an open invite past expiresAt has expired. invitedBy: the operator, unset
+  // for invites carried over from the old allowlist.
+  invites: defineTable({
+    email: v.string(),
+    token: v.string(),
+    status: v.union(v.literal("open"), v.literal("accepted"), v.literal("revoked")),
+    expiresAt: v.number(),
+    invitedBy: v.optional(v.id("users")),
+    acceptedUserId: v.optional(v.id("users")),
+    acceptedAt: v.optional(v.number()),
+  })
+    .index("by_email", ["email"])
+    .index("by_token", ["token"])
+    .index("by_accepted_user", ["acceptedUserId"]),
+
+  // careerbot.dev's operators (operators.ts): who may use the admin screen and its functions. Granted from the Convex
+  // CLI only (operators:grant).
+  operators: defineTable({
+    userId: v.id("users"),
+    role: v.literal("owner"),
+  }).index("by_user", ["userId"]),
+
+  // People an operator suspended (adminPeople.ts): they can't sign in until restored, their sessions end, and their
+  // allowance on CareerBot's AI is 0 meanwhile. allowanceBefore: the operator's own allowance for them before (null:
+  // the default), put back on restore.
+  suspensions: defineTable({
+    userId: v.id("users"),
+    at: v.number(),
+    by: v.id("users"),
+    allowanceBefore: v.union(v.number(), v.null()),
+  }).index("by_user", ["userId"]),
+
+  // Every operator action (admin*.ts, invites.ts), newest read first. by: the operator, unset for the Convex CLI.
+  // email: the person it was about, kept as written so the log still reads after they're gone. amountUsd: an
+  // allowance set (null: back to the default).
+  adminLog: defineTable({
+    at: v.number(),
+    by: v.optional(v.id("users")),
+    action: v.union(
+      v.literal("invited"), v.literal("inviteResent"), v.literal("inviteRevoked"), v.literal("allowanceSet"),
+      v.literal("suspended"), v.literal("restored"), v.literal("allowlistCarried"),
+    ),
+    email: v.string(),
+    userId: v.optional(v.id("users")),
+    amountUsd: v.optional(v.union(v.number(), v.null())),
+  }).index("by_at", ["at"]),
+
+  // A person's account being deleted, by themselves (Settings, Your data) or by a self-hosted copy's owner (Settings,
+  // Account, Remove), in the background (accountDelete.ts), one row each. workspace: the workspace it deletes, the one
+  // only they use (named so, not workspaceId, so the row isn't one of the workspace's own and outlives it). step:
+  // revoking (Google Drive and GitHub), deleting (the workspace's rows a page at a time; table, the place in its tables,
+  // and cursor, in a table without a workspace index), signingOut (all but the account is gone; their screens sign out),
+  // done (the account too). deleted: rows so far. beat: the last sign it was running. Forgotten an hour after done.
+  accountDeletions: defineTable({
+    userId: v.id("users"),
+    workspace: v.optional(v.id("workspaces")),
+    by: v.union(v.literal("self"), v.literal("owner")),
+    step: v.union(v.literal("revoking"), v.literal("deleting"), v.literal("signingOut"), v.literal("done")),
+    table: v.number(),
+    cursor: v.optional(v.string()),
+    deleted: v.number(),
+    beat: v.number(),
+  }).index("by_user", ["userId"]),
 });

@@ -87,6 +87,8 @@ type Seed = {
   level: "strong" | "some" | "weak";
   direction: Id<"items">;
   postedDaysAgo: number;
+  // The board didn't say when it was posted: postedDaysAgo is when it was first seen.
+  undated?: boolean;
   rating?: "interested" | "no";
   // A pursuit started from a company's details with no open role (Start outreach): no posting, never listed as a role.
   noRole?: boolean;
@@ -113,7 +115,7 @@ const SEEDS: Seed[] = [
   { key: "sc-demand", title: "Solutions Consultant, Demand Planning", company: "Orchard Forecasting", place: "Pittsburgh or remote", pay: [145000, 180000], score: 86, level: "strong", direction: dir.solutions, postedDaysAgo: 0 },
   { key: "se-lumen", title: "Solutions Engineer, Manufacturing", company: "Lumen Planning", place: "Remote, US", pay: [140000, 170000], score: 84, level: "strong", direction: dir.solutions, postedDaysAgo: 12, pursuit: { status: "preparing", changedDaysAgo: 1, hasLetter: true } },
   { key: "pm-robotics", title: "Product Manager, Fulfillment Software", company: "Copperline Robotics", place: "Pittsburgh, PA", score: 82, level: "strong", direction: dir.product, postedDaysAgo: 3, rating: "interested" },
-  { key: "sc-enterprise", title: "Senior Solutions Consultant, Enterprise", company: "Lumen Planning", place: "Remote, US", score: 81, level: "strong", direction: dir.solutions, postedDaysAgo: 0 },
+  { key: "sc-enterprise", title: "Senior Solutions Consultant, Enterprise", company: "Lumen Planning", place: "Remote, US", score: 81, level: "strong", direction: dir.solutions, postedDaysAgo: 0, undated: true },
   { key: "pm-carriers", title: "Product Manager, Carrier Network", company: "Kestrel Freight", place: "Chicago, IL", score: 79, level: "some", direction: dir.product, postedDaysAgo: 9, pursuit: { status: "preparing", changedDaysAgo: 4, hasLetter: false } },
   { key: "planning-dir", title: "Director, Supply Planning", company: "Fernhill Foods", place: "Remote, US", score: 77, level: "some", direction: dir.planning, postedDaysAgo: 4, pursuit: { status: "contacted", path: "outreach", contactedDaysAgo: 3, changedDaysAgo: 3 } },
   {
@@ -230,7 +232,7 @@ export function pursuitsFixtures({ now = Date.now(), empty = false }: { now?: nu
     applyUrl: null,
     location: s.place,
     remote: s.place.includes("remote"),
-    postedAt: ago(s.postedDaysAgo, now),
+    postedAt: s.undated ? null : ago(s.postedDaysAgo, now),
     firstSeen: ago(s.postedDaysAgo, now),
     closedAt: null,
     description:
@@ -450,13 +452,14 @@ export function pursuitsFixtures({ now = Date.now(), empty = false }: { now?: nu
     ] as Overview["coverage"],
   });
 
-  const listed = (filters: { rating?: string; minScore?: { value: number } }, directionId?: Id<"items">) =>
+  const listed = (filters: { rating?: string; minScore?: { value: number }; postedWithinDays?: { value: number } }, directionId?: Id<"items">, sort?: "posted") =>
     seeds
       .filter((s) => !s.noRole)
       .filter((s) => (filters.rating === "interested" ? s.rating === "interested" : filters.rating === "no" ? s.rating === "no" : s.rating !== "no"))
       .filter((s) => !filters.minScore || s.score >= filters.minScore.value)
+      .filter((s) => !filters.postedWithinDays || s.postedDaysAgo <= filters.postedWithinDays.value)
       .filter((s) => !directionId || s.direction === directionId)
-      .sort((a, b) => b.score - a.score);
+      .sort((a, b) => (sort === "posted" ? Number(!!a.undated) - Number(!!b.undated) || a.postedDaysAgo - b.postedDaysAgo : b.score - a.score));
 
   const page = <T,>(rows: T[]) => ({ page: rows, isDone: true, continueCursor: "", splitCursor: null, pageStatus: null });
 
@@ -482,7 +485,7 @@ export function pursuitsFixtures({ now = Date.now(), empty = false }: { now?: nu
       { direction: "Supply Planning", started: 1, contacted: 1, applied: 1, contactedOrApplied: 1, interviewed: 0, offers: 0, open: 0, closed: { rejected: 0, withdrawn: 0, noResponse: 1, declined: 0 } },
     ]),
     ...answer(api.roles.overview, ({ directionId }) => overview(directionId)),
-    ...answer(api.roles.list, ({ filters, directionId }) => page(listed(filters, directionId).map(rowOf))),
+    ...answer(api.roles.list, ({ filters, directionId, sort }) => page(listed(filters, directionId, sort).map(rowOf))),
     ...answer(api.roles.count, ({ filters, directionId }) => ({ count: Object.keys(filters).length ? listed(filters, directionId).length : 412, more: false })),
     ...answer(api.roles.against, () =>
       page(seeds.filter((s) => s.key === "sc-coldchain" || s.key === "planning-dir-3").map((s) => ({ ...rowOf(s), problems: [`On-site in ${s.place.split(",")[0]}; you work hybrid from Pittsburgh or remote`] }))),

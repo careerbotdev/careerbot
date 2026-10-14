@@ -2,6 +2,8 @@ import { convexTest, type TestConvex, type TestConvexForDataModel } from "convex
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
+import { STARTED_ELSEWHERE, TOO_LATE } from "./connections";
+import { keepInstall } from "./github";
 import { appJwt } from "./githubApp";
 import schema from "./schema";
 import { open, seal } from "./secretBox";
@@ -84,8 +86,15 @@ function fakeGithub(theirs: number[], calls: { url: string; method: string; auth
   return calls;
 }
 
-// Connect GitHub the way a browser would: Projects' link, GitHub's install page, back to setup, then authorization.
-async function connect(t: TestConvex<typeof schema>, as: TestConvexForDataModel<DataModel>, installationId: number) {
+// Connect GitHub the way a browser would: Projects' link, GitHub's install page, back to setup, then authorization, then
+// back to Projects with the connection to finish, which the app there finishes as whoever is signed in (`finisher`:
+// the one who started it unless said; null: nobody). `back` is where GitHub's return lands, less the connection's token.
+async function connect(
+  t: TestConvex<typeof schema>,
+  as: TestConvexForDataModel<DataModel>,
+  installationId: number,
+  { finisher = as as TestConvexForDataModel<DataModel> | null } = {},
+) {
   const link = new URL(await as.mutation(api.github.connect, {}));
   const state = link.searchParams.get("state")!;
   const start = await t.fetch(`/github/connect?state=${state}`);
@@ -99,7 +108,10 @@ async function connect(t: TestConvex<typeof schema>, as: TestConvexForDataModel<
   expect(authorize.searchParams.get("client_id")).toBe("Iv1.abc");
   expect(authorize.searchParams.get("redirect_uri")).toBe("https://calm-fox.convex.site/github/authorized");
   const done = await t.fetch(`/github/authorized?code=c0de&state=${authorize.searchParams.get("state")}`);
-  return done.headers.get("location");
+  const back = done.headers.get("location")!;
+  const token = new URL(back).searchParams.get("connection");
+  const refused = token && finisher ? await finisher.mutation(api.connections.finish, { token }) : undefined;
+  return { back: back.replace(/&connection=[0-9a-f]+$/, ""), token, refused };
 }
 
 test("the operator creates the app once through GitHub's manifest flow; its secrets are stored sealed", async () => {
@@ -145,7 +157,9 @@ test("connecting keeps an installation only for the workspace that started it, a
   const { t, key, asA, asB } = await setup();
   expect(await asA.query(api.github.status, {})).toEqual({ ready: true, connected: null });
   const calls = fakeGithub([77]);
-  expect(await connect(t, asA, 77)).toBe("https://dev.example.com/record/projects?github=connected");
+  const own = await connect(t, asA, 77);
+  expect(own.back).toBe("https://dev.example.com/record/projects?github=connected");
+  expect(own.refused).toBeNull();
   expect((await asA.query(api.github.status, {})).connected).toMatchObject({ account: "octo", selection: "selected", settingsUrl: "https://github.com/settings/installations/77" });
   expect((await asB.query(api.github.status, {})).connected).toBeNull();
   // The installation was checked as the app, and the person's own token was revoked straight after.
@@ -154,10 +168,42 @@ test("connecting keeps an installation only for the workspace that started it, a
   expect(calls.some((c) => c.url === "https://api.github.com/applications/Iv1.abc/token" && c.method === "DELETE")).toBe(true);
   // Someone else can't claim installation 77 by sending its id: GitHub doesn't list it for them.
   fakeGithub([99]);
-  expect(await connect(t, asB, 77)).toBe("https://dev.example.com/record/projects?github=failed");
+  expect((await connect(t, asB, 77)).back).toBe("https://dev.example.com/record/projects?github=failed");
   expect((await asB.query(api.github.status, {})).connected).toBeNull();
   // A made-up or used link does nothing.
   expect((await t.fetch("/github/authorized?code=c0de&state=guess")).headers.get("location")).toBe("https://dev.example.com/record/projects?github=failed");
+});
+
+// Someone starts connecting in their own workspace and gets you to finish it on GitHub as yourself: your GitHub would go
+// to their workspace. Back in your session it's refused and dropped; so is one left too long, and one already used.
+test("a GitHub connection is kept only for the person who started it, once, in time", async () => {
+  const { t, asA, asB } = await setup();
+  fakeGithub([77]);
+  const held = () => t.run((ctx) => ctx.db.query("pendingConnections").collect());
+
+  const csrf = await connect(t, asB, 77, { finisher: asA });
+  expect(csrf.back).toBe("https://dev.example.com/record/projects?github=connected");
+  expect(csrf.refused).toBe(STARTED_ELSEWHERE);
+  for (const as of [asA, asB]) expect((await as.query(api.github.status, {})).connected).toBeNull();
+  expect(await held()).toEqual([]);
+  // Dropped: the one who started it can't finish it afterwards either.
+  expect(await asB.mutation(api.connections.finish, { token: csrf.token! })).toBe(TOO_LATE);
+  expect((await asB.query(api.github.status, {})).connected).toBeNull();
+
+  // Left too long: refused and dropped.
+  const late = await connect(t, asB, 77, { finisher: null });
+  await t.run(async (ctx) => {
+    for (const row of await ctx.db.query("pendingConnections").collect()) await ctx.db.patch(row._id, { expiresAt: Date.now() - 1 });
+  });
+  expect(await asB.mutation(api.connections.finish, { token: late.token! })).toBe(TOO_LATE);
+  expect(await held()).toEqual([]);
+  expect((await asB.query(api.github.status, {})).connected).toBeNull();
+
+  // Their own, finished in time: kept, and the same token again does nothing.
+  const own = await connect(t, asA, 77);
+  expect(own.refused).toBeNull();
+  expect((await asA.query(api.github.status, {})).connected).toMatchObject({ account: "octo" });
+  expect(await asA.mutation(api.connections.finish, { token: own.token! })).toBe(TOO_LATE);
 });
 
 test("GitHub's webhook is trusted only when signed; an uninstall there disconnects here", async () => {
@@ -180,7 +226,8 @@ test("disconnecting forgets only this workspace's connection and never uninstall
   const { t, a, b, asA, asB } = await setup();
   const calls = fakeGithub([77]);
   // Two workspaces share one installation.
-  for (const w of [a.w, b.w]) await t.mutation(internal.github.saveInstall, { workspaceId: w, installationId: 77, account: "octo", selection: "all", settingsUrl: "https://github.com/settings/installations/77" });
+  for (const w of [a.w, b.w])
+    await t.run((ctx) => keepInstall(ctx, w, { installationId: 77, account: "octo", selection: "all", settingsUrl: "https://github.com/settings/installations/77" }));
   await asA.mutation(api.github.disconnect, {});
   expect((await asA.query(api.github.status, {})).connected).toBeNull();
   expect((await asB.query(api.github.status, {})).connected).not.toBeNull();

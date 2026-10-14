@@ -27,7 +27,7 @@ type Story = StoryObj<typeof meta>;
 
 const phone = { viewport: { value: "mobile2" } };
 const joins = answer(api.waitlist.join, () => ({ ok: true as const }));
-const refused: NotAllowed = { kind: "notAllowed", message: "This account isn't allowed to sign in.", email: "sam.rivera@example.com", provider: "google" };
+const refused: NotAllowed = { kind: "notAllowed", reason: "notInvited", message: "This account isn't invited.", email: "sam.rivera@example.com", provider: "google" };
 
 function Screen({ notAllowed = null, failed = false }: { notAllowed?: NotAllowed | null; failed?: boolean }) {
   const [shown, setShown] = useState(notAllowed);

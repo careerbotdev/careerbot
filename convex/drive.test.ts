@@ -3,6 +3,7 @@ import { convexTest, type TestConvex, type TestConvexForDataModel } from "convex
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
+import { STARTED_ELSEWHERE, TOO_LATE } from "./connections";
 import { isFrozen, pathOf, planNodes, stepFor, type DocFile } from "./drivePaths";
 import type { ResumeDoc } from "./resumeDoc";
 import schema from "./schema";
@@ -138,15 +139,24 @@ async function setup() {
   return { t, a, b, ...ids, asA: t.withIdentity({ subject: `${a.u}|s` }), asB: t.withIdentity({ subject: `${b.u}|s` }) };
 }
 
-// Connect Drive the way a browser would: Settings' link, Google's consent (the cookie remembers the browser), back.
-async function connect(t: TestConvex<typeof schema>, as: TestConvexForDataModel<DataModel>, { cookie: sendCookie = true } = {}) {
+// Connect Drive the way a browser would: Settings' link, Google's consent (the cookie remembers the browser), back to
+// Settings with the connection to finish, which the app there finishes as whoever is signed in (`finisher`: the one
+// who started it unless said; null: nobody). `back` is where Google's return lands, less the connection's token.
+async function connect(
+  t: TestConvex<typeof schema>,
+  as: TestConvexForDataModel<DataModel>,
+  { cookie: sendCookie = true, finisher = as as TestConvexForDataModel<DataModel> | null } = {},
+) {
   const link = new URL(await as.mutation(api.drive.connect, {}));
   const state = link.searchParams.get("state")!;
   const start = await t.fetch(`/google/drive/connect?state=${state}`);
   const google = new URL(start.headers.get("location")!);
   const cookie = start.headers.get("set-cookie")!.split(";")[0];
   const done = await t.fetch(`/google/drive/callback?code=c0de&state=${google.searchParams.get("state")}`, sendCookie ? { headers: { cookie } } : {});
-  return { google, back: done.headers.get("location") };
+  const back = done.headers.get("location")!;
+  const token = new URL(back).searchParams.get("connection");
+  const refused = token && finisher ? await finisher.mutation(api.connections.finish, { token }) : undefined;
+  return { google, back: back.replace(/&connection=[0-9a-f]+$/, ""), token, refused };
 }
 const settle = (t: TestConvex<typeof schema>) => t.finishAllScheduledFunctions(vi.runAllTimers);
 
@@ -238,6 +248,51 @@ test("connecting keeps the tokens sealed, for the workspace and browser that sta
   expect(await s.asB.query(api.drive.status, {})).toMatchObject({ connected: null });
   expect(denied.calls.some((c) => c.url === "https://oauth2.googleapis.com/revoke")).toBe(true);
   expect(g.calls.some((c) => c.url === "https://oauth2.googleapis.com/revoke")).toBe(false);
+});
+
+// Someone starts connecting in their own workspace and gets you to finish it on Google's screen: your Drive would go to
+// their workspace. Back in your session it's refused, dropped and revoked; so is one finished by anyone but the person
+// who started it, one left too long, and one already used.
+test("a Drive connection is kept only for the person who started it, once, in time; anything else is refused and revoked", async () => {
+  const s = await setup();
+  const g = fakeGoogle();
+  const revokes = () => g.calls.filter((c) => c.url === "https://oauth2.googleapis.com/revoke").length;
+  const held = () => s.t.run((ctx) => ctx.db.query("pendingConnections").collect());
+
+  const csrf = await connect(s.t, s.asB, { finisher: s.asA });
+  expect(csrf.back).toBe("https://dev.example.com/settings?section=drive&drive=connected");
+  expect(csrf.refused).toBe(STARTED_ELSEWHERE);
+  for (const as of [s.asA, s.asB]) expect((await as.query(api.drive.status, {})).connected).toBeNull();
+  expect(await held()).toEqual([]);
+  await settle(s.t);
+  expect(revokes()).toBe(1);
+  // Dropped: the one who started it can't finish it afterwards either.
+  expect(await s.asB.mutation(api.connections.finish, { token: csrf.token! })).toBe(TOO_LATE);
+  expect((await s.asB.query(api.drive.status, {})).connected).toBeNull();
+
+  // Someone else in the same workspace: refused too.
+  const c = await s.t.run(async (ctx) => {
+    const userId = await ctx.db.insert("users", { email: "c@example.com" });
+    await ctx.db.insert("memberships", { workspaceId: s.a.w, userId });
+    return userId;
+  });
+  expect((await connect(s.t, s.asA, { finisher: s.t.withIdentity({ subject: `${c}|s` }) })).refused).toBe(STARTED_ELSEWHERE);
+  expect((await s.asA.query(api.drive.status, {})).connected).toBeNull();
+
+  // Never finished: dropped and revoked once its time is up, and refused after.
+  const left = await connect(s.t, s.asB, { finisher: null });
+  expect(await held()).toHaveLength(1);
+  await settle(s.t);
+  expect(await held()).toEqual([]);
+  expect(revokes()).toBe(3);
+  expect(await s.asB.mutation(api.connections.finish, { token: left.token! })).toBe(TOO_LATE);
+
+  // Their own, finished in time: kept, and the same token again does nothing.
+  const own = await connect(s.t, s.asA);
+  expect(own.refused).toBeNull();
+  expect((await s.asA.query(api.drive.status, {})).connected).toMatchObject({ account: "a@example.com" });
+  expect(await s.asA.mutation(api.connections.finish, { token: own.token! })).toBe(TOO_LATE);
+  expect(revokes()).toBe(3);
 });
 
 test("syncing makes the folder and its Docs, and a kept version updates the same Doc in place", async () => {

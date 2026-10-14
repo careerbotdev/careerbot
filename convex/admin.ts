@@ -4,7 +4,7 @@ import { aiTask, reasoningLevel } from "./aiTasks";
 import { saveDefault, saveTask } from "./aiSettings";
 import { isKind, itemStatus } from "./itemShapes";
 import { internalAction, internalMutation } from "./_generated/server";
-import { viaReader } from "./enrich";
+import { viaReader } from "./boards";
 import { screenCompanies } from "./screening";
 import { rankAgainFor, ranker, saveSortMethod, saveStretch } from "./roles";
 import { rubric } from "./roleRubric";

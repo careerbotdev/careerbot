@@ -12,9 +12,9 @@ import { Pursuits } from "./Pursuits";
 // Not for me and the filters open), the list's ⋯, a pursuit with its follow-up and the resume beside it, choosing a
 // path, a pursuit contacted on the Outreach path, an outreach message gone quiet (follow up), the next contact after a
 // follow-up, outreach to a company with no open role, a pursuit's Role tab (with and without an open role), answers
-// with Ask, contacts with a message, adding a contact, a closed pursuit, By direction, and All roles with Against your
-// limits open. Clicks, J and K, Enter and Esc work as in the app; resize the window for medium (768 to 1279) and the
-// phone (under 768).
+// with Ask, contacts with a message, adding a contact, a closed pursuit, By direction, All roles with none posted in
+// the last 7 days, and All roles with Against your limits open. Clicks, J and K, Enter and Esc work as in the app;
+// resize the window for medium (768 to 1279) and the phone (under 768).
 
 function Fixture({ query, empty = false }: { query: string; empty?: boolean }) {
   const [answers] = useState(() => pursuitsFixtures({ empty }));
@@ -81,6 +81,24 @@ export const ListMenu: Story = {
   },
 };
 
+export const SortBy: Story = {
+  name: "List ⋯, Sort by",
+  render: () => <Fixture query={role} />,
+  play: async () => {
+    await userEvent.click(await page().findByRole("button", { name: "More for Pursuits" }));
+    await userEvent.click(await page().findByRole("menuitem", { name: /Sort by/ }));
+    await page().findByRole("menuitemcheckbox", { name: /Newest posted/ });
+  },
+};
+
+export const SortedByPosted: Story = {
+  name: "Sorted by posted",
+  render: () => <Fixture query="status=all&sort=posted" />,
+  play: async () => {
+    await page().findByRole("button", { name: "Sort: Newest posted" });
+  },
+};
+
 export const Pursuit: Story = {
   name: "Pursuit, follow-up due",
   render: () => <Fixture query="status=pursuing&role=post-sc-coldchain" />,
@@ -142,6 +160,21 @@ export const Closed: Story = { render: () => <Fixture query="status=closed&role=
 export const ByDirection: Story = { name: "By direction", render: () => <Fixture query="status=pursuing" /> };
 
 export const NoDirections: Story = { name: "No directions yet", render: () => <Fixture query="status=all" empty /> };
+
+// All roles for Startup Operations, Posted within 7 days: none are that new, so the list says so (no loader).
+export const NonePostedRecently: Story = {
+  name: "None posted recently",
+  render: () => <Fixture query="status=all" />,
+  play: async () => {
+    await userEvent.click(await page().findByRole("button", { name: "Direction: All" }));
+    await userEvent.click(await page().findByRole("option", { name: "Startup Operations" }));
+    await userEvent.click(await page().findByRole("button", { name: "Filter" }));
+    await userEvent.click(await page().findByRole("option", { name: "Posted within" }));
+    await userEvent.click(await page().findByRole("radio", { name: "7 days" }));
+    await userEvent.keyboard("{Escape}");
+    await page().findByText("No roles posted in the last 7 days", undefined, { timeout: 3000 });
+  },
+};
 
 // All roles with Against your limits open: each role's limit is a long tag, which ends in an ellipsis (its words in a
 // tooltip) so the role's title and company keep their width.
