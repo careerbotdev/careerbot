@@ -20,20 +20,26 @@ export function Kbd({ children, on = "surface" }: { children: ReactNode; on?: On
 }
 
 // A shortcut written as one string. "A" or "⌘K" is one cap; "⌘+K" is a chord in joined caps; "G then T" is a
-// sequence, which says "then" between its steps.
+// sequence, which says "then" between its steps; "J or ↓" is either key, which says "or" between them.
 export function Keys({ keys, on = "surface", className = "" }: { keys: string; on?: On; className?: string }) {
+  const word = `text-label leading-label ${on === "surface" ? "text-muted" : on === "primary" ? "text-ink" : "text-inverse-muted"}`;
   return (
     <span className={`inline-flex shrink-0 items-center gap-1 ${className}`}>
-      {keys.split(" then ").map((step, i) => (
-        <span key={i} className="inline-flex items-center gap-1">
-          {i > 0 && <span className={`text-label leading-label ${on === "surface" ? "text-muted" : on === "primary" ? "text-ink" : "text-inverse-muted"}`}>then</span>}
-          <span className="inline-flex gap-0.5">
-            {(step.length > 1 ? step.split("+") : [step]).map((key, j) => (
-              <Kbd key={j} on={on}>
-                {key}
-              </Kbd>
-            ))}
-          </span>
+      {keys.split(" or ").map((either, k) => (
+        <span key={k} className="inline-flex items-center gap-1">
+          {k > 0 && <span className={word}>or</span>}
+          {either.split(" then ").map((step, i) => (
+            <span key={i} className="inline-flex items-center gap-1">
+              {i > 0 && <span className={word}>then</span>}
+              <span className="inline-flex gap-0.5">
+                {(step.length > 1 ? step.split("+") : [step]).map((key, j) => (
+                  <Kbd key={j} on={on}>
+                    {key}
+                  </Kbd>
+                ))}
+              </span>
+            </span>
+          ))}
         </span>
       ))}
     </span>

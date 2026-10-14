@@ -9,7 +9,9 @@
 # and compose.yaml runs them; compose.build.yaml builds them from a checkout instead.
 # .env.example lists the settings.
 
-ARG NODE_IMAGE=node:22-bookworm-slim
+# Docker's official node image, from AWS's public mirror of the official images: the same image, without Docker Hub's
+# anonymous pull limit, which fails shared CI runners with 429.
+ARG NODE_IMAGE=public.ecr.aws/docker/library/node:22-bookworm-slim
 
 FROM ${NODE_IMAGE} AS pnpm
 WORKDIR /app

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useMemo, useState, useSyncExternalStore } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { REVIEW_KINDS, type ReviewKind } from "../../../convex/reviewKinds";
 import { BottomBar } from "@/components/BottomBar";
@@ -231,3 +232,66 @@ type Story = StoryObj<typeof meta>;
 
 export const Waiting: Story = { render: () => <Fixture groups={full} /> };
 export const Empty: Story = { render: () => <Fixture groups={{}} /> };
+
+// The arrow keys, in one theme so there's one screen taking them. Cards: → and ↓ step on, ← and ↑ back.
+const page = () => within(document.body);
+const card = (where: string) => page().findByRole("article", { name: new RegExp(`, ${where}$`) });
+
+export const ArrowsCards: Story = {
+  name: "Arrows, cards",
+  globals: { theme: "light" },
+  render: () => <Fixture groups={full} />,
+  play: async () => {
+    await userEvent.click(await page().findByText("Companies to rate"));
+    await waitFor(async () => expect(await card("1 of 3")).toHaveFocus());
+    await userEvent.keyboard("{ArrowRight}");
+    await expect(within(await card("2 of 3")).getByText("Loadstar Systems")).toBeVisible();
+    await userEvent.keyboard("{ArrowDown}");
+    await expect(within(await card("3 of 3")).getByText("Kestrel Freight")).toBeVisible();
+    await userEvent.keyboard("{ArrowLeft}");
+    await card("2 of 3");
+    await userEvent.keyboard("{ArrowUp}");
+    await expect(within(await card("1 of 3")).getByText("Meridian Coldchain")).toBeVisible();
+  },
+};
+
+// List: ↓ and ↑ move between rows, and on a row opened from the list they step to the next and previous item; → and ←
+// are left alone.
+export const ArrowsList: Story = {
+  name: "Arrows, list",
+  globals: { theme: "light" },
+  render: () => <Fixture groups={full} />,
+  play: async () => {
+    await userEvent.click(await page().findByRole("radio", { name: "List" }));
+    await userEvent.click(await page().findByText("Companies to rate"));
+    const rows = [...(await page().findByRole("list", { name: "Companies to rate" })).querySelectorAll<HTMLElement>("[data-row]")];
+    rows[0].focus();
+    await userEvent.keyboard("{ArrowDown}");
+    await expect(rows[1]).toHaveFocus();
+    await expect(rows[1]).toHaveTextContent("Loadstar Systems");
+    await userEvent.keyboard("{Enter}");
+    await waitFor(async () => expect(await card("2 of 3")).toHaveFocus());
+    await userEvent.keyboard("{ArrowDown}");
+    await expect(within(await card("3 of 3")).getByText("Kestrel Freight")).toBeVisible();
+    await userEvent.keyboard("{ArrowUp}");
+    await userEvent.keyboard("{ArrowRight}");
+    await expect(within(await card("2 of 3")).getByText("Loadstar Systems")).toBeVisible();
+  },
+};
+
+// While Edit's field is open the arrows move the text cursor, not the card.
+export const ArrowsInEdit: Story = {
+  name: "Arrows, in Edit",
+  globals: { theme: "light" },
+  render: () => <Fixture groups={full} />,
+  play: async () => {
+    await userEvent.click(await page().findByText("Facts", { selector: "[data-row] *" }));
+    await waitFor(async () => expect(await card("1 of 3")).toHaveFocus());
+    await userEvent.keyboard("e");
+    const field = await page().findByRole("textbox", { name: "The fact" });
+    await waitFor(() => expect(field).toHaveFocus());
+    await userEvent.keyboard("{ArrowRight}{ArrowDown}{ArrowLeft}{ArrowUp}");
+    await expect(await card("1 of 3")).toBeVisible();
+    await expect(field).toHaveFocus();
+  },
+};

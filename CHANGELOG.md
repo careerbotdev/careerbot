@@ -2,6 +2,20 @@
 
 What changed in each version of CareerBot, newest first. The same notes are at https://careerbot.dev/changelog.
 
+## 0.9.6 · 2026-10-14
+
+Arrow keys now move through Review, next to J and K. Building the release images no longer depends on Docker Hub's anonymous download limit.
+
+### Better
+
+- In Review the arrow keys step through cards as J and K do; → or ↓ for the next, ← or ↑ for the previous, and ↓ or ↑ on a row opened from List.
+
+### Fixed
+
+- Building the images no longer fails when Docker Hub limits downloads, because the Node base image now comes from its official public mirror.
+
+All releases: https://careerbot.dev/changelog#v0.9.6
+
 ## 0.9.5 · 2026-10-09
 
 Checking roles now waits when other AI work holds the budget, runs one check at a time, and never throws away AI work you already paid for. Ranking roles again while a check runs no longer fails.

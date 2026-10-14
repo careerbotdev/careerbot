@@ -68,8 +68,8 @@ const GROUPS: { label: string; keys: [string, string][] }[] = [
   {
     label: "Lists",
     keys: [
-      ["J", "Next"],
-      ["K", "Previous"],
+      ["J or ↓", "Next"],
+      ["K or ↑", "Previous"],
       ["↵", "Open"],
       ["Esc", "Close the item"],
     ],
@@ -80,6 +80,8 @@ const GROUPS: { label: string; keys: [string, string][] }[] = [
       ["A", "Approve"],
       ["E", "Edit"],
       ["R", "Reject"],
+      ["J or →", "Next card"],
+      ["K or ←", "Previous card"],
       ["U", "Undo"],
     ],
   },

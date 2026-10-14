@@ -298,6 +298,8 @@ function Deciding({ card, label, index, total, next, move, small, onBack, fromLi
   const reject = decisions.find((d) => d.intent === "reject");
   const other = Object.fromEntries(decisions.filter((d) => d.keys && !["A", "R", "E"].includes(d.keys)).map((d) => [d.keys!, () => select(d)]));
   if (fromList) other.Escape = onBack;
+  // The arrows step too, within this pane: all four on a card, ↓ and ↑ on a row opened from the list.
+  const pane = useRef<HTMLDivElement>(null);
   useReviewKeys(
     {
       approve: approve && (() => select(approve)),
@@ -308,6 +310,7 @@ function Deciding({ card, label, index, total, next, move, small, onBack, fromLi
       other,
     },
     !pending,
+    { keys: fromList ? "list" : "cards", scope: pane },
   );
 
   const actions: ReviewAction[] = decisions.map((d) => ({ label: d.label, onSelect: () => select(d), keys: d.keys, detail: d.detail, note: d.note, intent: d.intent }));
@@ -396,7 +399,7 @@ function Deciding({ card, label, index, total, next, move, small, onBack, fromLi
 
   if (small)
     return (
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div ref={pane} className="flex min-h-0 flex-1 flex-col">
         <PaneHeader
           back={{ label, onBack }}
           actions={
@@ -417,7 +420,7 @@ function Deciding({ card, label, index, total, next, move, small, onBack, fromLi
 
   const hint = unlocks(card);
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+    <div ref={pane} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       {fromList ? (
         <PaneHeader back={{ label, onBack }} actions={hint && <span className="text-body-sm leading-body-sm text-muted">{hint}</span>} />
       ) : (
@@ -427,7 +430,15 @@ function Deciding({ card, label, index, total, next, move, small, onBack, fromLi
         {reviewCard}
         {next && <ReviewNext group={label} title={next.title} line={next.line || undefined} onOpen={() => move(1)} />}
         <div data-tour="review.keys">
-          <ReviewKeyLegend items={[...decisions.filter((d) => d.keys).map((d): [string, string] => [d.keys!, d.label]), ["J", "Next"], ["K", "Previous"], ["U", "Undo"], ...(fromList ? [["Esc", "Back"] as [string, string]] : [])]} />
+          <ReviewKeyLegend
+            items={[
+              ...decisions.filter((d) => d.keys).map((d): [string, string] => [d.keys!, d.label]),
+              [fromList ? "J or ↓" : "J or →", "Next"],
+              [fromList ? "K or ↑" : "K or ←", "Previous"],
+              ["U", "Undo"],
+              ...(fromList ? [["Esc", "Back"] as [string, string]] : []),
+            ]}
+          />
         </div>
       </div>
     </div>

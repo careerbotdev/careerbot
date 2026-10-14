@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { BottomBar } from "./BottomBar";
 import { BuiltOn, SourceQuote, type BuiltOnSource } from "./BuiltOn";
 import { Button } from "./Button";
@@ -203,7 +203,8 @@ function Working() {
   const step = (by: number) => setIndex(Math.max(0, Math.min(open.length - 1, at + by)));
   const actions = factActions({ approve: () => decide("approved"), edit: () => setEditing(true), reject: () => decide("rejected") });
 
-  useReviewKeys({ approve: () => decide("approved"), edit: () => setEditing(true), reject: () => decide("rejected"), next: () => step(1), previous: () => step(-1) }, !!fact && !editing);
+  const pane = useRef<HTMLDivElement>(null);
+  useReviewKeys({ approve: () => decide("approved"), edit: () => setEditing(true), reject: () => decide("rejected"), next: () => step(1), previous: () => step(-1) }, !!fact && !editing, { keys: "cards", scope: pane });
 
   if (!fact)
     return (
@@ -262,7 +263,7 @@ function Working() {
       </Phone>
     );
   return (
-    <div className="flex w-122.5 max-w-full flex-col gap-3.5">
+    <div ref={pane} className="flex w-122.5 max-w-full flex-col gap-3.5">
       {card}
       {next && <ReviewNext group="New facts" title={text[next.id] ?? next.text} line="Network Operations Manager, Ironbridge Logistics" onOpen={() => step(1)} />}
       <ReviewKeyLegend />

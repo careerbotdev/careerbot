@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.9.6",
+    "date": "2026-10-14",
+    "summary": "Arrow keys now move through Review, next to J and K. Building the release images no longer depends on Docker Hub's anonymous download limit.",
+    "new": [],
+    "better": [
+      "In Review the arrow keys step through cards as J and K do; → or ↓ for the next, ← or ↑ for the previous, and ↓ or ↑ on a row opened from List."
+    ],
+    "fixed": [
+      "Building the images no longer fails when Docker Hub limits downloads, because the Node base image now comes from its official public mirror."
+    ],
+    "selfHost": [],
+    "needsAction": false,
+    "shots": []
+  },
+  {
     "version": "0.9.5",
     "date": "2026-10-09",
     "summary": "Checking roles now waits when other AI work holds the budget, runs one check at a time, and never throws away AI work you already paid for. Ranking roles again while a check runs no longer fails.",
