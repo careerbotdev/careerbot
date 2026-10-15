@@ -56,9 +56,9 @@ export function Insights() {
   const start = useMutation(api.insights.start);
   const owners = useMemo(() => ownersOf(items), [items]);
   const open = params.get("insight");
-  // Rejecting: the reason field is open, the insight shown as rejected until the reason is saved or skipped; then the
-  // rejection and its reason are saved together. Those rejected here stay in the list they were in, tagged, until the
-  // tab changes.
+  // Rejecting runs at once with Undo; Reject with a note opens the reason field first, the insight shown as rejected
+  // until the reason is saved or skipped, then saves the rejection and its reason together. Those rejected here stay in
+  // the list they were in, tagged, until the tab changes.
   const [pending, setPending] = useState<string | null>(null);
   const [kept, setKept] = useState<Set<string>>(new Set());
   const [peek, setPeek] = useState<string | null>(null);
@@ -130,20 +130,26 @@ export function Insights() {
     return () => window.removeEventListener("keydown", onKey);
   }, [move, peekOpen, open, close, pending]);
 
-  const reject = useCallback(
+  const rejectWithNote = useCallback(
     (id: string) => {
       if (open !== id) openInsight(id);
       setPending(id);
     },
     [open, openInsight],
   );
+  const reject = useCallback(
+    (id: string, why?: string) => {
+      setKept((s) => new Set(s).add(id));
+      void review({ id: id as Insight["id"], status: "rejected", note: why }).then(
+        () => toast({ message: "Insight rejected", icon: "reject", action: { label: "Undo", key: "U", run: () => void review({ id: id as Insight["id"], status: "approved" }) } }),
+        (e: unknown) => failed(e, "Couldn’t save that."),
+      );
+    },
+    [review],
+  );
   const rejectDone = (id: string) => ({ reason: why }: ReasonResult) => {
     setPending(null);
-    setKept((s) => new Set(s).add(id));
-    void review({ id: id as Insight["id"], status: "rejected", note: why }).then(
-      () => toast({ message: "Insight rejected", icon: "reject", action: { label: "Undo", key: "U", run: () => void review({ id: id as Insight["id"], status: "approved" }) } }),
-      (e: unknown) => failed(e, "Couldn’t save that."),
-    );
+    reject(id, why);
   };
   const moveBack = useCallback(
     (i: Insight) =>
@@ -181,12 +187,13 @@ export function Insights() {
           { id: "insight-edit", group: "This insight", label: "Edit the insight", keywords: [title], icon: "edit", keys: "E", onSelect: () => setEditAsked((n) => n + 1) },
           { id: "insight-undo", group: "This insight", label: "Undo approval", keywords: [title], icon: "undo", onSelect: () => moveBack(current) },
           { id: "insight-reject", group: "This insight", label: "Reject the insight", keywords: [title], icon: "reject", keys: "R", onSelect: () => reject(current.id) },
+          { id: "insight-reject-note", group: "This insight", label: "Reject the insight with a note", keywords: [title], icon: "reject", onSelect: () => rejectWithNote(current.id) },
         );
       if (current.status === "rejected") list.push({ id: "insight-back", group: "This insight", label: "Move back to Review", keywords: [title], icon: "undo", onSelect: () => moveBack(current) });
     }
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current, peekOpen, busy, cost, find, moveBack, reject, setPeekOpen, router]);
+  }, [current, peekOpen, busy, cost, find, moveBack, reject, rejectWithNote, setPeekOpen, router]);
   useCommands(commands);
 
   if (!data || !items) return null;
@@ -252,6 +259,7 @@ export function Insights() {
       ? [
           { label: "Undo approval", icon: "undo", onSelect: () => moveBack(i), ...EXPLAIN.undoApproval },
           { label: "Reject", icon: "reject", keys: "R", onSelect: () => reject(i.id), ...EXPLAIN.reject },
+          { label: "Reject with a note", icon: "reject", onSelect: () => rejectWithNote(i.id), ...EXPLAIN.rejectNoted },
         ]
       : [{ label: "Move back to Review", icon: "undo", onSelect: () => moveBack(i), ...EXPLAIN.moveBack }];
 
@@ -379,7 +387,7 @@ export function Insights() {
       lit={lit}
       onLight={setLit}
       editAsked={editAsked}
-      rejecting={{ open: pending === current.id, start: () => reject(current.id), done: rejectDone(current.id), cancel: () => setPending(null) }}
+      rejecting={{ open: pending === current.id, now: () => reject(current.id), start: () => rejectWithNote(current.id), done: rejectDone(current.id), cancel: () => setPending(null) }}
     />
   ) : undefined;
 

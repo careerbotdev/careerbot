@@ -14,6 +14,8 @@ import { Review } from "./Review";
 // Restore brings it back, as the real mutations do. Resize the window for medium and the phone.
 
 const id = (s: string) => s as Id<"items">;
+// The story the fixture's facts came from: approving the last of its facts waiting gathers skills.
+const IRONBRIDGE = "n-ironbridge" as Id<"narratives">;
 const side = { kind: "quote" as const, text: "By the end of 2021 we were running forty lanes out of the Ohio Valley cross-dock, up from none that spring.", from: "Ironbridge story", at: Date.UTC(2026, 8, 8) };
 const goals = { kind: "quote" as const, text: "I want to help build the planning software I’ve spent years working around, for companies that sell it to food makers and shippers.", from: "Goals", at: Date.UTC(2026, 8, 20) };
 
@@ -26,7 +28,7 @@ const full: Groups = {
     unlocks: true,
     preview: "Base pay at least $135k",
     declined: [],
-    cards: [{ type: "limit", key: "l1", id: id("l1"), title: "Base pay at least $135k", line: "Base pay", context: "Base pay", value: "Base pay at least $135k", firm: true, note: null, clash: false, sources: [goals] }],
+    cards: [{ type: "limit", key: "l1", id: id("l1"), title: "Base pay at least $135k", line: "Base pay", context: "Base pay", value: "Base pay at least $135k", firm: true, note: null, clashWith: null, sources: [goals] }],
   },
   criteria: {
     label: "Direction criteria",
@@ -75,9 +77,9 @@ const full: Groups = {
     preview: "From your Ironbridge story",
     declined: [{ key: "f0", title: "Ran every terminal in the Midwest", line: "Network Operations Manager, Ironbridge Logistics", decision: "Rejected", reason: "Overstates my part", restore: { via: "review", id: id("f0") } }],
     cards: [
-      { type: "fact", key: "f1", id: id("f1"), status: "proposed", title: "Opened the Ohio Valley cross-dock and planned its first 40 lanes in under a year.", line: "Network Operations Manager, Ironbridge Logistics", context: "Network Operations Manager, Ironbridge Logistics", text: "Opened the Ohio Valley cross-dock and planned its first 40 lanes in under a year.", orphan: null, sources: [side] },
-      { type: "fact", key: "f2", id: id("f2"), status: "proposed", title: "Set the cross-dock’s appointment windows so inbound and outbound trucks never shared a door.", line: "Network Operations Manager, Ironbridge Logistics", context: "Network Operations Manager, Ironbridge Logistics", text: "Set the cross-dock’s appointment windows so inbound and outbound trucks never shared a door.", orphan: null, sources: [side] },
-      { type: "fact", key: "f3", id: id("f3"), status: "approved", title: "Trained 30 dock leads on the new yard-check process.", line: "Network Operations Manager, Ironbridge Logistics", context: "No longer in your story", text: "Trained 30 dock leads on the new yard-check process.", orphan: { noLongerSaid: "The new version doesn’t mention training.", sourceDeleted: null }, sources: [side] },
+      { type: "fact", key: "f1", id: id("f1"), status: "proposed", title: "Opened the Ohio Valley cross-dock and planned its first 40 lanes in under a year.", line: "Network Operations Manager, Ironbridge Logistics", context: "Network Operations Manager, Ironbridge Logistics", text: "Opened the Ohio Valley cross-dock and planned its first 40 lanes in under a year.", orphan: null, sources: [side], scope: { narrativeId: IRONBRIDGE, projectKey: null } },
+      { type: "fact", key: "f2", id: id("f2"), status: "proposed", title: "Set the cross-dock’s appointment windows so inbound and outbound trucks never shared a door.", line: "Network Operations Manager, Ironbridge Logistics", context: "Network Operations Manager, Ironbridge Logistics", text: "Set the cross-dock’s appointment windows so inbound and outbound trucks never shared a door.", orphan: null, sources: [side], scope: { narrativeId: IRONBRIDGE, projectKey: null } },
+      { type: "fact", key: "f3", id: id("f3"), status: "approved", title: "Trained 30 dock leads on the new yard-check process.", line: "Network Operations Manager, Ironbridge Logistics", context: "No longer in your story", text: "Trained 30 dock leads on the new yard-check process.", orphan: { noLongerSaid: "The new version doesn’t mention training.", sourceDeleted: null }, sources: [side], scope: { narrativeId: IRONBRIDGE, projectKey: null } },
     ],
   },
   rewrites: {
@@ -85,7 +87,7 @@ const full: Groups = {
     unlocks: false,
     preview: "On Brightwater Provisions",
     declined: [],
-    cards: [{ type: "rewrite", key: "r1", id: id("r1"), status: "approved", title: "Took finished-goods inventory from 41 to 29 days of supply, freeing about $9M in working capital", line: "Senior Supply Planning Manager, Brightwater Provisions", context: "Senior Supply Planning Manager, Brightwater Provisions", now: "Lowered finished-goods inventory.", proposed: "Took finished-goods inventory from 41 to 29 days of supply, freeing about $9M in working capital", asked: "Add the days of supply", sources: [] }],
+    cards: [{ type: "rewrite", key: "r1", id: id("r1"), status: "approved", title: "Took finished-goods inventory from 41 to 29 days of supply, freeing about $9M in working capital", line: "Senior Supply Planning Manager, Brightwater Provisions", context: "Senior Supply Planning Manager, Brightwater Provisions", now: "Lowered finished-goods inventory.", proposed: "Took finished-goods inventory from 41 to 29 days of supply, freeing about $9M in working capital", asked: "Add the days of supply", sources: [], scope: { narrativeId: null, projectKey: null } }],
   },
   questions: {
     label: "Questions",
@@ -196,6 +198,15 @@ function Fixture({ groups }: { groups: Groups }) {
       },
       useParams: () => ({ ...useSyncExternalStore(store.subscribe, store.params, store.params), set: store.setParams }),
       useDecide: () => store.decide,
+      useDecisionCosts: () => {
+        const g = useGroups();
+        return useMemo(() => {
+          const stories: Record<string, number> = {};
+          for (const c of Object.values(g).flatMap((x) => x?.cards ?? []))
+            if (c.type === "fact" && c.status === "proposed" && c.scope.narrativeId) stories[c.scope.narrativeId] = (stories[c.scope.narrativeId] ?? 0) + 1;
+          return { fillUsd: 0.03, gatherUsd: 0.004, insightsUsd: 0.006, open: { stories, projects: {}, approvedFacts: 4 } };
+        }, [g]);
+      },
     };
   }, [store]);
   return (
@@ -233,7 +244,8 @@ type Story = StoryObj<typeof meta>;
 export const Waiting: Story = { render: () => <Fixture groups={full} /> };
 export const Empty: Story = { render: () => <Fixture groups={{}} /> };
 
-// The arrow keys, in one theme so there's one screen taking them. Cards: → and ↓ step on, ← and ↑ back.
+// The keys, in one theme so there's one screen taking them. ← rejects at once (no why asked), S sends the card to the
+// back of the group, ↓ rejects with a note.
 const page = () => within(document.body);
 const card = (where: string) => page().findByRole("article", { name: new RegExp(`, ${where}$`) });
 
@@ -244,19 +256,19 @@ export const ArrowsCards: Story = {
   play: async () => {
     await userEvent.click(await page().findByText("Companies to rate"));
     await waitFor(async () => expect(await card("1 of 3")).toHaveFocus());
-    await userEvent.keyboard("{ArrowRight}");
-    await expect(within(await card("2 of 3")).getByText("Loadstar Systems")).toBeVisible();
-    await userEvent.keyboard("{ArrowDown}");
-    await expect(within(await card("3 of 3")).getByText("Kestrel Freight")).toBeVisible();
     await userEvent.keyboard("{ArrowLeft}");
-    await card("2 of 3");
-    await userEvent.keyboard("{ArrowUp}");
-    await expect(within(await card("1 of 3")).getByText("Meridian Coldchain")).toBeVisible();
+    await expect(within(await card("1 of 2")).getByText("Loadstar Systems")).toBeVisible();
+    await expect(page().queryByRole("textbox", { name: "Not for me: why?" })).toBeNull();
+    await userEvent.keyboard("s");
+    await expect(within(await card("1 of 2")).getByText("Kestrel Freight")).toBeVisible();
+    await userEvent.keyboard("j");
+    await expect(within(await card("2 of 2")).getByText("Loadstar Systems")).toBeVisible();
+    await userEvent.keyboard("{ArrowDown}");
+    await waitFor(async () => expect(await page().findByRole("textbox", { name: "Not for me: why?" })).toHaveFocus());
   },
 };
 
-// List: ↓ and ↑ move between rows, and on a row opened from the list they step to the next and previous item; → and ←
-// are left alone.
+// List: ↓ and ↑ move between rows; on a row opened from the list, ← rejects it at once and the list comes back.
 export const ArrowsList: Story = {
   name: "Arrows, list",
   globals: { theme: "light" },
@@ -271,11 +283,9 @@ export const ArrowsList: Story = {
     await expect(rows[1]).toHaveTextContent("Loadstar Systems");
     await userEvent.keyboard("{Enter}");
     await waitFor(async () => expect(await card("2 of 3")).toHaveFocus());
-    await userEvent.keyboard("{ArrowDown}");
-    await expect(within(await card("3 of 3")).getByText("Kestrel Freight")).toBeVisible();
-    await userEvent.keyboard("{ArrowUp}");
-    await userEvent.keyboard("{ArrowRight}");
-    await expect(within(await card("2 of 3")).getByText("Loadstar Systems")).toBeVisible();
+    await userEvent.keyboard("{ArrowLeft}");
+    await expect(await page().findByRole("list", { name: "Companies to rate" })).toBeVisible();
+    await expect(page().queryByRole("textbox", { name: "Not for me: why?" })).toBeNull();
   },
 };
 

@@ -44,7 +44,9 @@ const FREE_UNDO = "Free · Undo with U";
 export const WORDS = {
   excited: { detail: "Reads its roles and ranks them first.", note: FREE_UNDO },
   maybe: { detail: "Reads its roles too.", note: FREE_UNDO },
-  no: { detail: "Sets it aside with your reason and stops reading its roles.", note: FREE_UNDO },
+  no: { detail: "Sets it aside and stops reading its roles.", note: FREE_UNDO },
+  noNote: { detail: "Sets it aside and stops reading its roles. Asks why first.", note: "Free · Undo with U · Why steers what’s proposed next" },
+  reason: { detail: "Changes why it’s not for you.", note: "Free · Undo with U · Why steers what’s proposed next" },
   unrate: { detail: "Takes your rating off; it goes back to Found.", note: FREE_UNDO },
   keep: { detail: "Moves it to Found, where you can rate it.", note: FREE_UNDO },
   restore: { detail: "Counts it as a place to work again; it goes back to Found.", note: FREE_UNDO },
@@ -151,7 +153,7 @@ export function CompanyItem({
     <RatingControl
       label={`Your rating of ${c.name}`}
       value={c.rating}
-      onChange={(v) => (v === "no" ? onWhy(true) : onRate(v))}
+      onChange={(v) => onRate(v)}
       options={RATINGS}
     />
   );

@@ -9,7 +9,7 @@ import { RecordStory } from "../RecordStory";
 import { Breaks } from "./Breaks";
 
 // The Breaks screen with the fixture record: the Jan – Jun 2015 break open (with its ⋯), adding a break, removing one
-// (the Why? field, then removed with Undo), a record with a gap between two roles (and that gap being added), and an
+// with a note (the Why? field, then removed with Undo), a record with a gap between two roles (and that gap being added), and an
 // empty record. Clicks, J and K, B, E, Enter and Esc work as in the app; resize the window for medium (768 to 1279)
 // and the phone (under 768).
 
@@ -72,17 +72,22 @@ export const BreakMenu: Story = {
 
 export const AddABreak: Story = { name: "Add a break", render: () => <Fixture query="add=1" /> };
 
+const removeWithANote = async () => {
+  const more = await page().findAllByRole("button", { name: "More for Career break" });
+  await userEvent.click(more.at(-1)!);
+  await userEvent.click(await page().findByRole("menuitem", { name: /^Remove with a note/ }));
+};
+
 export const Remove: Story = {
+  name: "Remove with a note",
   render: () => <Fixture query={open} />,
-  play: async () => {
-    await userEvent.click(await page().findByRole("button", { name: "Remove" }));
-  },
+  play: removeWithANote,
 };
 
 export const Removed: Story = {
   render: () => <Fixture query={open} />,
   play: async () => {
-    await userEvent.click(await page().findByRole("button", { name: "Remove" }));
+    await removeWithANote();
     await userEvent.click(await page().findByRole("button", { name: /^2 Dates are wrong|Dates are wrong/ }));
     await userEvent.keyboard("{Enter}");
   },

@@ -6,6 +6,7 @@ import { ReviewCompany, ReviewStatement, ReviewUpdate } from "@/components/Revie
 import { StatusTag } from "@/components/StatusTag";
 import { Text } from "@/components/Text";
 import type { Card } from "./decisions";
+import { ClashOnCard } from "../goals/limits/Clash";
 import { titleNote } from "../record/roles/words";
 
 const day = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -54,19 +55,19 @@ export function CardBody({ card }: { card: Card }) {
         <>
           <ReviewStatement>{card.into ? `${card.name}, as part of ${card.into.name}` : card.name}</ReviewStatement>
           {card.summary && <Text>{card.summary}</Text>}
-          <Chips label="Includes" items={card.includes} />
+          <Chips label="Covers" items={card.includes} />
         </>
       );
     case "limit":
       return (
         <>
           <ReviewStatement>{card.value}</ReviewStatement>
-          {(!card.firm || card.clash) && (
+          {!card.firm && (
             <div className="flex flex-wrap items-center gap-2">
-              {!card.firm && <StatusTag tone="neutral">Preference</StatusTag>}
-              {card.clash && <StatusTag tone="caution">Another limit covers this</StatusTag>}
+              <StatusTag tone="neutral">Preference</StatusTag>
             </div>
           )}
+          {card.clashWith && <ClashOnCard id={card.id} other={card.clashWith} />}
         </>
       );
     case "criteria":

@@ -12,7 +12,7 @@ import { isOwnedBy, type Owner, roleDates, roleName, useRecord } from "./shared"
 
 // The facts of a role or project inside a plain list and item (the Roles and Projects screens give them their real
 // panes), with the fact open beside them: a rewrite to approve, the same work told by Palletwise and Brightwater, two
-// Ironbridge facts that say the same thing (Keep both asking why), a fact being edited, a fact's ⋯, a rewrite being
+// Ironbridge facts that say the same thing (Keep both with a note, asking why), a fact being edited, a fact's ⋯, a rewrite being
 // written and a fact its story no longer says, and the fact pane large, as a drawer and on a phone. Clicks and keys
 // work as in the app.
 
@@ -107,10 +107,11 @@ export const SameWorkOnRole: S = {
 };
 
 export const Duplicates: S = {
-  name: "Duplicates card, Keep both",
+  name: "Duplicates card, Keep both with a note",
   render: () => <Screen owner={ib} />,
   play: async () => {
-    await userEvent.click(await page().findByRole("button", { name: /^Keep both/ }));
+    await userEvent.click(await page().findByRole("button", { name: "More for this looks like the same fact" }));
+    await userEvent.click(await page().findByRole("menuitem", { name: /^Keep both with a note/ }));
   },
 };
 
@@ -155,10 +156,13 @@ export const PhoneRole: S = { name: "Phone, role", globals: { viewport: { value:
 export const PhoneFact: S = { name: "Phone, fact", globals: { viewport: { value: "mobile2" } }, render: () => <Screen owner={bw} fact={IDS.sameWorkRole} size="small" /> };
 
 export const KeptSeparate: S = {
-  name: "Phone, keep separate",
+  name: "Phone, keep separate with a note",
   globals: { viewport: { value: "mobile2" } },
   render: () => <Screen owner={palletwise} size="small" />,
   play: async () => {
-    await userEvent.click(await page().findByRole("button", { name: /^Keep separate/ }));
+    await userEvent.click(await page().findByRole("button", { name: "More for this same work" }));
+    // A sheet of buttons on the phone.
+    const noted = await page().findAllByText("Keep separate with a note");
+    await userEvent.click(noted.at(-1)!);
   },
 };

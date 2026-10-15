@@ -58,6 +58,7 @@ export const PlatformApolloPhone: Story = { name: "Setup on careerbot.dev, Apoll
 export const SetupInProgress: Story = { name: "Setup in progress", render: () => <Screen stage="apollo" /> };
 export const SetupInProgressPhone: Story = { name: "Setup in progress, phone", globals: phone, render: () => <Screen stage="apollo" /> };
 export const ApolloPhone: Story = { name: "Setup, Apollo key, phone", globals: phone, render: () => <Screen stage="apollo" step="apollo" /> };
+export const FindCompanies: Story = { name: "Setup, find companies, directions filling in", render: () => <Screen stage="companies" /> };
 export const Drive: Story = { name: "Setup, Google Drive", render: () => <Screen stage="drive" /> };
 export const PursuitStarting: Story = { name: "First pursuit starting", render: () => <Screen stage="starting" /> };
 export const PursuitStartingPhone: Story = { name: "First pursuit starting, phone", globals: phone, render: () => <Screen stage="starting" /> };

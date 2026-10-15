@@ -14,7 +14,7 @@ import { Spinner } from "@/components/Spinner";
 import { StatusTag } from "@/components/StatusTag";
 import { Tabs } from "@/components/Tabs";
 import { Text } from "@/components/Text";
-import { APPROVES, certLine, type Data, FREE_UNDO, GATHERS_AGAIN, KINDS, type Kind, leftOutWhile, plural, REJECT_PICKS, REJECTS, type Skill, type Tab, TAB_LABELS, WHY, whereShort } from "./words";
+import { APPROVES, certLine, type Data, FREE_UNDO, GATHERS_AGAIN, KINDS, type Kind, leftOutWhile, plural, REJECT_PICKS, REJECTS, type Skill, type Tab, TAB_LABELS, whereShort } from "./words";
 
 // The list pane: the kind's name and ⋯, tabs (Proposed, Approved, and Rejected once there is one), the Group filter
 // (Issuer for certifications; on a phone behind the filter button), the last gathering's state, then the rows.
@@ -93,9 +93,10 @@ export function GatherLine({ last, cost, onGather }: { last: Data["last"]; cost:
 
 export type RowGroup = { label: string; rows: Skill[] };
 
-// The rows, under their group headers (none for certifications). A proposed row approves (A) or rejects (R, with why
-// under it) on hover; any row checks (X, Space, Shift- or ⌘-click, Select in its menu, a long press on a phone), which
-// starts selecting, when a click or the row's box or its group's box checks; a rejected one reopens.
+// The rows, under their group headers (none for certifications). A proposed row approves (A) or rejects (R) at once
+// on hover, or rejects with a note (from its menu, with why under it); any row checks (X, Space, Shift- or ⌘-click,
+// Select in its menu, a long press on a phone), which starts selecting, when a click or the row's box or its group's
+// box checks; a rejected one reopens.
 export function SkillRows({
   groups,
   flat,
@@ -170,7 +171,7 @@ export function SkillRows({
           proposed
             ? [
                 { label: "Approve", icon: "approve", keys: "A", detail: APPROVES(s.kind), note: FREE_UNDO, onSelect: () => onApprove(s) },
-                { label: "Reject", icon: "reject", keys: "R", detail: REJECTS(s.kind), note: WHY, onSelect: () => onWhy(s.id) },
+                { label: "Reject", icon: "reject", keys: "R", detail: REJECTS(s.kind), note: FREE_UNDO, onSelect: () => onReject(s) },
               ]
             : []
         }

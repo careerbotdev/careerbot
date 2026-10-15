@@ -29,7 +29,7 @@ import { GettingStarted, type Setup, stepsLeft } from "./GettingStarted";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { useFollowUp } from "../pursuits/FollowUp";
 import { ROLE_REASONS } from "../pursuits/RoleItem";
-import { INTERESTED, NOT_FOR_ME } from "../pursuits/words";
+import { INTERESTED, NOT_FOR_ME, NOT_FOR_ME_NOTE } from "../pursuits/words";
 import { TodayItem } from "./TodayItem";
 import { AllowanceNotice } from "../settings/Allowance";
 import { documentLine, lineTitle, pursuitLine, resumeLine, resumeTitle } from "./words";
@@ -337,6 +337,7 @@ function Line({ line: l, selected, onOpen }: { line: TodayLine; selected: boolea
           lead={<ScoreBadge score={r.score} level={r.level} />}
           selected={selected}
           onOpen={onOpen}
+          menu={[{ label: "Not for me with a note", icon: "reject", ...NOT_FOR_ME_NOTE, onSelect: () => setWhy(true) }]}
           below={
             why && !small ? <ReasonField decision="Not for me" picks={ROLE_REASONS} onDone={({ reason }) => notForMe(reason)} /> : undefined
           }
@@ -354,7 +355,7 @@ function Line({ line: l, selected, onOpen }: { line: TodayLine; selected: boolea
               >
                 Interested
               </Button>
-              <Button variant="ghost" size="sm" iconOnly icon="reject" aria-label="Not for me" {...NOT_FOR_ME} onClick={() => setWhy(true)} />
+              <Button variant="ghost" size="sm" iconOnly icon="reject" aria-label="Not for me" {...NOT_FOR_ME} onClick={() => notForMe()} />
             </>
           }
         />

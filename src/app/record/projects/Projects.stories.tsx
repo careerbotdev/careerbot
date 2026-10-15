@@ -150,11 +150,13 @@ export const Edit: Story = {
 };
 
 export const Reject: Story = {
-  name: "Reject, why",
+  name: "Reject with a note",
   render: () => <Fixture query={`project=${itemId("p-shelfspan")}`} />,
   play: async () => {
     await page().findByRole("heading", { name: "Shelfspan" });
-    await userEvent.keyboard("r");
+    const more = await page().findAllByRole("button", { name: "More for Shelfspan" });
+    await userEvent.click(more.at(-1)!);
+    await userEvent.click(await page().findByRole("menuitem", { name: /^Reject with a note/ }));
   },
 };
 

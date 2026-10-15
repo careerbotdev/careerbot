@@ -2,6 +2,29 @@
 
 What changed in each version of CareerBot, newest first. The same notes are at https://careerbot.dev/changelog.
 
+## 0.11.0 · 2026-10-15
+
+Reading a story now covers the whole story, writes figures plainly, and gathers your skills, tools and certifications. Review's arrow keys decide, rejecting no longer asks why, directions fill themselves in when approved, and limits only clash when they truly conflict.
+
+### New
+
+- An approved direction with nothing filled in now fills itself in, with the cost shown before you approve, and Getting started shows each direction's state.
+
+### Better
+
+- Deciding the last of a story's items says it then reads insights and gathers your skills, with the cost; edits to approved facts no longer start either.
+- Reject, Not for me and Remove now act at once everywhere, with Undo; "… with a note" in the ⋯ menu asks why first when you want to say.
+- In Review the arrow keys decide (→ approve, ← reject, ↑ edit, ↓ reject with a note), S skips a card to the end, and Reject no longer asks why first.
+
+### Fixed
+
+- Limits clash only when both can't hold; Work and Companies never clash, and a clash names the other limit with Edit and Keep both.
+- Models that always point at a family's newest model, like Claude Haiku Latest, now run, priced as the model they point at.
+- Reading a story writes confident facts with your numbers as given, covers every part and tool, and gathers your skills, tools and certifications after review.
+- In Brave on a computer, which has no speech recognition, Talk no longer fails after asking for the microphone; it points to dictation or another browser.
+
+All releases: https://careerbot.dev/changelog#v0.11.0
+
 ## 0.10.1 · 2026-10-14
 
 The release notes for 0.10.0 now describe careerbot.dev's own AI as coming once it's turned on. Until then you add your own OpenRouter key.

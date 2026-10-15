@@ -24,7 +24,7 @@ const LABELS: Record<Job["kind"], (what: string | null) => [string, string, stri
   insights: () => ["Finding insights", "Found insights", "Couldn’t find insights"],
   followups: () => ["Writing follow-up questions", "Wrote follow-up questions", "Couldn’t write follow-up questions"],
   resume: (w) => [`Writing ${w ?? "your resume"}`, `Wrote ${w ?? "your resume"}`, `Couldn’t write ${w ?? "your resume"}`],
-  directions: (w) => (w ? [`Writing positioning for ${w}`, `Wrote positioning for ${w}`, `Couldn’t write positioning for ${w}`] : ["Suggesting directions", "Suggested directions", "Couldn’t suggest directions"]),
+  directions: (w) => (w ? [`Filling in ${w}`, `Filled in ${w}`, `Couldn’t fill in ${w}`] : ["Suggesting directions", "Suggested directions", "Couldn’t suggest directions"]),
   duplicates: () => ["Looking for duplicates", "Looked for duplicates", "Couldn’t look for duplicates"],
   discover: () => ["Finding companies", "Found companies", "Couldn’t find companies"],
   enrich: () => ["Looking up companies", "Looked up companies", "Couldn’t look up companies"],
@@ -60,8 +60,11 @@ async function subjectOf(ctx: QueryCtx, j: Job): Promise<string | null> {
       return a.lines ? `new lines for ${resume}` : resume;
     }
     case "directions": {
-      const d = a.mode === "detail" ? await get<"items">(a.id) : null;
-      return d?.kind === "direction" ? d.data.name : null;
+      // A fill-in pass: the direction it fills, or all of them.
+      if (a.mode !== "detail") return null;
+      const ids: string[] = a.ids ?? [];
+      const d = ids.length === 1 ? await get<"items">(ids[0]) : null;
+      return d?.kind === "direction" ? d.data.name : "your directions";
     }
     case "project":
       return typeof a.repo === "string" ? a.repo : null;
@@ -99,7 +102,7 @@ type Retry =
   | { fn: "resume.start"; args: { directionId?: string } }
   | { fn: "resume.whatsNew"; args: { directionId?: string } }
   | { fn: "directions.suggest"; args: Record<string, never> }
-  | { fn: "directions.detail"; args: { id: string } }
+  | { fn: "directions.detail"; args: { id?: string } }
   | { fn: "letters.write"; args: { pursuitId: string } }
   | { fn: "people.draft"; args: { contactId: string } }
   | { fn: "followUpEmails.write"; args: { pursuitId: string; contactId?: string } }
@@ -118,7 +121,7 @@ function retryOf(j: Job): Retry | null {
       if (a.posting !== undefined) return null;
       return { fn: a.lines ? "resume.whatsNew" : a.review ? "resume.rewrite" : "resume.start", args: a.directionId ? { directionId: a.directionId } : {} };
     case "directions":
-      return a.mode === "detail" ? { fn: "directions.detail", args: { id: a.id } } : { fn: "directions.suggest", args: {} };
+      return a.mode === "detail" ? { fn: "directions.detail", args: a.ids?.length === 1 ? { id: a.ids[0] } : {} } : { fn: "directions.suggest", args: {} };
     case "letter":
       return { fn: "letters.write", args: { pursuitId: a.pursuitId } };
     case "outreach":
@@ -173,7 +176,10 @@ export const list = query({
               ? `${j.pausedFor === "apollo" ? "Paused until your Apollo budget allows" : "Paused until your AI budget allows"}${j.error ? `. ${j.error}` : ""}`
               : j.status === "failed"
                 ? (j.error ?? null)
-                : null;
+                : // A pass filling in several directions: how many it has done.
+                  j.kind === "directions" && (j.args.ids?.length ?? 0) > 1
+                  ? `${j.done?.length ?? 0} of ${j.args.ids.length}`
+                  : null;
         return {
           id: j._id,
           kind: j.kind,

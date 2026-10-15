@@ -53,10 +53,12 @@ export const resumeFile = (company: string, title: string) => `resume-${`${compa
 // same words wherever they are.
 export const INTERESTED = { detail: "Keeps this role on your Interested list until you start it.", note: "Free · Undo with U" } as const;
 export const NOT_INTERESTED = { detail: "Takes it off your Interested list.", note: "Free" } as const;
-export const NOT_FOR_ME = { detail: "Sets this role aside, with why if you like.", note: "Free · Undo with U" } as const;
+export const NOT_FOR_ME = { detail: "Sets this role aside.", note: "Free · Undo with U" } as const;
+export const NOT_FOR_ME_NOTE = { detail: "Sets this role aside. Asks why first.", note: "Free · Undo with U · Why steers what’s proposed next" } as const;
 export const RESTORE_ROLE = { detail: "Puts the role back in your lists.", note: "Free" } as const;
 export const INTERESTED_ALL = { detail: "Keeps these roles on your Interested list until you start them.", note: "Free · Undo with U" } as const;
 export const NOT_FOR_ME_ALL = { detail: "Sets these roles aside.", note: "Free · Undo with U" } as const;
+export const NOT_FOR_ME_ALL_NOTE = { detail: "Sets these roles aside. Asks why first.", note: "Free · Undo with U · Why steers what’s proposed next" } as const;
 export const OPEN_POSTING = { detail: "Opens the posting in a new tab.", note: "Free" } as const;
 export const RESUME_BESIDE = { detail: "Shows the tailored resume in a pane beside this one.", note: "Free" } as const;
 export const ASK_BESIDE = { detail: "Opens a pane to ask anything about the role, or paste an application question.", note: "Free to open" } as const;

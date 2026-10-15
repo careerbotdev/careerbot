@@ -72,15 +72,20 @@ async function running(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
   return jobs.find((j) => j.kind === "skills" && (j.status === "queued" || j.status === "running")) ?? null;
 }
 
+// One at a time: a run already waiting or going will see the record as it is. `review`: started on its own when they
+// finish reviewing a story or a project (insights.afterReview), so what the record shows is gathered without asking.
+export async function queueGather(ctx: MutationCtx, workspaceId: Id<"workspaces">, why: "request" | "review") {
+  if (await running(ctx, workspaceId)) return null;
+  const jobId = await ctx.db.insert("jobs", { workspaceId, kind: "skills", args: why === "review" ? { why } : {}, status: "queued", origin: why === "request" ? "you" : "automatic" });
+  await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId });
+  return jobId;
+}
+
 export const start = mutation({
   args: {},
   handler: async (ctx) => {
     const { workspaceId } = await requireWorkspace(ctx);
-    // One at a time: a run already waiting or going will see the record as it is.
-    if (await running(ctx, workspaceId)) return null;
-    const jobId = await ctx.db.insert("jobs", { workspaceId, kind: "skills", args: {}, status: "queued", origin: "you" });
-    await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId });
-    return jobId;
+    return queueGather(ctx, workspaceId, "request");
   },
 });
 

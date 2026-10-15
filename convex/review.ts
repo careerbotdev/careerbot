@@ -32,6 +32,8 @@ const UNLOCKS: ReviewKind[] = ["directions", "limits", "criteria", "positioning"
 type Fact = ItemOf<"fact">;
 type WithId<T extends { _id: Id<"items"> }> = T & { id: Id<"items"> };
 const withId = <T extends { _id: Id<"items"> }>(d: T): WithId<T> => ({ ...d, id: d._id });
+// Where deciding an item counts toward a fresh look (freshLook.ts): the story it came from, else its project.
+const scopeOf = (i: Doc<"items">): { narrativeId: Id<"narratives"> | null; projectKey: string | null } => ({ narrativeId: i.sources.length ? i.sources[0].narrativeId : null, projectKey: i.projectKey ?? null });
 
 // Everything waiting, per group, in the order it's reviewed.
 async function waiting(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
@@ -276,6 +278,8 @@ export const items = query({
               includes: d.data.includes ?? [],
               path: orNull(d.data.path),
               into: into ? { id: into._id, name: into.data.name } : null,
+              // Approving it starts filling it in (paid): nothing is filled in yet.
+              fillsIn: !into && !d.data.detail,
               sources: d.data.suggested ? factSources(n, d.data.evidence ?? []) : await quotesOf(ctx, n, d),
             };
           }),
@@ -294,7 +298,8 @@ export const items = query({
             value: l.data.value,
             firm: l.data.firm !== false,
             note: orNull(l.data.note ?? undefined),
-            clash: !!l.data.clash,
+            // The limit it can't hold beside; the card shows the same notice as the Limits page.
+            clashWith: l.data.clashWith ?? null,
             sources: await quotesOf(ctx, n, l),
           })),
         );
@@ -398,6 +403,7 @@ export const items = query({
                 end: orNull(i.data.end ?? undefined),
                 location: orNull(i.data.location ?? undefined),
                 sources,
+                scope: scopeOf(i),
               };
             if (i.kind === "project")
               return {
@@ -412,6 +418,7 @@ export const items = query({
                 stack: i.data.stack ?? [],
                 url: i.data.url,
                 sources,
+                scope: { narrativeId: null, projectKey: i.projectKey ?? null },
               };
             const f = i as Fact;
             const orphan = f.data.noLongerSaid || f.data.sourceDeleted ? { noLongerSaid: f.data.noLongerSaid ?? null, sourceDeleted: f.data.sourceDeleted ?? null } : null;
@@ -427,6 +434,8 @@ export const items = query({
               text: f.data.text,
               orphan,
               sources: [...sources, ...files],
+              // Where deciding it counts toward a fresh look (freshLook.ts).
+              scope: scopeOf(f),
             };
           }),
         );
@@ -457,6 +466,8 @@ export const items = query({
             proposed: f.data.suggestion!.text!,
             asked: orNull(f.data.suggestion!.note),
             sources: await quotesOf(ctx, n, f),
+            // Using the rewrite approves it: where that counts toward a fresh look (freshLook.ts).
+            scope: scopeOf(f),
           })),
         );
         return { ...base, cards, declined: [] as Declined[] };

@@ -321,7 +321,7 @@
       "id": "gatherSkills",
       "name": "Gather skills",
       "stage": "record",
-      "starts": "You choose Gather on Skills.",
+      "starts": "After a story or project is fully reviewed, when you approve a role after that, and when you choose Gather on Skills.",
       "reads": [
         {
           "text": "The skills and tools of your roles",
@@ -512,6 +512,8 @@
         "Directions and search criteria"
       ],
       "screens": [
+        "today",
+        "companies",
         "goals"
       ]
     },
@@ -1109,8 +1111,8 @@
     },
     {
       "screen": "review",
-      "label": "Skip for now",
-      "detail": "Moves on to the next one; this one keeps waiting.",
+      "label": "Skip",
+      "detail": "Moves on to the next one; this one comes back at the end of the group.",
       "note": "Free"
     },
     {
@@ -1499,12 +1501,6 @@
     },
     {
       "screen": "record",
-      "label": "Approve",
-      "detail": "Puts the break back in your record, so resumes use it.",
-      "note": "Free · Undo with U"
-    },
-    {
-      "screen": "record",
       "label": "Restore",
       "detail": "Puts the break back in your record, approved.",
       "note": "Free · Undo with U"
@@ -1512,8 +1508,14 @@
     {
       "screen": "record",
       "label": "Remove",
-      "detail": "Takes the break out of your record and every resume, with why if you like.",
+      "detail": "Takes the break out of your record and every resume.",
       "note": "Free · Undo with U"
+    },
+    {
+      "screen": "record",
+      "label": "Remove with a note",
+      "detail": "Takes the break out of your record and every resume. Asks why first.",
+      "note": "Free · Undo with U · Why steers what’s proposed next"
     },
     {
       "screen": "record",
@@ -1574,12 +1576,6 @@
       "label": "Undo approval",
       "detail": "Takes the project out of your record and back to review.",
       "note": "Free · Undo with U"
-    },
-    {
-      "screen": "record",
-      "label": "Save and approve",
-      "detail": "Saves your corrections and approves the project.",
-      "note": "Free"
     },
     {
       "screen": "record",
@@ -1698,7 +1694,7 @@
     {
       "screen": "goals",
       "label": "Edit direction",
-      "detail": "Change its title, what it includes, its fit and what it is.",
+      "detail": "Change its title, what it covers, its fit and what it is.",
       "note": "Free"
     },
     {

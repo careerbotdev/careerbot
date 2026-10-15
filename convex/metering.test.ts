@@ -333,6 +333,68 @@ test("a price over an hour old is read again before a call uses it; one that can
   expect(up.mock.calls.map(([url]) => url)).toEqual([endpoints, "https://openrouter.ai/api/v1/chat/completions", "https://openrouter.ai/api/v1/chat/completions"]);
 });
 
+test("an alias is priced as the model it points at, the call goes to that model, and its usage names it", async () => {
+  const { t, workspaceId } = await workspaceWithKey();
+  const alias = "~vendor/fast-latest";
+  const aliasEndpoints = "https://openrouter.ai/api/v1/models/~vendor/fast-latest/endpoints";
+  const targetEndpoints = "https://openrouter.ai/api/v1/models/vendor/fast-2/endpoints";
+  const models = "https://openrouter.ai/api/v1/models";
+  const sent: string[] = [];
+  let held = 0;
+  // What OpenRouter answers for an alias: no providers of its own; its model list says what it points at.
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === aliasEndpoints) return Response.json({ data: { id: alias, architecture: { tokenizer: "Router" }, endpoints: [] } });
+    if (url === models) return Response.json({ data: [{ id: "vendor/fast-2" }, { id: alias, alias_target: { slug: "vendor/fast-2", name: "Vendor: Fast 2" } }] });
+    if (url === targetEndpoints) return Response.json({ data: { endpoints: [{ pricing: { prompt: "0.000003", completion: "0.000005" }, context_length: 200_000, max_completion_tokens: 8000 }] } });
+    sent.push(JSON.parse(String(init!.body)).model);
+    held = (await t.run((ctx) => ctx.db.query("usage").order("desc").first()))!.reservedUsd!;
+    return Response.json({ model: "vendor/fast-2", choices: [{ message: { content: "hi" } }], usage: { cost: 0.001 } });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  const out = await t.action(async (ctx) => chat(ctx, { workspaceId, purpose: "test", model: alias, messages: hello }));
+  expect(out.model).toBe("vendor/fast-2");
+  expect(sent).toEqual(["vendor/fast-2"]);
+  // It held the target's worst case: 8,000 reply tokens (the target's own most) at $5 per million, and more for the prompt.
+  expect(held).toBeGreaterThan(1.25 * 8000 * 5e-6);
+  expect(await t.run((ctx) => ctx.db.query("modelPrices").withIndex("by_model", (q) => q.eq("model", alias)).unique())).toMatchObject({ target: "vendor/fast-2", prompt: 3e-6, completion: 5e-6, maxTokens: 8000 });
+  expect(await t.run((ctx) => ctx.db.query("usage").collect())).toMatchObject([{ model: "vendor/fast-2", costUsd: 0.001, state: "settled" }]);
+
+  // Within the hour the kept price is used as it is: no lookups, and the call still goes to the target.
+  await t.action(async (ctx) => chat(ctx, { workspaceId, purpose: "test", model: alias, messages: hello }));
+  expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([aliasEndpoints, models, targetEndpoints, "https://openrouter.ai/api/v1/chat/completions", "https://openrouter.ai/api/v1/chat/completions"]);
+  expect(sent).toEqual(["vendor/fast-2", "vendor/fast-2"]);
+});
+
+test("a router with no single model to point at (no providers, no alias target) still refuses the call unsent", async () => {
+  const { t, workspaceId } = await workspaceWithKey();
+  const fetchMock = vi.fn(async (url: string) =>
+    url === "https://openrouter.ai/api/v1/models"
+      ? Response.json({ data: [{ id: "vendor/auto", alias_target: null }] })
+      : Response.json({ data: { id: "vendor/auto", endpoints: [] } }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  await expect(t.action(async (ctx) => chat(ctx, { workspaceId, purpose: "test", model: "vendor/auto", messages: hello }))).rejects.toThrow("Couldn't read vendor/auto's current prices");
+  expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(["https://openrouter.ai/api/v1/models/vendor/auto/endpoints", "https://openrouter.ai/api/v1/models"]);
+  expect(await t.run((ctx) => ctx.db.query("usage").collect())).toHaveLength(0);
+});
+
+test("the hourly refresh follows an alias to the model it points at now", async () => {
+  const { t } = await workspaceWithKey();
+  await t.run((ctx) => ctx.db.insert("modelPrices", { model: "~vendor/fast-latest", ...TEST_PRICE, target: "vendor/fast-2", at: 0 }));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (url === "https://openrouter.ai/api/v1/models/~vendor/fast-latest/endpoints") return Response.json({ data: { endpoints: [] } });
+      if (url === "https://openrouter.ai/api/v1/models") return Response.json({ data: [{ id: "~vendor/fast-latest", alias_target: { slug: "vendor/fast-3" } }] });
+      if (url === "https://openrouter.ai/api/v1/models/vendor/fast-3/endpoints") return Response.json({ data: { endpoints: [{ pricing: { prompt: "0.000004", completion: "0.000008" }, context_length: 300_000 }] } });
+      // Every other kept price can't be read just now, so it stays as it is.
+      return new Response("", { status: 503 });
+    }),
+  );
+  await t.action(internal.modelPrices.refresh, {});
+  expect(await t.run((ctx) => ctx.db.query("modelPrices").withIndex("by_model", (q) => q.eq("model", "~vendor/fast-latest")).unique())).toMatchObject({ target: "vendor/fast-3", prompt: 4e-6, completion: 8e-6, context: 300_000 });
+});
+
 const isFit: Decision["questions"] = { fits: { type: "noul", instructions: "Is `posting` a sales role?" } };
 const decision = (post: string): Decision => ({ state: { post }, questions: isFit });
 

@@ -25,7 +25,8 @@ import { aboutUsd } from "../../costs";
 import { useBar, useConfirm } from "../../shell/ShellContext";
 import { failed, inlineLink, ItemBody, ItemHead, ItemTop, Notice, onItemKey, type Position, Section, ValueRows } from "../ui";
 import { AddLimit, LimitForm } from "./LimitForm";
-import { allWords, catches, clashWith, conditionsOf, effectLong, type Effects, headScope, kindName, type Limit, roles, ruleFieldRows, scopeWords, versionOf, whenWords } from "./words";
+import { ClashNotice } from "./Clash";
+import { allWords, catches, conditionsOf, effectLong, type Effects, headScope, kindName, type Limit, roles, ruleFieldRows, scopeWords, versionOf, whenWords } from "./words";
 
 // One limit open: its sentence and what it filters by (the rule), what that does to your roles, where it came from and
 // your notes, with Details beside. Approved, it has How firm and On beside the title; proposed, it's a review card;
@@ -34,7 +35,8 @@ import { allWords, catches, clashWith, conditionsOf, effectLong, type Effects, h
 const REJECT_PICKS = ["Too strict", "Not a real limit", "Already covered", "Wrong reading"];
 // Explainers for what a limit offers in several places: its pane, its ⋯ menu, its review card and the phone's bar.
 const RESTORE = { detail: "Puts it back with the proposed limits, to approve or change.", note: "Free · Undo with U" };
-const REJECT = { detail: "Nothing filters by it; say why if you like, so a new read of your goals doesn’t propose it again.", note: "Free · Undo with U" };
+const REJECT = { detail: "Nothing filters by it, and a new read of your goals doesn’t propose it again.", note: "Free · Undo with U" };
+const REJECT_NOTE = { detail: `${REJECT.detail} Asks why first.`, note: "Free · Undo with U · Why steers what’s proposed next" };
 const APPROVE = { detail: "Filters and ranks your roles by this limit from now on.", note: "Free · Undo with U" };
 const EDIT = "Change its sentence, how firm it is, where it applies and its rule. Saving approves it.";
 const FIRMNESS = [
@@ -73,6 +75,8 @@ export function LimitItem({
   const firm = d.firm !== false;
   const on = d.off !== true;
   const handAdded = l.sources.length === 0;
+  // The limit it can't hold beside (kept current on the server), shown on its card or above it once approved.
+  const clashing = limits.find((o) => o.id === d.clashWith);
   const label = d.label;
 
   // goals.items lists proposed, approved and rejected limits only.
@@ -120,7 +124,8 @@ export function LimitItem({
         ...(proposed ? [{ label: "Approve", icon: "approve" as const, keys: "A", detail: APPROVE.detail, note: APPROVE.note, onSelect: approve }] : []),
         { label: "Edit", icon: "edit", keys: "E", detail: EDIT, note: "Free", onSelect: () => onEdit() },
         ...(approved ? [{ label: "Undo approval", icon: "undo" as const, detail: "Puts it back with the proposed limits; nothing filters by it until you approve it again.", note: "Free · Undo with U", onSelect: unapprove }] : []),
-        { label: "Reject…", icon: "reject", keys: "R", detail: REJECT.detail, note: REJECT.note, onSelect: () => setWhy(true) },
+        { label: "Reject", icon: "reject", keys: "R", detail: REJECT.detail, note: REJECT.note, onSelect: () => reject() },
+        { label: "Reject with a note", icon: "reject", detail: REJECT_NOTE.detail, note: REJECT_NOTE.note, onSelect: () => setWhy(true) },
         ...(proposed ? ["separator" as const, { label: "Open in Review", icon: "review" as const, detail: "Opens Review, where it waits with what else is proposed.", note: "Free", onSelect: () => router.push("/review") }] : []),
         ...(handAdded ? ["separator" as const, { label: "Delete", icon: "delete" as const, tone: "danger" as const, detail: "Deletes this limit you added; nothing filters by it after.", note: "Free · Asks first · can’t be undone", onSelect: remove }] : []),
       ];
@@ -128,16 +133,16 @@ export function LimitItem({
   // E and R on an approved limit; A, E and R on a proposed one (as on every review card).
   useEffect(() => {
     if (editing || why || !approved) return;
-    const onKey = onItemKey({ e: () => onEdit(), r: () => setWhy(true) });
+    const onKey = onItemKey({ e: () => onEdit(), r: () => reject() });
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
-  useReviewKeys({ approve, edit: () => onEdit(), reject: () => setWhy(true) }, proposed && !editing && !why);
+  useReviewKeys({ approve, edit: () => onEdit(), reject: () => reject(), rejectWithNote: () => setWhy(true) }, proposed && !editing && !why);
 
   const reviewActions: ReviewAction[] = [
     { label: "Approve", keys: "A", intent: "approve", detail: APPROVE.detail, note: APPROVE.note, onSelect: approve },
     { label: "Edit", keys: "E", detail: "Change it before approving; saving approves it.", note: "Free", onSelect: () => onEdit() },
-    { label: "Reject", keys: "R", intent: "reject", detail: REJECT.detail, note: REJECT.note, onSelect: () => setWhy(true) },
+    { label: "Reject", keys: "R", intent: "reject", detail: REJECT.detail, note: REJECT.note, onSelect: () => reject() },
   ];
   const stale = !!d.sentenceChanged;
   const phoneBar = () => {
@@ -213,7 +218,7 @@ export function LimitItem({
           <ReviewStatement>{d.value}</ReviewStatement>
           {d.note && <p className="text-body-sm leading-body-sm text-muted">{d.note}</p>}
           <ProposedEffect limit={l} />
-          {(d.clash || clashWith(limits, { id: l.id, kind: d.kind, appliesTo: d.appliesTo ?? [], when: conditionsOf(d) })) && <ClashNotice limit={l} limits={limits} />}
+          {clashing && <ClashNotice limit={l} other={clashing} effects={effects} />}
         </ReviewCard>
         <RuleSection limit={l} onEdit={onEdit} />
         <Notes id={l.id} />
@@ -237,6 +242,7 @@ export function LimitItem({
             </div>
           )}
         </div>
+        {approved && clashing && <ClashNotice limit={l} other={clashing} effects={effects} />}
         <RuleSection limit={l} onEdit={approved ? onEdit : undefined} />
         {approved && <FiltersSection limit={l} effects={effects} />}
         {l.sources.length > 0 && (
@@ -482,16 +488,6 @@ function ProposedEffect({ limit: l }: { limit: Limit }) {
       Approved, it would {firm ? `hide ${roles(probe.draft.fails)}` : `rank ${roles(probe.draft.fails)} lower`}
       {what ? ` ${what}` : ""}.
     </p>
-  );
-}
-
-// Another limit of the same kind over the same directions: approving both makes them fight.
-function ClashNotice({ limit: l, limits }: { limit: Limit; limits: Limit[] }) {
-  const other = clashWith(limits, { id: l.id, kind: l.data.kind, appliesTo: l.data.appliesTo ?? [], when: conditionsOf(l.data) });
-  return (
-    <Notice tone="caution" title={other ? `Clashes with ${other.limit.data.label}` : "Clashes with another limit"}>
-      {other ? "Both cover the same roles. Keep one of them, or set Only when on one." : "Another limit read from your goals covers the same thing. Keep one, or set Only when on the other."}
-    </Notice>
   );
 }
 

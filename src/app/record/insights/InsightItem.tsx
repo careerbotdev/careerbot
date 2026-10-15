@@ -22,15 +22,16 @@ import { useBar } from "../../shell/ShellContext";
 import { changeOf, claimOf, day, EXPLAIN, type Insight, INSIGHT_REASONS, type Owners, placeOf, plural } from "./words";
 
 // One insight: its claim, what it's built on and whether it's approved in their wording; Edit (E), Undo approval and
-// Reject (R, with why); the rest of its words, the facts it's built on (each opens where it lives; Show with story
-// quotes opens them beside with the words they were read from), their notes, and its details: where it's used, the
-// directions that share its facts, the roles it draws on and its history. A rejected one shows why (the reason can be
-// changed) and goes back to Review from here.
+// Reject (R, at once; Reject with a note, in ⋯, asks why first); the rest of its words, the facts it's built on (each
+// opens where it lives; Show with story quotes opens them beside with the words they were read from), their notes, and
+// its details: where it's used, the directions that share its facts, the roles it draws on and its history. A rejected
+// one shows why (the reason can be changed) and goes back to Review from here.
 
 const failed = (e: unknown, fallback: string) => toast({ message: e instanceof ConvexError ? String(e.data) : fallback, icon: "failed" });
 
-// A rejection held while its reason is asked for: `done` saves it with the reason, `cancel` drops it unsaved.
-export type Rejecting = { open: boolean; start: () => void; done: (result: ReasonResult) => void; cancel: () => void };
+// A rejection: `now` makes it at once; `start` holds it while its reason is asked for, `done` then saves it with the
+// reason and `cancel` drops it unsaved.
+export type Rejecting = { open: boolean; now: () => void; start: () => void; done: (result: ReasonResult) => void; cancel: () => void };
 
 export function InsightItem({
   insight: i,
@@ -118,12 +119,18 @@ export function InsightItem({
         : []),
     { label: peek ? "Hide story quotes" : "Show with story quotes", icon: "thirdPane", onSelect: () => onPeek(!peek), ...EXPLAIN.quotes(peek) },
     { label: "Copy the insight", icon: "copy", onSelect: copy, detail: "Copies the insight’s words.", note: "Free" },
-    ...(status === "approved" ? ["separator" as const, { label: "Reject", icon: "reject" as const, keys: "R", onSelect: rejecting.start, ...EXPLAIN.reject }] : []),
+    ...(status === "approved"
+      ? [
+          "separator" as const,
+          { label: "Reject", icon: "reject" as const, keys: "R", onSelect: rejecting.now, ...EXPLAIN.reject },
+          { label: "Reject with a note", icon: "reject" as const, onSelect: rejecting.start, ...EXPLAIN.rejectNoted },
+        ]
+      : []),
   ];
 
   useEffect(() => {
     if (editing || rejecting.open || reasonAgain) return;
-    const onKey = onItemKey(status === "approved" ? { e: startEdit, r: rejecting.start } : {});
+    const onKey = onItemKey(status === "approved" ? { e: startEdit, r: rejecting.now } : {});
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
@@ -169,7 +176,7 @@ export function InsightItem({
               Undo approval
             </Button>,
           ]),
-      <Button key="reject" size={size} icon={phone ? undefined : "reject"} keys={phone ? undefined : "R"} className={grow} detail={EXPLAIN.reject.detail} note={EXPLAIN.reject.note} onClick={rejecting.start}>
+      <Button key="reject" size={size} icon={phone ? undefined : "reject"} keys={phone ? undefined : "R"} className={grow} detail={EXPLAIN.reject.detail} note={EXPLAIN.reject.note} onClick={rejecting.now}>
         Reject
       </Button>,
     ];

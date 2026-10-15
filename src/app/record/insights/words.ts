@@ -13,7 +13,8 @@ export const INSIGHT_REASONS = ["Not true", "Overstated", "Not how I see myself"
 export const EXPLAIN = {
   edit: { detail: "Rewords the insight; your wording is kept as approved.", note: "Free · Undo with U" },
   undoApproval: { detail: "Moves the insight back to Review. Resumes stop using it until you approve it again.", note: "Free · Undo with U" },
-  reject: { detail: "Turns the insight down, with why if you like, so none like it come back.", note: "Free · Undo with U" },
+  reject: { detail: "Turns the insight down, so none like it come back.", note: "Free · Undo with U" },
+  rejectNoted: { detail: "Turns the insight down, so none like it come back. Asks why first.", note: "Free · Undo with U · Why steers what’s proposed next" },
   moveBack: { detail: "Puts the insight back in Review to decide again.", note: "Free · Undo with U" },
   reason: { note: "Free · Change it again any time" },
   quotes: (open: boolean) => ({ detail: open ? "Closes the facts and story quotes beside it." : "Opens the facts it’s built on beside it, with the story words each was read from.", note: "Free" }),

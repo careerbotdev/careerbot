@@ -10,7 +10,7 @@ import { Insights } from "./Insights";
 
 // The Insights screen with the fixture record, one story per board of the Record page's Insights: an approved insight
 // in their wording with where it's used and the direction sharing its facts; its facts with their story quotes beside;
-// a rejected one with its reason; rejecting one (the reason in place); the list alone and while it looks for new ones;
+// a rejected one with its reason; rejecting one with a note (the reason in place); the list alone and while it looks for new ones;
 // and a new record with none. Clicks, J and K, E, R, Enter and Esc work as in the app; resize the window for medium
 // (768 to 1279) and the phone (under 768).
 
@@ -60,7 +60,8 @@ function insightAnswers(state: RecordState) {
       };
     }),
     ...answer(api.directions.list, () => ({
-      last: null,
+      suggest: null,
+      filling: null,
       directions: [
         {
           id: itemId("dir-coldchain"),
@@ -70,6 +71,7 @@ function insightAnswers(state: RecordState) {
           carriesOver: [],
           reframe: [],
           evidence: coldChain.map((id) => (state.items.find((x) => x._id === id) as Of<"fact"> | undefined)?.data.text ?? ""),
+          fill: null,
           avoided: [],
         },
       ],
@@ -114,10 +116,13 @@ export const FactsPeek: Story = {
 export const Rejected: Story = { render: () => <Screen query={`tab=rejected&insight=${itemId("ins-volunteer")}`} /> };
 
 export const Rejecting: Story = {
+  name: "Reject with a note",
   render: () => <Screen query={`insight=${itemId("ins-growth")}`} />,
   play: async () => {
     await page().findByRole("heading", { name: /You plan growth/ });
-    await userEvent.keyboard("r");
+    const more = await page().findAllByRole("button", { name: /^More for You plan growth/ });
+    await userEvent.click(more.at(-1)!);
+    await userEvent.click(await page().findByRole("menuitem", { name: /^Reject with a note/ }));
   },
 };
 

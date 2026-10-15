@@ -51,7 +51,7 @@ export function LimitsList({
     const n = fails.get(l.id);
     let words: ReactNode = null;
     if (d.sentenceChanged) words = <span className="text-caution-text">Sentence changed</span>;
-    else if (d.clash) words = <span className="text-caution-text">Clashes</span>;
+    else if (d.clashWith) words = <span className="text-caution-text">Clashes</span>;
     else if (l.status === "approved" && d.off) words = "Off";
     else if (n !== undefined) words = effectShort(d.firm !== false, n);
     return (

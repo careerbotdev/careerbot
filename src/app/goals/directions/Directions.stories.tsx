@@ -10,7 +10,7 @@ import { directionsFixtures } from "./fixtures";
 
 // The Directions screen with fixture data from the fixture persona's record, one story per board of the Goals page: a
 // direction (and its ⋯), its resume beside it, Tailor a resume with a posting pasted, a proposed direction, criteria
-// being edited, the phone list rejecting a direction with why, and a direction on the phone with its positioning to
+// being edited, the phone list rejecting a direction with a note, and a direction on the phone with its positioning to
 // review. Clicks, J and K, A, E, R, T, "." and Esc work as in the app; resize the window for medium (768 to 1279) and the
 // phone (under 768).
 
@@ -79,12 +79,12 @@ export const CriteriaEditing: Story = {
 };
 
 export const PhoneListReject: Story = {
-  name: "Phone list, reject with why",
+  name: "Phone list, reject with a note",
   render: () => <Fixture query="list=proposed" />,
   play: async () => {
     fireEvent.contextMenu(await page().findByRole("button", { name: /Demand Planning/ }));
     // A sheet of buttons on the phone, a menu beside the pointer on wider screens.
-    const reject = await page().findAllByText("Reject");
+    const reject = await page().findAllByText("Reject with a note");
     await userEvent.click(reject.at(-1)!);
   },
 };

@@ -155,7 +155,7 @@ export const AI_STEPS: Record<string, StepWords> = {
   gatherSkills: {
     name: "Gather skills",
     stage: "record",
-    starts: "You choose Gather on Skills.",
+    starts: "After a story or project is fully reviewed, when you approve a role after that, and when you choose Gather on Skills.",
     may: "Propose each skill, tool and certification once, with where your record shows it, and offer near-duplicates as merges.",
     mayNot: "Bring back a skill you rejected, in any spelling, or change one you approved beyond adding where it shows.",
     reads: {

@@ -6,6 +6,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { api } from "../../../../convex/_generated/api";
 import { BuiltOnPeek } from "@/components/BuiltOn";
 import { Button, type ButtonSize } from "@/components/Button";
+import { StatusTag } from "@/components/StatusTag";
 import { CostEstimate } from "@/components/CostEstimate";
 import type { MenuEntry } from "@/components/Menu";
 import { Menu } from "@/components/Menu";
@@ -25,7 +26,7 @@ import { useDirectionActs } from "./acts";
 import { CriteriaForm, DetailForm, DirectionForm } from "./forms";
 import { criteriaRows, CriteriaView, facts, StateTag, Stories, TitlesView } from "./Parts";
 import { ResumeProperty, ResumesTab } from "./Resume";
-import { COPY_LINK_WORDS, type Direction, fillInWords, type Fit, fromOf, type ItemTab, type Pane, PART_WORDS, type Part, pathWord, positioningFacts, proposedParts, REJECT_PICKS, REJECT_WORDS, rolesWord } from "./words";
+import { COPY_LINK_WORDS, type Direction, fillInWords, type Fit, fromOf, type ItemTab, type Pane, PART_WORDS, type Part, pathWord, positioningFacts, proposedParts, REJECT_NOTE_WORDS, REJECT_PICKS, REJECT_WORDS, rolesWord } from "./words";
 
 // An approved direction: its top (where it is, the resume beside, ⋯), its head with Tailor a resume, a review card
 // for a part still proposed, and its tabs: Overview (with Details), Criteria, Titles, Resumes and Notes.
@@ -92,9 +93,10 @@ export function DirectionItem({
   const toggleResume = () => onPane(pane === "resume" ? null : "resume");
   const fillIn = () =>
     void detail({ id: d.id }).then(
-      (jobId) => toast(jobId ? { message: `Filling in ${d.data.name} again`, icon: "running" } : { message: "Directions are being filled in. Try again when it’s done.", icon: "failed" }),
+      () => toast({ message: d.data.detail ? `Filling in ${d.data.name} again` : `Filling in ${d.data.name}`, icon: "running" }),
       (e: unknown) => failed(e, "Couldn’t start."),
     );
+  const filling = d.fill === "filling";
   const reject = (reason?: string) => {
     setRejecting(false);
     void acts.reject(d, reason).then(onGone);
@@ -105,9 +107,17 @@ export function DirectionItem({
   const resumeDetail = pane === "resume" ? "Closes the resume beside this direction." : "Opens this direction’s resume beside it.";
 
   const menu: MenuEntry[] = [
-    { label: "Edit direction", icon: "edit", keys: part ? undefined : "E", detail: "Change its title, what it includes, its fit and what it is.", note: "Free", onSelect: () => edit("direction") },
+    { label: "Edit direction", icon: "edit", keys: part ? undefined : "E", detail: "Change its title, what it covers, its fit and what it is.", note: "Free", onSelect: () => edit("direction") },
     { label: "Edit positioning", icon: "edit", detail: "Change the positioning, the titles to aim at and the words to use. Saving approves it.", note: "Free", onSelect: () => edit("detail"), ...(d.data.detail ? {} : { disabled: true, reason: "Not filled in yet" }) },
-    { label: d.data.detail ? "Fill in again" : "Fill in", icon: "tryAgain", hint: fillCost ?? undefined, detail: fill.detail, note: fill.note, onSelect: fillIn },
+    {
+      label: d.data.detail ? "Fill in again" : "Fill in",
+      icon: "tryAgain",
+      hint: fillCost ?? undefined,
+      detail: fill.detail,
+      note: fill.note,
+      onSelect: fillIn,
+      ...(filling ? { disabled: true, reason: "Filling in now" } : {}),
+    },
     {
       label: "Merge into…",
       icon: "switch",
@@ -120,14 +130,15 @@ export function DirectionItem({
     { label: pane === "resume" ? "Hide resume" : "Show resume", icon: "thirdPane", keys: ".", detail: resumeDetail, note: "Free", onSelect: toggleResume },
     { label: "Copy link", icon: "link", detail: COPY_LINK_WORDS.detail, note: COPY_LINK_WORDS.note, onSelect: () => acts.copyLink(d) },
     "separator",
-    { label: "Reject", icon: "reject", keys: "R", detail: REJECT_WORDS.detail, note: REJECT_WORDS.note, onSelect: () => setRejecting(true) },
+    { label: "Reject", icon: "reject", keys: "R", detail: REJECT_WORDS.detail, note: REJECT_WORDS.note, onSelect: () => reject() },
+    { label: "Reject with a note", icon: "reject", detail: REJECT_NOTE_WORDS.detail, note: REJECT_NOTE_WORDS.note, onSelect: () => setRejecting(true) },
   ];
 
   useEffect(() => {
     if (editing) return;
     const onKey = onItemKey({
       e: () => (part ? editPart(part) : edit("direction")),
-      r: () => setRejecting(true),
+      r: () => reject(),
       t: tailor,
       ".": toggleResume,
       ...(part ? { a: () => acts.approvePart(d, part) } : {}),
@@ -217,7 +228,7 @@ export function DirectionItem({
   const details = (columns: 1 | 2, className: string) => (
     <Properties columns={columns} className={className}>
       <Property label="Path">{pathWord(d)}</Property>
-      {!!d.data.includes?.length && <Property label="Includes">{d.data.includes.join(", ")}</Property>}
+      {!!d.data.includes?.length && <Property label="Covers">{d.data.includes.join(", ")}</Property>}
       <Property label="Roles">
         {fit?.count ? (
           <>
@@ -292,16 +303,24 @@ export function DirectionItem({
                 </Section>
               )}
               {!positioning && (
-                <Section label="Positioning">
-                  <Text size="sm" muted>
-                    Not filled in yet: how to position your record for this direction, the titles to aim at, and what search looks for.
-                  </Text>
-                  <div className="flex items-center gap-3">
-                    <Button icon="tryAgain" detail={fill.detail} note={fill.note} onClick={fillIn}>
-                      Fill in
-                    </Button>
-                    {fillCost && <CostEstimate amount={fillCost} />}
-                  </div>
+                <Section label="Positioning" tag={filling ? <StatusTag tone="info">Filling in</StatusTag> : undefined}>
+                  {filling ? (
+                    <Text size="sm" muted>
+                      Writing how to position your record for this direction, the titles to aim at and what search looks for. It’s proposed for you to review when it’s done.
+                    </Text>
+                  ) : (
+                    <>
+                      <Text size="sm" muted>
+                        {d.fill === "failed" ? "Couldn’t fill in. Try again: " : "Not filled in yet: "}how to position your record for this direction, the titles to aim at, and what search looks for.
+                      </Text>
+                      <div className="flex items-center gap-3">
+                        <Button icon="tryAgain" detail={fill.detail} note={fill.note} onClick={fillIn}>
+                          Fill in
+                        </Button>
+                        {fillCost && <CostEstimate amount={fillCost} />}
+                      </div>
+                    </>
+                  )}
                 </Section>
               )}
               <Stories label="Carries over" stories={d.carriesOver} />
@@ -309,10 +328,10 @@ export function DirectionItem({
             </ItemBody>
           </TabPanel>
           <TabPanel value="criteria">
-            <Body size={size}>{editing === "criteria" ? <CriteriaForm d={d} onDone={() => setEditing(null)} /> : <CriteriaView d={d} onEdit={() => edit("criteria")} />}</Body>
+            <Body size={size}>{editing === "criteria" ? <CriteriaForm d={d} onDone={() => setEditing(null)} /> : <CriteriaView d={d} onEdit={() => edit("criteria")} fill={{ run: fillIn, cost: fillCost }} />}</Body>
           </TabPanel>
           <TabPanel value="titles">
-            <Body size={size}>{editing === "detail" ? <DetailForm d={d} onDone={() => setEditing(null)} /> : <TitlesView d={d} onEdit={() => edit("detail")} />}</Body>
+            <Body size={size}>{editing === "detail" ? <DetailForm d={d} onDone={() => setEditing(null)} /> : <TitlesView d={d} onEdit={() => edit("detail")} fill={{ run: fillIn, cost: fillCost }} />}</Body>
           </TabPanel>
           <TabPanel value="resumes">
             <Body size={size}>

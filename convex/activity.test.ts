@@ -50,10 +50,10 @@ test("a job naming another workspace's direction shows no name", async () => {
     const other = await ensureWorkspace(ctx, await ctx.db.insert("users", { email: "b@example.com" }));
     const mine = await ctx.db.insert("items", { workspaceId: w, kind: "direction", status: "approved", data: { name: "Sales" }, sources: [], at: 0 });
     const theirs = await ctx.db.insert("items", { workspaceId: other, kind: "direction", status: "approved", data: { name: "Secret pivot" }, sources: [], at: 0 });
-    await ctx.db.insert("jobs", { workspaceId: w, kind: "directions", args: { mode: "detail", id: theirs }, status: "running", startedAt: NOW });
-    await ctx.db.insert("jobs", { workspaceId: w, kind: "directions", args: { mode: "detail", id: mine }, status: "running", startedAt: NOW - HOUR });
+    await ctx.db.insert("jobs", { workspaceId: w, kind: "directions", args: { mode: "detail", ids: [theirs] }, status: "running", startedAt: NOW });
+    await ctx.db.insert("jobs", { workspaceId: w, kind: "directions", args: { mode: "detail", ids: [mine] }, status: "running", startedAt: NOW - HOUR });
     return a;
   });
   const rows = await t.withIdentity({ subject: `${a}|s` }).query(api.activity.list, {});
-  expect(rows.map((r) => r.label).sort()).toEqual(["Suggesting directions", "Writing positioning for Sales"]);
+  expect(rows.map((r) => r.label).sort()).toEqual(["Filling in Sales", "Filling in your directions"]);
 });

@@ -15,7 +15,7 @@ import { KINDS, type Kind, plural, REJECT_PICKS, type Skill, sourceLine, type Ta
 
 // Several checked: what they are, where the record shows them (how many of them each role or project shows), the
 // near-duplicates among them (approving both keeps both), and their group and whether resumes show them, set for all
-// at once. Reject asks why here before it's done.
+// at once. Reject with a note (in ⋯) asks why here before it's done.
 export function Selection({
   kind,
   tab,

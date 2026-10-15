@@ -11,6 +11,8 @@ import { replyOf, string, strings } from "./replyJson";
 import { approvedRecord, backgroundNarratives, counted, itemsOf, sourceCheck } from "./recordContext";
 import type { ItemOf } from "./itemShapes";
 import { INSIGHT_STYLE, PLAIN_LANGUAGE } from "./writingGuides";
+import type { FreshLookOpen } from "./freshLook";
+import { queueGather } from "./skills";
 import { requireWorkspace } from "./workspaces";
 
 // Reads across the whole approved record like a career editor and proposes insights: things true of the person across
@@ -53,20 +55,46 @@ export const start = mutation({
 });
 
 // Called after a review action: once a narrative or a project has nothing left to review, take a fresh look (quietly, in
-// the background). Approving a project counts too, since its facts only count once it's approved; a project's fact
-// counts only then, so finishing its facts takes a look once the project is approved.
-export async function afterReview(ctx: MutationCtx, item: Doc<"items">) {
-  if (item.kind !== "fact" && !(item.kind === "project" && item.status === "approved")) return;
-  const narrativeId = item.kind === "fact" ? item.sources[0]?.narrativeId : undefined;
+// the background): gather the skills, tools and certifications the record now shows, and look for insights. Approving a
+// project counts too, since its facts only count once it's approved; a project's fact counts only then, so finishing its
+// facts takes a look once the project is approved. Approving a role gathers again (its skills and tools count only once
+// it's approved), once its narrative has no facts left to review. `was`: its status before. Only a decision on something
+// waiting counts: changing an approved item (an edit, a rewrite, a rejection) or deciding it the same way again doesn't
+// (Gather and looking for insights on request still do). freshLook.ts says the same to the screens, before the click.
+export async function afterReview(ctx: MutationCtx, item: Doc<"items">, was: Doc<"items">["status"]) {
+  if (was === "approved" || was === item.status) return;
+  const role = item.kind === "role" && item.status === "approved";
+  if (item.kind !== "fact" && !role && !(item.kind === "project" && item.status === "approved")) return;
+  const narrativeId = item.kind === "fact" || role ? item.sources[0]?.narrativeId : undefined;
   const projectKey = item.projectKey;
   if (!narrativeId && !projectKey) return;
   if (!narrativeId && item.kind === "fact" && !(await itemsOf(ctx, item.workspaceId, "project", "approved")).some((p) => p.projectKey === projectKey)) return;
   const open = (await itemsOf(ctx, item.workspaceId, "fact", "proposed")).some((f) => (narrativeId ? f.sources[0]?.narrativeId === narrativeId : f.projectKey === projectKey));
   if (open) return;
+  if (role) return void (await queueGather(ctx, item.workspaceId, "review"));
   const approved = await counted(ctx, item.workspaceId, "fact");
+  if (!approved.length) return;
+  await queueGather(ctx, item.workspaceId, "review");
   if (approved.length < 2) return;
   await queue(ctx, item.workspaceId, "review");
 }
+
+// What freshLook.ts reads to tell whether a decision starts a fresh look: the facts waiting per story and per project,
+// which projects are approved, and how many approved facts count.
+export const freshLookOpen = query({
+  args: {},
+  handler: async (ctx): Promise<FreshLookOpen> => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const open: FreshLookOpen = { stories: {}, projects: {}, approvedFacts: (await counted(ctx, workspaceId, "fact")).length };
+    for (const p of await itemsOf(ctx, workspaceId, "project", "approved")) if (p.projectKey) open.projects[p.projectKey] = { open: 0, approved: true };
+    for (const f of await itemsOf(ctx, workspaceId, "fact", "proposed")) {
+      const story = f.sources[0]?.narrativeId;
+      if (story) open.stories[story] = (open.stories[story] ?? 0) + 1;
+      else if (f.projectKey) (open.projects[f.projectKey] ??= { open: 0, approved: false }).open++;
+    }
+    return open;
+  },
+});
 
 export const inputs = internalQuery({
   args: { workspaceId: v.id("workspaces") },

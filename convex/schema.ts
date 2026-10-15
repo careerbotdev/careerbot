@@ -257,8 +257,9 @@ export default defineSchema({
   // Each AI model's highest prices across the providers OpenRouter may route it to (USD per token, and per request),
   // what AI calls reserve against the budget (modelPrices.ts). fixed: false for routers whose price depends on the
   // model they pick. maxTokens: the most any provider writes in one reply. context: the most tokens any provider takes
-  // in one request, prompt and reply together. structured: some provider keeps a reply to a JSON schema. Refreshed
-  // hourly and when a call finds one missing or an hour old.
+  // in one request, prompt and reply together. structured: some provider keeps a reply to a JSON schema. target: for an
+  // alias ("~vendor/name-latest"), the model it pointed at when read, whose prices these are and which calls go to.
+  // Refreshed hourly and when a call finds one missing or an hour old.
   modelPrices: defineTable({
     model: v.string(),
     prompt: v.number(),
@@ -268,6 +269,7 @@ export default defineSchema({
     maxTokens: v.optional(v.number()),
     context: v.optional(v.number()),
     structured: v.optional(v.boolean()),
+    target: v.optional(v.string()),
     at: v.number(),
   }).index("by_model", ["model"]),
 

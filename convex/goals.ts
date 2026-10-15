@@ -6,11 +6,12 @@ import { type ActionCtx, internalMutation, internalQuery, type MutationCtx, quer
 import { mutation } from "./functions";
 import { modelFor } from "./aiSettings";
 import { chatJson } from "./metering";
-import { checkLimit, CONDITIONS, cleanRule, cleanWhen, invalidFields, type JobFacts, judgeJob, LIMIT_BUCKETS, type LimitBucket, limitLabel, type LimitLike, ROLE_CHECKED, RULE_FIELDS, RULE_SPEC, type RuleField, ruleRows, sameRule } from "./limitBuckets";
+import { checkLimit, clashKey, clashOf, CONDITIONS, cleanRule, cleanWhen, invalidFields, type JobFacts, judgeJob, LIMIT_BUCKETS, type LimitBucket, limitLabel, type LimitLike, ROLE_CHECKED, RULE_FIELDS, RULE_SPEC, type RuleField, ruleRows, sameRule } from "./limitBuckets";
 import { boolean, listOf, orNull, type ReplySchema, strictObject, string, strings } from "./replyJson";
-import { type ItemOf, itemsOf, pickDirection, pickLimit } from "./itemShapes";
+import { type ItemOf, type ItemStatus, itemsOf, pickDirection, pickLimit, STATUSES } from "./itemShapes";
 import { yearlyUsd } from "./roleDetails";
 import { counted, sourceCheck } from "./recordContext";
+import { fillWhenApproved } from "./directionFill";
 import { PLAIN_LANGUAGE } from "./writingGuides";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
 
@@ -178,8 +179,6 @@ export const save = internalMutation({
       const label = limitLabel(raw.kind, appliesTo, when);
       const readKey = norm(label);
       if (rejectedKeys.has(readKey) || onlyRejected(raw.quotes)) continue;
-      // Two limits for the same bucket, scope and condition contradict each other; both stay, marked, for the person to settle.
-      const clash = (o.limits ?? []).filter((x) => x?.kind === raw.kind && norm(limitLabel(String(x.kind), (x.appliesTo ?? []).filter(Boolean), cleanWhen(x.when))) === readKey).length > 1;
       const rule = cleanRule(raw.kind, raw.rule);
       // What validation threw away is kept beside the rule, so a bad read can be seen rather than silently lost.
       const ruleAsRead = raw.rule && !sameRule(raw.rule, rule) ? raw.rule : undefined;
@@ -193,12 +192,13 @@ export const save = internalMutation({
         workspaceId,
         kind: "limit",
         status: "proposed",
-        data: pickLimit({ ...raw, kind: raw.kind, appliesTo, when, rule, ruleAsRead, label, readKey, rev: 0, clash: clash || undefined }),
+        data: pickLimit({ ...raw, kind: raw.kind, appliesTo, when, rule, ruleAsRead, label, readKey, rev: 0 }),
         sources: src(raw.quotes),
         runId,
         at,
       });
     }
+    await syncClashes(ctx, workspaceId);
     return { directions: o.directions?.length ?? 0, limits: o.limits?.length ?? 0 };
   },
 });
@@ -251,6 +251,7 @@ export const edit = mutation({
     // Ranking roles reads the name and summary.
     const changed = (fields.name !== undefined && fields.name !== item.data.name) || (fields.summary !== undefined && fields.summary !== item.data.summary);
     await ctx.db.patch(id, { data: { ...item.data, ...fields, path: path ?? item.data.path, edited: true, ...(changed ? { changedAt: Date.now() } : {}) }, status: "approved" });
+    if (item.status !== "approved") await fillWhenApproved(ctx, item);
   },
 });
 
@@ -258,6 +259,57 @@ async function queueLimitRule(ctx: MutationCtx, workspaceId: Id<"workspaces">, i
   const jobId = await ctx.db.insert("jobs", { workspaceId, kind: "limitRule", args: { itemId, rev }, status: "queued", origin: "automatic" });
   await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId });
 }
+
+// Which other limit each limit clashes with (limitBuckets.clashOf), for the whole workspace, after any change to a
+// limit: read from goals, added, edited, its rule read, approved, rejected, switched on or off, deleted, kept beside
+// another. Only proposed and approved limits that are on clash, so the mark goes as soon as either one is edited apart,
+// rejected, switched off or deleted; a pair they kept both of doesn't, until either one changes. An approved partner is
+// named before a proposed one. Statuses given (the migration) are cleared too.
+export async function syncClashes(ctx: MutationCtx, workspaceId: Id<"workspaces">, statuses: readonly ItemStatus[] = ["proposed", "approved", "rejected"]) {
+  const rows = (await Promise.all(statuses.map((s) => itemsOf(ctx, workspaceId, "limit", s)))).flat();
+  const live = rows.filter((l) => (l.status === "approved" || l.status === "proposed") && !l.data.off).sort((a, b) => (a.status === b.status ? 0 : a.status === "approved" ? -1 : 1));
+  const kept = (a: ItemOf<"limit">, b: ItemOf<"limit">) => !!a.data.keptWith?.some((k) => k.id === b._id && k.key === clashKey(a.data, b.data));
+  let changed = 0;
+  for (const l of rows) {
+    const other = live.includes(l) ? live.find((o) => o._id !== l._id && !kept(l, o) && !kept(o, l) && clashOf(l.data, o.data))?._id : undefined;
+    if (l.data.clashWith === other && l.data.clash === undefined) continue;
+    await ctx.db.patch(l._id, { data: { ...l.data, clashWith: other, clash: undefined } });
+    changed++;
+  }
+  return changed;
+}
+
+// Operator, once after the release that brought clashWith: every workspace's limits, in every status, get clashWith
+// worked out by the rule above and lose the old clash flag. Running it again changes nothing.
+export const recomputeClashes = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let changed = 0;
+    for (const w of await ctx.db.query("workspaces").collect()) changed += await syncClashes(ctx, w._id, STATUSES);
+    return { changed };
+  },
+});
+
+// Keep both: a limit and the one it clashes with stay as they are, and stop showing as clashing until either changes.
+// Undo (kept: false) shows them as clashing again.
+export const keepBoth = mutation({
+  args: { id: v.id("items"), with: v.id("items"), kept: v.boolean() },
+  handler: async (ctx, { id, with: otherId, kept }) => {
+    const { workspaceId, item } = await limitOf(ctx, id);
+    const other = await getInWorkspace(ctx, workspaceId, otherId);
+    if (other?.kind !== "limit" || otherId === id) throw new Error("Not found.");
+    const pair = [
+      [item, other],
+      [other, item],
+    ] as const;
+    for (const [a, b] of pair) {
+      const rest = (a.data.keptWith ?? []).filter((k) => k.id !== b._id);
+      const keptWith = kept ? [...rest, { id: b._id, key: clashKey(a.data, b.data) }] : rest;
+      await ctx.db.patch(a._id, { data: { ...a.data, keptWith: keptWith.length ? keptWith : undefined } });
+    }
+    await syncClashes(ctx, workspaceId);
+  },
+});
 
 const RULE_SYSTEM = `Turn one job-search limit, written in plain words, into data a search checks. You get its bucket, the fields that bucket allows, and the wording. Use only what the wording states; leave out any field it doesn't give. Reply with JSON only: {"rule":{...}}.`;
 
@@ -273,6 +325,7 @@ export const setRule = internalMutation({
     // Any change since this job was queued (another rewording, or filters set by hand) wins over this answer.
     if (!item || item.kind !== "limit" || (item.data.rev ?? 0) !== rev) return;
     await ctx.db.patch(itemId, { data: { ...item.data, rule: cleanRule(item.data.kind, rule), ruleStale: false } });
+    await syncClashes(ctx, item.workspaceId);
     if (ROLE_CHECKED.includes(item.data.kind)) await ctx.scheduler.runAfter(0, internal.roles.refreshRanks, { workspaceId: item.workspaceId });
   },
 });
@@ -328,6 +381,7 @@ export const addLimit = mutation({
     if (!wording) throw new ConvexError(rule === undefined ? "Give a value." : "Set at least one field.");
     const data = { kind, label: limitLabel(kind, scope.appliesTo, scope.when), value: wording, firm, ...scope, edited: true, rev: 1 };
     const id = await ctx.db.insert("items", { workspaceId, kind: "limit", status: "approved", data: given ? { ...data, rule: given, ruleStale: false } : { ...data, ruleStale: true }, sources: [], at: Date.now() });
+    await syncClashes(ctx, workspaceId);
     if (!given) await queueLimitRule(ctx, workspaceId, id, 1);
     else if (ROLE_CHECKED.includes(kind)) await ctx.scheduler.runAfter(0, internal.roles.refreshRanks, { workspaceId });
     return id;
@@ -346,6 +400,7 @@ export const merge = mutation({
     await ctx.db.patch(into, { data: { ...to.data, includes, edited: true }, status: "approved", sources: [...to.sources, ...from.sources] });
     const undoMerge = { into, status: from.status, includes: to.data.includes, edited: to.data.edited, intoStatus: to.status, intoSources: to.sources.length };
     await ctx.db.patch(id, { status: "superseded", data: { ...from.data, mergedInto: to.data.name, undoMerge } });
+    if (to.status !== "approved") await fillWhenApproved(ctx, to);
   },
 });
 
@@ -396,6 +451,7 @@ export const updateLimit = mutation({
         edited: true,
       },
     });
+    await syncClashes(ctx, workspaceId);
     if (ROLE_CHECKED.includes(item.data.kind)) await ctx.scheduler.runAfter(0, internal.roles.refreshRanks, { workspaceId });
   },
 });
@@ -407,6 +463,7 @@ export const setLimitOn = mutation({
     const { workspaceId, item } = await limitOf(ctx, id);
     if (!item.data.off === on) return;
     await ctx.db.patch(id, { data: { ...item.data, off: on ? undefined : true } });
+    await syncClashes(ctx, workspaceId);
     if (ROLE_CHECKED.includes(item.data.kind)) await ctx.scheduler.runAfter(0, internal.roles.refreshRanks, { workspaceId });
   },
 });
@@ -441,6 +498,7 @@ export const removeLimit = mutation({
     const notes = await ctx.db.query("notes").withIndex("by_subject", (q) => q.eq("workspaceId", workspaceId).eq("subject.kind", "item").eq("subject.id", id)).collect();
     for (const n of notes) await ctx.db.delete(n._id);
     await ctx.db.delete(id);
+    await syncClashes(ctx, workspaceId);
     if (ROLE_CHECKED.includes(item.data.kind)) await ctx.scheduler.runAfter(0, internal.roles.refreshRanks, { workspaceId });
   },
 });

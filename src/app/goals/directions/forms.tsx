@@ -105,7 +105,7 @@ export function DirectionForm({ d, onDone }: { d: Direction; onDone: () => void 
   return (
     <Form save={save} saveLabel={d.status === "approved" ? "Save" : "Save and approve"} onCancel={onDone}>
       <Field label="Title">{(p) => <Input autoFocus value={name} onChange={(e) => setName(e.target.value)} {...p} />}</Field>
-      <MultiSelect label="Includes" custom value={includes} onChange={setIncludes} options={options(d.data.includes ?? [])} empty="Nothing else" />
+      <MultiSelect label="Covers" custom value={includes} onChange={setIncludes} options={options(d.data.includes ?? [])} empty="Nothing else" />
       <SegmentedControl label="Fit with your record" value={path} onChange={setPath} options={PATH_ORDER.map((p) => ({ value: p, label: PATHS[p] }))} />
       <Field label="What it is">{(p) => <Textarea rows={3} value={summary} onChange={(e) => setSummary(e.target.value)} {...p} />}</Field>
     </Form>

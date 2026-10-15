@@ -155,10 +155,10 @@ function Screen({ data }: { data: CompaniesData }) {
     return rendered[[...root.querySelectorAll("[data-row-scope]")].indexOf(scope)];
   };
   const underHand = () => rowAt(document.activeElement) ?? rowAt(listRef.current?.querySelector("[data-row-scope]:hover") ?? null);
-  const rateKey = (c: Company, key: "t" | "m" | "r", where: "row" | "item") => {
+  // Each rating key toggles at once (Not for me with a note, or Change the reason, is in ⋯).
+  const rateKey = (c: Company, key: "t" | "m" | "r") => {
     if (c.screened?.employer === false) return;
-    if (key === "r") return setWhy({ id: c.id, where: small ? "item" : where });
-    const value = key === "t" ? "excited" : "maybe";
+    const value = key === "t" ? "excited" : key === "m" ? "maybe" : "no";
     rate(c, c.rating === value ? null : value);
   };
   // The screen's keys, bound again after each render so they act on what's shown now.
@@ -170,11 +170,10 @@ function Screen({ data }: { data: CompaniesData }) {
         e.preventDefault();
         move(key === "j" ? 1 : -1);
       } else if (key === "t" || key === "m" || key === "r") {
-        const row = underHand();
-        const target = row ?? chosen;
+        const target = underHand() ?? chosen;
         if (!target) return;
         e.preventDefault();
-        rateKey(target, key, row ? "row" : "item");
+        rateKey(target, key);
       } else if (key === "e" && chosen) {
         e.preventDefault();
         setEditing({ id: chosen.id, field: editFieldFor(chosen) });
@@ -221,7 +220,7 @@ function Screen({ data }: { data: CompaniesData }) {
   ];
 
   // Everything a company can do, for its ⋯ menu, its row's right-click, and the phone's bar. `where`: the row it's opened
-  // from, or the open item, which is where Not for me asks why.
+  // from, or the open item, which is where Not for me with a note (or Change the reason) asks why.
   const itemMenu = (c: Company, where: "row" | "item"): MenuEntry[] => {
     const out = c.screened?.employer === false;
     const kind = asideKind(sets, c.id);
@@ -232,7 +231,10 @@ function Screen({ data }: { data: CompaniesData }) {
         : ([
             { label: "Target", keys: "T", checked: c.rating === "excited", onSelect: () => rate(c, c.rating === "excited" ? null : "excited") },
             { label: "Maybe", keys: "M", checked: c.rating === "maybe", onSelect: () => rate(c, c.rating === "maybe" ? null : "maybe") },
-            { label: "Not for me", keys: "R", checked: c.rating === "no", onSelect: () => setWhy({ id: c.id, where: small ? "item" : where }) },
+            { label: "Not for me", keys: "R", checked: c.rating === "no", onSelect: () => rate(c, c.rating === "no" ? null : "no") },
+            c.rating === "no"
+              ? { label: "Change the reason", icon: "edit", detail: WORDS.reason.detail, note: WORDS.reason.note, onSelect: () => setWhy({ id: c.id, where: small ? "item" : where }) }
+              : { label: "Not for me with a note", icon: "reject", detail: WORDS.noNote.detail, note: WORDS.noNote.note, onSelect: () => setWhy({ id: c.id, where: small ? "item" : where }) },
             "separator",
           ] satisfies MenuEntry[])),
       ...(c.goals?.level === "doesnt" && kind !== "goals" && c.goals.keep ? [{ label: "Let it be set aside", icon: "setAside" as const, detail: "Moves it back to Doesn’t fit your goals.", note: "Free · Undo with U", onSelect: () => keep(c, false) }] : []),
@@ -318,7 +320,7 @@ function Screen({ data }: { data: CompaniesData }) {
                     ) : (
                       <>
                         {/* Three ratings fit from 390 wide; narrower, Maybe is in More (where all three are). */}
-                        <Button size="lg" className="flex-1" icon={opened.rating === "no" ? "approve" : undefined} detail={WORDS[opened.rating === "no" ? "unrate" : "no"].detail} note={WORDS.no.note} onClick={() => (opened.rating === "no" ? rate(opened, null) : setWhy({ id: opened.id, where: "item" }))}>
+                        <Button size="lg" className="flex-1" icon={opened.rating === "no" ? "approve" : undefined} detail={WORDS[opened.rating === "no" ? "unrate" : "no"].detail} note={WORDS.no.note} onClick={() => rate(opened, opened.rating === "no" ? null : "no")}>
                           Not for me
                         </Button>
                         <Button size="lg" className="flex-1 max-[390px]:hidden" icon={opened.rating === "maybe" ? "approve" : undefined} detail={WORDS[opened.rating === "maybe" ? "unrate" : "maybe"].detail} note={WORDS.maybe.note} onClick={() => rate(opened, opened.rating === "maybe" ? null : "maybe")}>
@@ -373,9 +375,9 @@ function Screen({ data }: { data: CompaniesData }) {
           out
             ? []
             : [
-                { label: "Target", keys: "T", detail: WORDS[c.rating === "excited" ? "unrate" : "excited"].detail, note: WORDS.excited.note, onSelect: () => rateKey(c, "t", "row") },
-                { label: "Maybe", keys: "M", detail: WORDS[c.rating === "maybe" ? "unrate" : "maybe"].detail, note: WORDS.maybe.note, onSelect: () => rateKey(c, "m", "row") },
-                { label: "Not for me", keys: "R", detail: WORDS.no.detail, note: WORDS.no.note, onSelect: () => rateKey(c, "r", "row") },
+                { label: "Target", keys: "T", detail: WORDS[c.rating === "excited" ? "unrate" : "excited"].detail, note: WORDS.excited.note, onSelect: () => rateKey(c, "t") },
+                { label: "Maybe", keys: "M", detail: WORDS[c.rating === "maybe" ? "unrate" : "maybe"].detail, note: WORDS.maybe.note, onSelect: () => rateKey(c, "m") },
+                { label: "Not for me", keys: "R", detail: WORDS[c.rating === "no" ? "unrate" : "no"].detail, note: WORDS.no.note, onSelect: () => rateKey(c, "r") },
               ]
         }
         menu={itemMenu(c, "row")}

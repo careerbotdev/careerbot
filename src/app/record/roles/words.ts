@@ -87,7 +87,8 @@ export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n ==
 // What the moves on a role do, the same in the item's buttons, the phone bar and the ⋯ menus.
 export const EXPLAIN = {
   approve: { detail: "Adds this role to your record as it reads. Only approved roles go on resumes.", note: "Free · Undo with U" },
-  reject: { detail: "Keeps it out of your record, with why if you like, so it isn’t proposed again.", note: "Free · Undo with U" },
+  reject: { detail: "Keeps it out of your record, so it isn’t proposed again.", note: "Free · Undo with U" },
+  rejectWithNote: { detail: "Keeps it out of your record, so it isn’t proposed again. Asks why first.", note: "Free · Undo with U · Why steers what’s proposed next" },
   restore: { detail: "Puts the role back for review; nothing else changes.", note: "Free · Undo with U" },
   edit: { detail: "Corrects its details; your corrections count as approved.", note: "Free" },
   add: { detail: "Adds a role you held yourself, approved as you give it.", note: "Free" },

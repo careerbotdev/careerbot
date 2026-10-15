@@ -21,7 +21,7 @@ import { Tabs } from "@/components/Tabs";
 import { Text } from "@/components/Text";
 import { toast } from "@/components/Toast";
 import { ROLE_REASONS } from "./RoleItem";
-import { INTERESTED, NOT_FOR_ME, NOT_INTERESTED, OPEN_POSTING, postedWord, pursuitMeta, type PursuitRow, RESTORE_ROLE, type RoleRow } from "./words";
+import { INTERESTED, NOT_FOR_ME, NOT_FOR_ME_NOTE, NOT_INTERESTED, OPEN_POSTING, postedWord, pursuitMeta, type PursuitRow, RESTORE_ROLE, type RoleRow } from "./words";
 
 // The list of Pursuits: tabs (All roles, Interested, Pursuing, Closed), the filter bar (Direction first; the role
 // filters under + on All roles and Interested), then the rows. A role row: score, title, company · place, its pursuit's
@@ -131,7 +131,7 @@ export function PursuitRows({ rows, selected, onOpen, empty }: { rows: PursuitEn
   );
 }
 
-// Role rows, with Interested and Not for me (with why) on each row's menu, and every place for a role in several.
+// Role rows, with Interested and Not for me (at once; with a note, it asks why) on each row's menu, and every place for a role in several.
 export function RoleRows({
   groups,
   selected,
@@ -198,9 +198,12 @@ function RoleListRow({ roles, selected, onOpen, checked, onCheck, selecting, byP
             ...(r.rating === "interested" ? NOT_INTERESTED : { ...INTERESTED, note: "Free" }),
             onSelect: () => void rate({ id: r.id, value: r.rating === "interested" ? null : "interested" }).catch((e: unknown) => failed(e, "Couldn’t save that.")),
           },
-          r.rating === "no"
-            ? { label: "Restore", icon: "undo" as const, ...RESTORE_ROLE, onSelect: () => void rate({ id: r.id, value: null }) }
-            : { label: "Not for me", icon: "reject" as const, keys: "R", ...NOT_FOR_ME, onSelect: () => setWhy(true) },
+          ...(r.rating === "no"
+            ? [{ label: "Restore", icon: "undo" as const, ...RESTORE_ROLE, onSelect: () => void rate({ id: r.id, value: null }) }]
+            : [
+                { label: "Not for me", icon: "reject" as const, keys: "R", ...NOT_FOR_ME, onSelect: () => notForMe() },
+                { label: "Not for me with a note", icon: "reject" as const, ...NOT_FOR_ME_NOTE, onSelect: () => setWhy(true) },
+              ]),
           "separator" as const,
         ]
       : []),

@@ -344,7 +344,7 @@ export const edit = mutation({
     if (start !== undefined) data.start = start.trim() || null;
     if (end !== undefined) data.end = end.trim() || null;
     await ctx.db.patch(id, { data, status: "approved" });
-    if (item.status !== "approved") await afterReview(ctx, { ...item, data, status: "approved" });
+    await afterReview(ctx, { ...item, data, status: "approved" }, item.status);
   },
 });
 

@@ -100,6 +100,7 @@ export const Problems: Story = {
       <TalkStopped talk={talk({ state: "stopped", added: 0, problem: "The microphone is blocked for this site. Allow it in your browser’s site settings, then press Talk again." })} saved="saved" />
       <TalkStopped talk={talk({ state: "stopped", added: 0, problem: "Didn’t hear anything. Check that your microphone is on, then press Talk again." })} saved="saved" />
       <TalkStopped talk={talk({ state: "stopped", added: 42, problem: "Couldn’t reach your browser’s speech service. Check your connection, then press Talk again." })} saved="saved" />
+      <TalkStopped talk={talk({ state: "stopped", added: 0, problem: "Talk doesn’t work in this Brave. Tap the mic on your keyboard, or use Chrome or Safari." })} saved="saved" />
     </div>
   ),
 };
@@ -111,6 +112,9 @@ export const DeviceDictationStory: Story = {
       <DeviceDictation device="mac" />
       <DeviceDictation device="windows" />
       <DeviceDictation device="phone" />
+      <DeviceDictation device="mac" brave />
+      <DeviceDictation device="windows" brave />
+      <DeviceDictation device={null} brave />
     </div>
   ),
 };

@@ -12,8 +12,9 @@ import { BulkBar } from "@/components/BulkBar";
 import { Button, buttonLook } from "@/components/Button";
 import type { Command } from "@/components/CommandPalette";
 import { FilterOptions } from "@/components/FilterBar";
-import type { MenuEntry } from "@/components/Menu";
+import { Menu, type MenuEntry } from "@/components/Menu";
 import { PaneHeader, PaneLayout, type ThirdPane, useScreenSize } from "@/components/Panes";
+import { ReasonField } from "@/components/ReasonField";
 import { toast } from "@/components/Toast";
 import { selectEntries, useSelection } from "@/components/useSelection";
 import { useBar, useCommands } from "../shell/ShellContext";
@@ -29,7 +30,8 @@ import { AgainstFold, Empty, More, OtherFold, PursuitRows, PursuitsList, type Ro
 import { ResumePane, ResumePaneTag } from "./Resume";
 import { type Third, ThirdContext } from "./third";
 import { pursuitsHref } from "./url";
-import { INTERESTED_ALL, NOT_FOR_ME_ALL } from "./words";
+import { INTERESTED_ALL, NOT_FOR_ME_ALL, NOT_FOR_ME_ALL_NOTE } from "./words";
+import { ROLE_REASONS } from "./RoleItem";
 import { aboutUsd } from "../costs";
 
 // Pursuits: roles and the pursuits of them, as a list and the one open beside it (?role=, with ?direction= the
@@ -228,11 +230,14 @@ export function Pursuits() {
   );
   useCommands(commands);
 
-  // Several roles checked: Interested or Not for me for all of them, with Undo.
-  const bulk = (value: "interested" | "no") => {
+  // Several roles checked: Interested or Not for me for all of them, at once with Undo; Not for me with a note (in the
+  // bulk bar's ⋯) asks why first, and the reason goes with each.
+  const [bulkWhy, setBulkWhy] = useState(false);
+  const bulk = (value: "interested" | "no", reason?: string) => {
     const chosen = groups.flatMap((g) => g).filter((r) => sel.checked.has(r.id));
+    setBulkWhy(false);
     sel.done();
-    void Promise.all(chosen.map((r) => rate({ id: r.id, value }))).then(
+    void Promise.all(chosen.map((r) => rate({ id: r.id, value, ...(value === "no" && reason ? { reason } : {}) }))).then(
       () =>
         toast({
           message: `${value === "no" ? "Not for me" : "Interested"}: ${chosen.length} ${chosen.length === 1 ? "role" : "roles"}`,
@@ -242,30 +247,35 @@ export function Pursuits() {
       (e: unknown) => failed(e, "Couldn’t save that."),
     );
   };
+  if (!sel.on && bulkWhy) setBulkWhy(false);
   const none = sel.checked.size ? undefined : "None selected";
+  const bulkMore: MenuEntry[] = [{ label: "Not for me with a note", icon: "reject", ...NOT_FOR_ME_ALL_NOTE, onSelect: () => setBulkWhy(true) }];
   useBar(
     small && sel.on && !role
-      ? {
-          kind: "bulk",
-          count: sel.checked.size,
-          onDone: sel.done,
-          actions: (
-            <>
-              <Button size="lg" className="flex-1" {...NOT_FOR_ME_ALL} reason={none} onClick={() => bulk("no")}>
-                Not for me
-              </Button>
-              <Button size="lg" variant="primary" className="flex-1" {...INTERESTED_ALL} reason={none} onClick={() => bulk("interested")}>
-                Interested
-              </Button>
-            </>
-          ),
-        }
+      ? bulkWhy
+        ? { kind: "reason", decision: `Not for me: ${sel.checked.size} ${sel.checked.size === 1 ? "role" : "roles"}`, picks: ROLE_REASONS.slice(0, 4), onDone: ({ reason }) => bulk("no", reason) }
+        : {
+            kind: "bulk",
+            count: sel.checked.size,
+            onDone: sel.done,
+            actions: (
+              <>
+                <Button size="lg" className="flex-1" {...NOT_FOR_ME_ALL} reason={none} onClick={() => bulk("no")}>
+                  Not for me
+                </Button>
+                <Button size="lg" variant="primary" className="flex-1" {...INTERESTED_ALL} reason={none} onClick={() => bulk("interested")}>
+                  Interested
+                </Button>
+                {sel.checked.size > 0 && <Menu label="More for the checked ones" items={bulkMore} trigger={<Button size="lg" iconOnly icon="more" aria-label="More for the checked ones" />} />}
+              </>
+            ),
+          }
       : null,
   );
   useEffect(() => {
     if (!sel.checked.size) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey || busyElsewhere(e)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || bulkWhy || busyElsewhere(e)) return;
       const key = e.key.toLowerCase();
       if (key === "i" || key === "r") {
         e.preventDefault();
@@ -403,7 +413,8 @@ export function Pursuits() {
         {body}
       </PursuitsList>
       {!small && sel.on && (
-        <div className="absolute inset-x-2 bottom-2">
+        <div className="absolute inset-x-2 bottom-2 flex flex-col gap-2">
+          {bulkWhy && <ReasonField decision={`Not for me: ${sel.checked.size} ${sel.checked.size === 1 ? "role" : "roles"}`} picks={ROLE_REASONS} onDone={({ reason }) => bulk("no", reason)} />}
           <BulkBar
             count={sel.checked.size}
             onDone={sel.done}
@@ -411,6 +422,7 @@ export function Pursuits() {
               { label: "Interested", keys: "I", ...INTERESTED_ALL, onSelect: () => bulk("interested"), primary: true },
               { label: "Not for me", keys: "R", ...NOT_FOR_ME_ALL, onSelect: () => bulk("no") },
             ]}
+            more={bulkMore}
           />
         </div>
       )}

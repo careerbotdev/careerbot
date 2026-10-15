@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { type ReactMutation, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import Link from "next/link";
 import { type ReactNode, useEffect, useState } from "react";
@@ -23,22 +23,39 @@ import { TabPanel, Tabs } from "@/components/Tabs";
 import { Text } from "@/components/Text";
 import { toast } from "@/components/Toast";
 import { aboutUsd } from "../../costs";
+import { useFreshLook } from "../freshLook";
 import { type ItemNav, ItemTop, onItemKey } from "../../pursuits/third";
 import { useBar } from "../../shell/ShellContext";
 import { Body, Head, Section } from "./parts";
-import { APPROVES, commits, EDITS, type Fact, OPENS_REPO, type Project, READS_AGAIN, REJECTS, RESTORES, type Role, roleName, SENDS_FILES, span, when } from "./words";
+import { APPROVES, commits, EDITS, type Fact, OPENS_REPO, type Project, READS_AGAIN, REJECTS, REJECTS_NOTED, RESTORES, type Role, roleName, SENDS_FILES, span, when } from "./words";
 
 // A project from GitHub: its name, repository, dates and commits, with Read again (its cost) and Open on GitHub; then
 // Facts (the same-work card in place, Summary, Stack, its facts, Notes), Sources (the repository and its last read) and
 // History; its details beside (repository, dates, commits, the role it was part of, whether resumes show it, the skills
 // and tools it gave, when it was read). A proposed project is approved (A) or rejected (R); an approved one can be
 // linked to a role, left out of resumes, searched for the same work in its role, edited (E: saving approves it), have
-// its approval undone (U) or be rejected (R). Rejecting asks why and sets its unreviewed facts aside; Restore brings them
-// back. Everything reversible happens at once with Undo.
+// its approval undone (U) or be rejected (R). Rejecting sets its unreviewed facts aside at once with Undo; Reject with a
+// note, in ⋯, asks why first; Restore brings them back. Everything reversible happens at once with Undo.
 
 export const PROJECT_REASONS = ["Still building it", "Not my work", "Too small to show", "Just an experiment"];
 const failed = (e: unknown, fallback: string) => toast({ message: e instanceof ConvexError ? String(e.data) : fallback, icon: "failed" });
 const MONTH = /^\d{4}(-(0[1-9]|1[0-2]))?$/;
+
+// Rejects a project with its reason if one was given, with Undo back to where it was (a reason changed on a rejected
+// one says nothing). The item and the list's row menu both reject this way.
+export function rejectProject(review: ReactMutation<typeof api.extract.review>, project: Project, reason?: string) {
+  const was = project.status;
+  void review({ id: project.id, status: "rejected", note: reason }).then(
+    () =>
+      was !== "rejected" &&
+      toast({
+        message: `Rejected: ${project.data.name}`,
+        icon: "reject",
+        action: { label: "Undo", key: "U", run: () => void review({ id: project.id, status: "proposed" }).then(() => was === "approved" && review({ id: project.id, status: "approved" })) },
+      }),
+    (e: unknown) => failed(e, "Couldn’t save that."),
+  );
+}
 
 type Intent = "edit" | "reject" | null;
 
@@ -72,6 +89,8 @@ export function ProjectItem({
   const sources = useQuery(api.sources.list);
   const sameWork = useQuery(api.sameWork.last);
   const costs = useQuery(api.estimates.costs, {});
+  // Approving a project with none of its facts left to review gathers skills: the note says so.
+  const approvedNote = useFreshLook().approveNote([project]);
   const [editing, setEditing] = useState(intent === "edit");
   const [why, setWhy] = useState<"reject" | "change" | null>(intent === "reject" ? "reject" : null);
   const [tab, setTab] = useState("facts");
@@ -99,20 +118,10 @@ export function ProjectItem({
     );
   const approve = () => decide("approved", `Approved: ${d.name}`, () => review({ id: project.id, status: "proposed" }));
   const undoApproval = () => decide("proposed", `Back to review: ${d.name}`, () => review({ id: project.id, status: "approved" }));
-  // The decision and its reason go together, once the reason is saved or skipped.
+  // At once, or with its reason once Reject with a note's reason is saved or skipped.
   const reject = (reason?: string) => {
-    const was = project.status;
     setWhy(null);
-    void review({ id: project.id, status: "rejected", note: reason }).then(
-      () =>
-        was !== "rejected" &&
-        toast({
-          message: `Rejected: ${d.name}`,
-          icon: "reject",
-          action: { label: "Undo", key: "U", run: () => void review({ id: project.id, status: "proposed" }).then(() => was === "approved" && review({ id: project.id, status: "approved" })) },
-        }),
-      (e: unknown) => failed(e, "Couldn’t save that."),
-    );
+    rejectProject(review, project, reason);
   };
   const restore = () =>
     void review({ id: project.id, status: "proposed" }).then(
@@ -198,8 +207,9 @@ export function ProjectItem({
         "separator",
         approved
           ? { label: "Undo approval", icon: "undo", keys: "U", detail: "Takes the project out of your record and back to review.", note: "Free · Undo with U", onSelect: undoApproval }
-          : { label: "Approve", icon: "approve", keys: "A", detail: APPROVES, note: "Free · Undo with U", onSelect: approve },
-        { label: "Reject", icon: "reject", keys: "R", detail: REJECTS, note: "Free · Undo with U", onSelect: () => setWhy("reject") },
+          : { label: "Approve", icon: "approve", keys: "A", detail: APPROVES, note: approvedNote, onSelect: approve },
+        { label: "Reject", icon: "reject", keys: "R", detail: REJECTS, note: "Free · Undo with U", onSelect: () => reject() },
+        { label: "Reject with a note", icon: "reject", detail: REJECTS_NOTED.detail, note: REJECTS_NOTED.note, onSelect: () => setWhy("reject") },
       ];
 
   useEffect(() => {
@@ -207,7 +217,7 @@ export function ProjectItem({
     const onKey = onItemKey(
       rejected
         ? { r: restore }
-        : { e: () => setEditing(true), r: () => setWhy("reject"), ...(approved ? { u: undoApproval } : { a: approve }) },
+        : { e: () => setEditing(true), r: () => reject(), ...(approved ? { u: undoApproval } : { a: approve }) },
     );
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -242,10 +252,10 @@ export function ProjectItem({
     );
     if (!approved)
       return [
-        <Button key="approve" variant="primary" size={size} keys={phone ? undefined : "A"} className={grow} detail={APPROVES} note="Free · Undo with U" onClick={approve}>
+        <Button key="approve" variant="primary" size={size} keys={phone ? undefined : "A"} className={grow} detail={APPROVES} note={approvedNote} onClick={approve}>
           Approve
         </Button>,
-        <Button key="reject" size={size} keys={phone ? undefined : "R"} className={grow} aria-pressed={!!why} detail={REJECTS} note="Free · Undo with U" onClick={() => setWhy("reject")}>
+        <Button key="reject" size={size} keys={phone ? undefined : "R"} className={grow} aria-pressed={!!why} detail={REJECTS} note="Free · Undo with U" onClick={() => reject()}>
           Reject
         </Button>,
         ...(phone ? [] : [read]),
@@ -602,6 +612,8 @@ function History({ project }: { project: Project }) {
 // Edit: its name, summary and dates (YYYY-MM). Saving approves it as corrected. ⌘↵ saves, Esc cancels.
 function EditForm({ project, small, onDone }: { project: Project; small: boolean; onDone: () => void }) {
   const edit = useMutation(api.projects.edit);
+  // Saving approves it: a project waiting for review with none of its facts left starts a fresh look.
+  const saveNote = useFreshLook().then([project], "approved") ?? "Free";
   const d = project.data;
   const [form, setForm] = useState({ name: d.name, summary: d.summary ?? "", start: d.start ?? "", end: d.end ?? "" });
   const [tried, setTried] = useState(false);
@@ -638,7 +650,7 @@ function EditForm({ project, small, onDone }: { project: Project; small: boolean
               <Button size="lg" className="flex-1" onClick={onDone}>
                 Cancel
               </Button>
-              <Button size="lg" variant="primary" className="flex-1" detail="Saves your corrections and approves the project." note="Free" onClick={save}>
+              <Button size="lg" variant="primary" className="flex-1" detail="Saves your corrections and approves the project." note={saveNote} onClick={save}>
                 Save and approve
               </Button>
             </>
@@ -665,7 +677,7 @@ function EditForm({ project, small, onDone }: { project: Project; small: boolean
       </div>
       {!small && (
         <div className="flex gap-2">
-          <Button variant="primary" keys="⌘↵" detail="Saves your corrections and approves the project." note="Free" onClick={save}>
+          <Button variant="primary" keys="⌘↵" detail="Saves your corrections and approves the project." note={saveNote} onClick={save}>
             Save and approve
           </Button>
           <Button keys="Esc" onClick={onDone}>

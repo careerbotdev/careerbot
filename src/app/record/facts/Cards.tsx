@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useCallback, useState, type ReactNode } from "react";
 import { api } from "../../../../convex/_generated/api";
 import { aboutUsd } from "../../costs";
+import { useFreshLook } from "../freshLook";
 import { useBar } from "../../shell/ShellContext";
 import { BuiltOn } from "@/components/BuiltOn";
 import type { MenuEntry } from "@/components/Menu";
@@ -11,13 +12,14 @@ import { ReasonField } from "@/components/ReasonField";
 import { type ReviewAction, ReviewActions, type ReviewAside, ReviewCard, ReviewStatement, ReviewUpdate, useReviewKeys } from "@/components/ReviewCard";
 import { useSmall } from "@/components/useSmall";
 import { EXPLAIN, useFactActions } from "./actions";
-import { act, type Card, cardsOf, type Fact, FREE_UNDO, monthDay, type Owner, PICKS, type RecordData, roleName, short, sourceLine, sourcesOf, useRecord, WHY } from "./shared";
+import { act, type Card, cardsOf, type Fact, FREE_UNDO, monthDay, type Owner, PICKS, type RecordData, roleName, short, sourceLine, sourcesOf, useRecord } from "./shared";
 import { WordsField } from "./WordsField";
 
 // The decisions waiting on a role's or project's facts, one card at a time with its position: a rewrite to approve,
 // a new fact, the same work told by a project and its role (Connect or Keep separate), two facts that say the same
 // thing (Merge or Keep both). A, E, R, C and M decide the card shown while no fact is open beside it; a negative
-// decision asks why in the card and is sent with its reason. On a phone the card's moves go to the bottom bar.
+// decision runs at once with Undo, and its "with a note" entry in ⋯ asks why in the card first and sends it with its
+// reason. On a phone the card's moves go to the bottom bar.
 export function FactCards({ owner, open, onOpen }: { owner: Owner; open?: string | null; onOpen?: (factId: string) => void }) {
   const r = useRecord();
   const [at, setAt] = useState(0);
@@ -72,6 +74,9 @@ function OneCard({
   const [mode, setMode] = useState<Mode>(null);
   const f = card.fact;
   const a = useFactActions(r, f);
+  // Approving (or editing, which approves) the last of a story's facts gathers skills: the note says so.
+  const look = useFreshLook();
+  const approvedNote = look.approveNote([f]);
   const accept = useMutation(api.extract.acceptSuggestion);
   const dismiss = useMutation(api.extract.dismissSuggestion);
   const revert = useMutation(api.extract.revertWording);
@@ -87,7 +92,8 @@ function OneCard({
   const sug = f.data.suggestion;
   const openSources: MenuEntry = { label: "Sources and history", icon: "thirdPane", onSelect: () => onOpen?.(id), ...EXPLAIN.sources };
 
-  // Each kind's moves (the first is the Amber one), what `why` sends with the reason, and what `edit` saves.
+  // Each kind's moves (the first is the Amber one), what `why` sends (at once, or with the reason when made with a
+  // note), and what `edit` saves.
   let kind: string;
   let context: string | undefined;
   let body: ReactNode;
@@ -98,9 +104,10 @@ function OneCard({
   let why: { decision: string; picks: string[]; run: (reason?: string) => void } | undefined;
   let edit: { initial: string } | undefined;
   const other: Record<string, () => void> = {};
+  const rejectNow = () => why?.run();
 
   const addContext: ReviewAside = { label: "Add context", icon: "builtOn", detail: EXPLAIN.rewrite.detail, note: cost, onSelect: () => setMode("context") };
-  const editAction: ReviewAction = { label: "Edit", keys: "E", detail: EXPLAIN.edit.detail, note: FREE_UNDO, onSelect: () => setMode("edit") };
+  const editAction: ReviewAction = { label: "Edit", keys: "E", detail: EXPLAIN.edit.detail, note: approvedNote, onSelect: () => setMode("edit") };
 
   if (card.type === "rewrite" && sug?.text) {
     const proposed = sug.text;
@@ -116,11 +123,11 @@ function OneCard({
         keys: "A",
         intent: "approve",
         detail: "The fact takes the new wording and is approved. The old wording stays in its history.",
-        note: FREE_UNDO,
+        note: approvedNote,
         onSelect: () => act(accept({ id }), `Rewritten: ${short(proposed)}`, "approve", () => revert({ id })),
       },
       editAction,
-      { label: "Reject", keys: "R", intent: "reject", detail: "Keeps the wording it has. The rewrite stays in its history.", note: WHY, onSelect: () => setMode("why") },
+      { label: "Reject", keys: "R", intent: "reject", detail: "Keeps the wording it has. The rewrite stays in its history.", note: FREE_UNDO, onSelect: rejectNow },
     ];
     aside = addContext;
   } else if (card.type === "sameWork") {
@@ -149,7 +156,7 @@ function OneCard({
         note: FREE_UNDO,
         onSelect: () => act(connect({ id }), "Connected as the same work", "link", undo),
       },
-      { label: "Keep separate", keys: "R", intent: "reject", detail: "They’re different work; the pair isn’t suggested again.", note: WHY, onSelect: () => setMode("why") },
+      { label: "Keep separate", keys: "R", intent: "reject", detail: "They’re different work; the pair isn’t suggested again.", note: FREE_UNDO, onSelect: rejectNow },
     ];
     other.c = actions[0].onSelect;
     more = onOpen ? [{ ...openSources, label: "Sources of this fact", onSelect: () => onOpen(onRole ? roleFact.id : id) }] : [];
@@ -173,7 +180,7 @@ function OneCard({
     why = { decision: "Keep both", picks: PICKS.duplicate, run: (reason) => act(keepBoth({ id, reason }), "Kept both", "reject", () => reopenDuplicate({ id, other: twin.id })) };
     actions = [
       { label: "Merge", keys: "M", intent: "approve", detail: "One fact in the first wording, approved, with both facts’ sources and history.", note: FREE_UNDO, onSelect: () => keep("other") },
-      { label: "Keep both", keys: "R", intent: "reject", detail: "They say different things; the pair isn’t flagged again.", note: WHY, onSelect: () => setMode("why") },
+      { label: "Keep both", keys: "R", intent: "reject", detail: "They say different things; the pair isn’t flagged again.", note: FREE_UNDO, onSelect: rejectNow },
     ];
     other.m = actions[0].onSelect;
     more = [
@@ -189,19 +196,23 @@ function OneCard({
     why = { decision: "Reject", picks: PICKS.fact, run: (reason) => a.reject(reason) };
     edit = { initial: f.data.text };
     actions = [
-      { label: "Approve", keys: "A", intent: "approve", detail: "Adds it to your record, where resumes, letters and ranking can use it.", note: FREE_UNDO, onSelect: a.approve },
+      { label: "Approve", keys: "A", intent: "approve", detail: "Adds it to your record, where resumes, letters and ranking can use it.", note: approvedNote, onSelect: a.approve },
       editAction,
-      { label: "Reject", keys: "R", intent: "reject", detail: "Leaves it out of your record. What you say why steers later reads.", note: WHY, onSelect: () => setMode("why") },
+      { label: "Reject", keys: "R", intent: "reject", detail: "Leaves it out of your record.", note: look.rejectNote([f]), onSelect: rejectNow },
     ];
     aside = addContext;
   }
 
   const approveAction = actions.find((x) => x.intent === "approve");
+  const rejectAction = actions.find((x) => x.intent === "reject");
+  if (rejectAction && why)
+    more = [{ label: `${rejectAction.label} with a note`, icon: "reject", detail: `${rejectAction.detail ?? ""} Asks why first.`.trim(), note: `${rejectAction.note ?? "Free · Undo with U"} · Why steers what’s proposed next`, onSelect: () => setMode("why") }, ...more];
   useReviewKeys(
     {
       approve: card.type === "rewrite" || card.type === "fact" ? approveAction?.onSelect : undefined,
       edit: edit ? () => setMode("edit") : undefined,
-      reject: () => setMode("why"),
+      reject: rejectNow,
+      rejectWithNote: why ? () => setMode("why") : undefined,
       other,
     },
     keys && mode === null && !small,
@@ -225,7 +236,7 @@ function OneCard({
         initial={edit.initial}
         save="Save and approve"
         detail={EXPLAIN.edit.detail}
-        note={FREE_UNDO}
+        note={approvedNote}
         onSave={(text) => {
           done();
           a.edit(text);

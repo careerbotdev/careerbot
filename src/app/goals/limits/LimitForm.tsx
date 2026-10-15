@@ -15,7 +15,8 @@ import { Select } from "@/components/Select";
 import { toast } from "@/components/Toast";
 import { useBar } from "../../shell/ShellContext";
 import { Notice } from "../ui";
-import { clashWith, conditionsOf, effectLong, type Effects, type Limit } from "./words";
+import { KEEP_BOTH_WORDS } from "./Clash";
+import { type Clash, clashName, clashWhy, clashWith, conditionsOf, effectLong, type Effects, type Limit, ruleFieldRows } from "./words";
 
 // One form for a limit, to change it (Save and approve) or to add one (its kind first): the sentence, how firm, the
 // directions it applies to, its rule's fields, when it holds, and what it would do with these values, counted as you
@@ -66,7 +67,10 @@ export function LimitForm({ target, limits, directions, effects, focus, small, o
   }, [key]);
   const probe = useQuery(api.goals.effects, { draft: JSON.parse(asked) as typeof draft });
   const now = limit ? effects?.limits.find((l) => l.id === limit.id)?.fails : undefined;
-  const clash = clashWith(limits, { id: limit?.id, kind, appliesTo: scope, when });
+  const clash = clashWith(limits, { id: limit?.id, kind, appliesTo: scope, when, rule: draft.rule });
+  // Keep both, chosen here: saved with the limit, so the pair isn't marked as clashing (goals.keepBoth).
+  const [keepWith, setKeepWith] = useState<Id<"items"> | null>(null);
+  const keepBoth = useMutation(api.goals.keepBoth);
 
   const save = () => {
     if (saving) return;
@@ -80,7 +84,8 @@ export function LimitForm({ target, limits, directions, effects, focus, small, o
     const done = limit
       ? updateLimit({ id: limit.id, value, firm: firm === "firm", rule: built, appliesTo: scope, when }).then(() => limit.id)
       : addLimit({ kind, value, firm: firm === "firm", ...(given ? { rule: built } : {}), appliesTo: scope, when });
-    void done.then((id) => {
+    void done.then(async (id) => {
+      if (clash && keepWith === clash.limit.id) await keepBoth({ id, with: clash.limit.id, kept: true });
       toast({ message: limit ? "Saved and approved" : "Added and approved", icon: "approve" });
       onSaved(id);
     }, (e: unknown) => {
@@ -155,8 +160,16 @@ export function LimitForm({ target, limits, directions, effects, focus, small, o
       <SegmentedControl label="How firm" value={firm} onChange={setFirm} options={FIRMNESS} />
       <MultiSelect label="Applies to" value={scope} onChange={setScope} options={[...new Set([...directions, ...scope])].map((d) => ({ value: d, label: d }))} empty="Every direction" />
       {clash && (
-        <Notice tone="caution" title={`Clashes with ${clash.limit.data.label}`}>
-          {`Both apply to ${clash.shared.length ? clash.shared.join(", ") : "every direction"}${conditionsOf(clash.limit.data).length ? " under the same condition" : ""}. Keep one of them for ${clash.shared.length === 1 ? "that direction" : "those directions"}, or set Only when on one.`}
+        <Notice
+          tone="caution"
+          title={`Clashes with ${clashName(clash.limit)}`}
+          actions={
+            <Button size="sm" {...KEEP_BOTH_WORDS} note="Free" aria-pressed={keepWith === clash.limit.id} onClick={() => setKeepWith(keepWith === clash.limit.id ? null : clash.limit.id)}>
+              {keepWith === clash.limit.id ? "Keeping both" : "Keep both"}
+            </Button>
+          }
+        >
+          {clashFormWords(kind, clash, when, built)}
         </Notice>
       )}
       <RuleInputs r={rule} />
@@ -305,4 +318,14 @@ function RuleInputs({ r: { kind, fields, draft, set } }: { r: RuleDraft }) {
       ))}
     </>
   );
+}
+
+// The edit form's clash words: where and why, the two values when one field differs ("50% there, 20% here"), and
+// what to change.
+function clashFormWords(kind: string, clash: Clash, when: readonly string[], mine: Record<string, unknown>) {
+  const why = clashWhy(kind, clash, when);
+  const value = (rule: Record<string, unknown> | null | undefined, key: string) => ruleFieldRows(kind, rule).find((r) => r.key === key)?.value;
+  const [only] = clash.fields;
+  const values = clash.fields.length === 1 && value(clash.limit.data.rule, only) && value(mine, only) ? `: ${value(clash.limit.data.rule, only)} there, ${value(mine, only)} here` : "";
+  return `${why.where}${values}. Change ${why.fields}, set Applies to or Only when, or keep both.`;
 }

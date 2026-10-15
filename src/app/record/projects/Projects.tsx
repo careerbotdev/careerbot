@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../../../convex/_generated/api";
@@ -23,8 +23,8 @@ import { useCommands } from "../../shell/ShellContext";
 import { useTour } from "../../shell/useTour";
 import { RECORD_TOUR } from "../../tours/record";
 import { GitHub } from "./GitHub";
-import { ProjectItem } from "./ProjectItem";
-import { byRecent, CHOOSES_REPOS, commits, EDITS, type Fact, jobsOf, OPENS_REPO, type Project, REJECTS, type Role, span } from "./words";
+import { ProjectItem, rejectProject } from "./ProjectItem";
+import { byRecent, CHOOSES_REPOS, commits, EDITS, type Fact, jobsOf, OPENS_REPO, type Project, REJECTS, REJECTS_NOTED, type Role, span } from "./words";
 
 // Projects: the projects read from their GitHub repositories, as a list (All or Rejected, filtered by role) and the one
 // open beside it (?project=, with ?fact= a fact's sources in the third pane), and the GitHub connection opened from the
@@ -50,6 +50,7 @@ export function Projects() {
   const small = size === "small";
   const rows = useQuery(api.extract.items);
   const github = useQuery(api.github.status);
+  const review = useMutation(api.extract.review);
   const tour = useTour(RECORD_TOUR, !!rows && !!github);
   const [roleFilter, setRoleFilter] = useState<string | null>(null);
   const [reasonFilter, setReasonFilter] = useState<string | null>(null);
@@ -142,7 +143,8 @@ export function Projects() {
           { label: "Edit", icon: "edit", detail: EDITS, note: "Free", onSelect: () => (setIntent({ id: p.id, do: "edit" }), openProject(p.id)) },
           { label: "Open on GitHub", icon: "openElsewhere", detail: OPENS_REPO, note: "Free", onSelect: () => window.open(p.data.url, "_blank", "noreferrer") },
           "separator",
-          { label: "Reject", icon: "reject", detail: REJECTS, note: "Free · Undo with U", onSelect: () => (setIntent({ id: p.id, do: "reject" }), openProject(p.id)) },
+          { label: "Reject", icon: "reject", detail: REJECTS, note: "Free · Undo with U", onSelect: () => rejectProject(review, p) },
+          { label: "Reject with a note", icon: "reject", detail: REJECTS_NOTED.detail, note: REJECTS_NOTED.note, onSelect: () => (setIntent({ id: p.id, do: "reject" }), openProject(p.id)) },
         ];
   const restore = (p: Project) => (setIntent(null), openProject(p.id));
 

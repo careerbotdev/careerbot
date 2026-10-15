@@ -19,7 +19,7 @@ import { failed, inlineLink, ItemBody, ItemHead, ItemTop, Notice, type Position,
 import { useDirectionActs } from "./acts";
 import { DirectionForm } from "./forms";
 import { facts } from "./Parts";
-import { APPROVE_WORDS, capAll, COPY_LINK_WORDS, type Direction, fromOf, pathWord, REJECT_PICKS, REJECT_WORDS } from "./words";
+import { approveWords, capAll, COPY_LINK_WORDS, type Direction, fromOf, pathWord, REJECT_NOTE_WORDS, REJECT_PICKS, REJECT_WORDS } from "./words";
 
 // A proposed direction (read from their goals, or suggested from their record), as one decision: what it is, its
 // titles, industries and positioning, and what it's built on; Approve, Edit or Reject, or add it to a direction it's
@@ -45,6 +45,7 @@ export function ProposedItem({
   const small = size === "small";
   const acts = useDirectionActs();
   const notes = useQuery(api.notes.list, { subject: { kind: "item", id: d.id } });
+  const costs = useQuery(api.estimates.costs, {});
   const addNote = useMutation(api.notes.add);
   const editNote = useMutation(api.notes.edit);
   const removeNote = useMutation(api.notes.remove);
@@ -63,17 +64,25 @@ export function ProposedItem({
   const actions = rejected
     ? [{ label: "Restore", detail: "Puts it back among the proposed directions.", note: "Free", onSelect: () => acts.restore(d) }]
     : [
-        { label: "Approve", keys: "A", intent: "approve" as const, detail: APPROVE_WORDS.detail, note: APPROVE_WORDS.note, onSelect: approve },
+        { label: "Approve", keys: "A", intent: "approve" as const, ...approveWords(d, costs?.directionDetail), onSelect: approve },
         { label: "Edit", keys: "E", detail: "Change its title, what it includes, its fit and what it is. Saving approves it.", note: "Free", onSelect: () => setEditing(true) },
-        { label: "Reject", keys: "R", intent: "reject" as const, detail: REJECT_WORDS.detail, note: REJECT_WORDS.note, onSelect: () => setRejecting(true) },
+        { label: "Reject", keys: "R", intent: "reject" as const, detail: REJECT_WORDS.detail, note: REJECT_WORDS.note, onSelect: () => reject() },
       ];
   const aside = close && !rejected ? { label: `Add to ${close.data.name}`, icon: "switch" as const, detail: `Adds its title and what it includes to ${close.data.name}.`, note: "Free · Undo with U", onSelect: () => addTo(close) } : undefined;
   const menu: MenuEntry[] = [
-    ...(rejected ? [] : [{ label: "Merge into…", icon: "switch" as const, ...(approved.length ? { items: approved.map((a) => ({ label: a.data.name, onSelect: () => addTo(a) })) } : { disabled: true, reason: "No approved directions" }) }]),
+    ...(rejected
+      ? []
+      : [
+          { label: "Reject with a note", icon: "reject" as const, detail: REJECT_NOTE_WORDS.detail, note: REJECT_NOTE_WORDS.note, onSelect: () => setRejecting(true) },
+          { label: "Merge into…", icon: "switch" as const, ...(approved.length ? { items: approved.map((a) => ({ label: a.data.name, onSelect: () => addTo(a) })) } : { disabled: true, reason: "No approved directions" }) },
+        ]),
     { label: "Copy link", icon: "link", detail: COPY_LINK_WORDS.detail, note: COPY_LINK_WORDS.note, onSelect: () => acts.copyLink(d) },
   ];
 
-  useReviewKeys({ approve: rejected ? undefined : approve, edit: rejected ? undefined : () => setEditing(true), reject: rejected ? undefined : () => setRejecting(true) }, !editing && !rejecting);
+  useReviewKeys(
+    { approve: rejected ? undefined : approve, edit: rejected ? undefined : () => setEditing(true), reject: rejected ? undefined : () => reject(), rejectWithNote: rejected ? undefined : () => setRejecting(true) },
+    !editing && !rejecting,
+  );
   useBar(
     small && !editing
       ? rejecting
@@ -89,7 +98,7 @@ export function ProposedItem({
   const kind = d.data.suggested ? "Suggested direction" : "From your goals";
   const c = d.data.criteria;
   const rows = [
-    ...(c?.titles.length ? [{ label: "Titles", value: <ValueTags items={c.titles} /> }] : d.data.includes?.length ? [{ label: "Includes", value: <ValueTags items={d.data.includes} /> }] : []),
+    ...(c?.titles.length ? [{ label: "Titles", value: <ValueTags items={c.titles} /> }] : d.data.includes?.length ? [{ label: "Covers", value: <ValueTags items={d.data.includes} /> }] : []),
     ...(c?.industries.length ? [{ label: "Industries", value: <ValueTags items={capAll(c.industries)} /> }] : []),
     ...(d.data.detail?.positioning ? [{ label: "Positioning", value: d.data.detail.positioning }] : []),
   ];
@@ -97,7 +106,7 @@ export function ProposedItem({
   const details = (columns: 1 | 2, className: string) => (
     <Properties columns={columns} className={className}>
       <Property label="Path">{pathWord(d)}</Property>
-      {!!d.data.includes?.length && <Property label="Includes">{d.data.includes.join(", ")}</Property>}
+      {!!d.data.includes?.length && <Property label="Covers">{d.data.includes.join(", ")}</Property>}
       <Property label="From">
         {from.href ? (
           <Link href={from.href} className={`tap self-start ${inlineLink}`}>

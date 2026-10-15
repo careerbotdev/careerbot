@@ -10,6 +10,8 @@ import { type ModelChoice, reasoningLevel } from "./aiTasks";
 import { checkOverlaps } from "./conflicts";
 import { afterReview } from "./insights";
 import { activeLimits, isKind, isSkill, type ItemOf, type ItemStatus, itemsOf, pickRole } from "./itemShapes";
+import { fillWhenApproved } from "./directionFill";
+import { syncClashes } from "./goals";
 import { ROLE_CHECKED } from "./limitBuckets";
 import { backgroundNarratives, counted, quotedIn, sourceCheck } from "./recordContext";
 import { rejectProject, restoreProject } from "./sources";
@@ -28,16 +30,19 @@ Produce three things:
 
 1. roles: the structured record for each employer/role this narrative covers. Fields: employer, title, location, start, end (YYYY or YYYY-MM when you can tell; dates mentioned in passing count), team, projects (list), tools (list), skills (list). Use a stable "key" per role such as "acme-head-of-cs". Reuse an existing role key when it is the same role. "title" is the official title exactly as the employer gave it, nothing else: no parentheses, no second title. If the account doesn't say what the role was officially called, leave "title" empty rather than guessing; they'll be asked. Other names for the same job go in "alternateTitles" (a list): what they call it themselves, and what the market calls the work when the official title undersells it. Always give at least one, the plainest honest name for the job first: until they give the official title, resumes use the first one. A promotion or a real change of job at the same employer is a separate role with its own key, title and dates, with the same "employer" spelled identically, and "change" on the later role: "promotion" only when the account says it was one, otherwise "transition" (the first role at an employer has no "change").
 
+A role's "tools" and "skills" are how its skills, tools and certifications are found later, so list them completely, including ones mentioned only in passing. "tools": every named product, platform, service, language or software suite they used in the role, each by the name a job posting would use; for a suite, name each of its apps they used as well as the suite. "skills": every practice and kind of work they did in the role, named the way a job posting would (customer onboarding, contract negotiation, event marketing, forecasting), never a trait (hard-working, detail-oriented). A certification, license or completed credential they hold goes in a fact, naming who issued it and when, if the account says.
+
 An employer is an organization that employed them or hired them on contract, never an activity. Time away from paid work (caring for family, a move, study, health, a layoff, travel) is a career break: a role with "break": true, "start" and "end", no employer and no title, a short plain "reason" in their words ("Finishing my degree"), and key "break-" plus its start (e.g. "break-2019-09"). Side projects, open-source work or volunteering they did during it don't make it a job: name them in the break's "projects", and their facts go on the break. Never invent an employer named after what they did ("Open Source", "Side projects", "Caregiving", "Freelance").
 
 2. facts: clear statements of what they did in a role: what they owned, what they did, how big it was, and what came of it. A fact is your understanding of their account, not a quote.
 ${FACT_STYLE}
 
-${PLAIN_LANGUAGE} Combine things said minutes apart into one line. Ownership follows the account, logically and honestly, in both directions:
+${PLAIN_LANGUAGE} Combine things said minutes apart into one line. Cover the whole narrative, start to finish: every distinct responsibility, channel, medium, audience, project and result it describes, and every number it gives, belongs in a fact. A long, detailed narrative yields many facts; don't stop at the highlights, and don't fold different kinds of work into one line so that one of them disappears. Before you reply, go back through it paragraph by paragraph and add what is still missing. Ownership follows the account, logically and honestly, in both directions:
 - What they did and drove is theirs, stated plainly and at full strength. Tie results to their work directly ("drove the sales work behind growth from $2M to $9M in revenue"), never hedged with "helped", "supported", "contributed to", "as the company grew" or "was part of". When they were central to a company result through their own work, say so.
+- "We" is often them. In work they describe running or doing themselves (a channel they managed, a process they ran, a small team they led), what "we" did is their work, stated as theirs. Only what the account gives to someone else, or to the company as a whole, stays out of their facts.
 - What a product, feature, team or company did is not theirs. "The app had offline sync" means the app had it; their part is what they did with it (sold it, demoed it, used it to win deals). Only say they built something when the account says they built it. Capture work they did outside their title too (selling while in an implementation role, for example). Be generous and complete: most people undersell themselves. Keep the scope that places their part in a bigger effort ("one of about 30 regional leads", "one of five engineers on the migration"): it's what lets the rest be said at full strength. Never invent a customer, number, result or skill with nothing behind it. Each fact has "roleKey", "text", and "quotes" (1-3 short verbatim snippets from the narrative it rests on). Don't repeat facts already in the record.
 
-3. context: things that matter but aren't facts about what they did (a customer's size, the state the team was in, why they left). Write each as a plain note about the situation or about them in the second person ("You left in January 2016 to move to Texas"), never "the narrator" or "the account". Each has "roleKey", "text", "quotes".
+3. context: things that matter but aren't facts about what they did (a customer's size, the state the team was in, why they left). Write each as a plain note about the situation or about them in the second person ("You left in March 2019 to move to Ohio"), never "the narrator" or "the account". Each has "roleKey", "text", "quotes".
 
 Reply with JSON only: {"roles":[...],"facts":[...],"context":[...]}. Each role also carries "quotes".`;
 
@@ -189,7 +194,7 @@ export async function draftExtract(
         role: "user",
         content: `Their confirmed goals, for what matters to them:\n${goals.directions.length || goals.limits.length ? JSON.stringify(goals) : "(none confirmed yet)"}\n\nTheir confirmed record:\n${JSON.stringify(record)}\n\nAlready proposed from their narratives, awaiting their review (don't repeat these; they aren't confirmed, so don't treat them as true or build on their wording):\n${JSON.stringify(pending)}\n\nTheir other narratives, as background only (for understanding; take no facts from these):\n${JSON.stringify(background)}\n\nFacts they rejected, and why (don't propose these again, and learn from the reasons):\n${JSON.stringify(fresh ? [] : inputs.rejected)}\n\nNarrative (${narrative.kind}) "${narrative.title}":\n${narrative.body}${
           again
-            ? `\n\nThis narrative has been read before. Look again for what the record is missing: work, results, numbers and roles that aren't captured yet. Return only new items; the record above stays as it is.${again.lookFor ? ` They asked you to look especially for: ${again.lookFor}` : ""}`
+            ? `\n\nThis narrative has been read before. Look again for what the record is missing: work, results, numbers, the tools and methods behind them, certifications and roles that aren't captured yet. Return only new items; the record above stays as it is.${again.lookFor ? ` They asked you to look especially for: ${again.lookFor}` : ""}`
             : ""
         }`,
       },
@@ -278,6 +283,7 @@ export const review = mutation({
         await ctx.db.patch(id, { status, undone, data: { ...item.data, history: [...history, { text: item.data.text, how: "unapproved", at }] } });
       } else await ctx.db.patch(id, { status, undone });
       await tallyApproval(ctx, item, status);
+      if (item.kind === "limit") await syncClashes(ctx, workspaceId);
       if (item.kind === "limit" && ROLE_CHECKED.includes(item.data.kind)) await ctx.scheduler.runAfter(0, internal.roles.refreshRanks, { workspaceId });
       if (item.kind === "role") await checkOverlaps(ctx, workspaceId);
       return;
@@ -293,7 +299,10 @@ export const review = mutation({
       await ctx.db.patch(id, { status, data: { ...item.data, rejectedBecause: reason ?? null } } as Partial<Doc<"items">>);
     else await ctx.db.patch(id, { status });
     await tallyApproval(ctx, item, status);
-    if (status === "approved" || status === "rejected") await afterReview(ctx, { ...item, status });
+    if (status === "approved" || status === "rejected") await afterReview(ctx, { ...item, status }, item.status);
+    if (item.kind === "limit") await syncClashes(ctx, workspaceId);
+    // A direction approved with nothing filled in yet is filled in on its own.
+    if (item.kind === "direction" && status === "approved" && item.status !== "approved") await fillWhenApproved(ctx, { ...item, status });
     if (item.kind === "limit" && ROLE_CHECKED.includes(item.data.kind) && (status === "approved" || item.status === "approved"))
       await ctx.scheduler.runAfter(0, internal.roles.refreshRanks, { workspaceId });
     if (item.kind === "role") await checkOverlaps(ctx, workspaceId);
@@ -309,7 +318,7 @@ export const edit = mutation({
     if (!item || !(item.kind === "fact" || item.kind === "insight") || !text.trim()) throw new Error("Not found.");
     await ctx.db.patch(id, { data: { ...withHistory(item.data, text.trim(), "edit", { was: item.status }), edited: true }, status: "approved" });
     await tallyApproval(ctx, item, "approved");
-    await afterReview(ctx, { ...item, status: "approved" });
+    await afterReview(ctx, { ...item, status: "approved" }, item.status);
   },
 });
 
@@ -336,7 +345,7 @@ export const acceptSuggestion = mutation({
     if (!sug?.text) throw new Error("Not found.");
     await ctx.db.patch(id, { data: withHistory(item.data, sug.text, "rewrite", { note: sug.note, was: item.status }), status: "approved" });
     await tallyApproval(ctx, item, "approved");
-    await afterReview(ctx, { ...item, status: "approved" });
+    await afterReview(ctx, { ...item, status: "approved" }, item.status);
   },
 });
 

@@ -33,6 +33,7 @@ import {
   leftOutWhile,
   month,
   type OnResume,
+  NOTED,
   REJECT_PICKS,
   REJECTS,
   REOPENS,
@@ -40,12 +41,12 @@ import {
   type Skill,
   sourceLine,
   whereShort,
-  WHY,
 } from "./words";
 
 // One skill, tool or certification open: its name and group, then the decision it waits on (the review card: Approve A,
-// Edit E, Reject R with why; or, when it looks like another one, Merge M keeping one wording, or Keep both with why),
-// what it rests on, where the record shows it, the resumes that show it (each opens beside it), and what was merged
+// Edit E, Reject R; or, when it looks like another one, Merge M keeping one wording, or Keep both; each at once with
+// Undo, while Reject or Keep both with a note, in ⋯, asks why first), what it rests on, where the record shows it, the
+// resumes that show it (each opens beside it), and what was merged
 // into it or kept apart from it. Its details (name, issuer and date for a certification, group, kind, whether resumes
 // show it) sit beside it on large screens and under the card elsewhere. The ⋯ menu, right-click on its row and ⌘K
 // hold the rest. On a phone the moves go to the bottom bar.
@@ -85,7 +86,16 @@ export function Item({ s, items, groups, nav, position, small, large, leftOut, m
   const other = s.sameAs ? items.find((i) => i.id === s.sameAs!.id) : undefined;
   const proposed = s.status === "proposed";
   const duplicate = proposed && !!s.sameAs;
-  const entries = menu(s, { edit: () => setEditing(true), reject: () => setWhy("reject"), keepBoth: duplicate ? () => setWhy("apart") : undefined });
+  // Reject and Keep both run at once; made with a note (from ⋯), they ask why first.
+  const noted = proposed
+    ? duplicate
+      ? { label: "Keep both with a note", detail: `${KEEPS_BOTH} Asks why first.`, onSelect: () => setWhy("apart") }
+      : { label: "Reject with a note", detail: `${REJECTS(s.kind)} Asks why first.`, onSelect: () => setWhy("reject") }
+    : undefined;
+  const entries: MenuEntry[] = [
+    ...menu(s, { edit: () => setEditing(true), reject: () => reject(), keepBoth: duplicate ? () => keepBoth() : undefined }),
+    ...(noted ? [{ ...noted, icon: "reject" as const, note: NOTED }] : []),
+  ];
 
   const approve = () => {
     act.approve([s]);
@@ -109,7 +119,8 @@ export function Item({ s, items, groups, nav, position, small, large, leftOut, m
     {
       approve: proposed && !duplicate ? approve : undefined,
       edit: s.status !== "rejected" ? () => setEditing(true) : undefined,
-      reject: proposed ? () => setWhy(duplicate ? "apart" : "reject") : undefined,
+      reject: proposed ? () => (duplicate ? keepBoth() : reject()) : undefined,
+      rejectWithNote: noted?.onSelect,
       other: duplicate ? { m: merge } : undefined,
     },
     !editing && !why,
@@ -118,12 +129,12 @@ export function Item({ s, items, groups, nav, position, small, large, leftOut, m
   const moves: ReviewAction[] = duplicate
     ? [
         { label: "Merge", keys: "M", intent: "approve", detail: `One ${words.lower} named ${keep === "this" ? s.name : s.sameAs!.name}, with where both were found; the other is merged into it.`, note: FREE_UNDO, onSelect: merge },
-        { label: "Keep both", keys: "R", intent: "reject", detail: KEEPS_BOTH, note: WHY, onSelect: () => setWhy("apart") },
+        { label: "Keep both", keys: "R", intent: "reject", detail: KEEPS_BOTH, note: FREE_UNDO, onSelect: () => keepBoth() },
       ]
     : [
         { label: "Approve", keys: "A", intent: "approve", detail: APPROVES(s.kind), note: FREE_UNDO, onSelect: approve },
         { label: "Edit", keys: "E", detail: `Your wording, approved as you write it.`, note: "Free", onSelect: () => setEditing(true) },
-        { label: "Reject", keys: "R", intent: "reject", detail: REJECTS(s.kind), note: WHY, onSelect: () => setWhy("reject") },
+        { label: "Reject", keys: "R", intent: "reject", detail: REJECTS(s.kind), note: FREE_UNDO, onSelect: () => reject() },
       ];
   const reasonField = why && (
     <ReasonField decision={why === "apart" ? "Keep both" : "Reject"} picks={why === "apart" ? APART_PICKS : REJECT_PICKS} onDone={({ reason }) => (why === "apart" ? keepBoth(reason) : reject(reason))} />

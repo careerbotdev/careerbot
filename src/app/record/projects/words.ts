@@ -11,7 +11,8 @@ export type Fact = Extract<Row, { kind: "fact" }>;
 
 // What each action on a project does, in the same words wherever it's offered: its header, its ⋯ menu, its row's menu.
 export const APPROVES = "Adds the project to your record. Its facts are reviewed one by one.";
-export const REJECTS = "Rejects the project, with why if you like, and sets its unreviewed facts aside.";
+export const REJECTS = "Rejects the project and sets its unreviewed facts aside.";
+export const REJECTS_NOTED = { detail: `${REJECTS} Asks why first.`, note: "Free · Undo with U · Why steers what’s proposed next" };
 export const RESTORES = "Puts the project back in your record, with the facts set aside with it, for review.";
 export const EDITS = "Corrects its name, summary and dates. Saving approves it.";
 // Said wherever a repository read starts.

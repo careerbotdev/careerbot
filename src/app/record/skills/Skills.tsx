@@ -8,10 +8,11 @@ import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { BulkBar } from "@/components/BulkBar";
 import { Button } from "@/components/Button";
+import { CostAction } from "@/components/CostEstimate";
 import type { Command } from "@/components/CommandPalette";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterOptions } from "@/components/FilterBar";
-import type { MenuEntry } from "@/components/Menu";
+import { Menu, type MenuEntry } from "@/components/Menu";
 import { PaneLayout, type ThirdPane, useScreenSize } from "@/components/Panes";
 import { toast } from "@/components/Toast";
 import { selectEntries, useSelection } from "@/components/useSelection";
@@ -23,13 +24,14 @@ import { useSkillActions } from "./actions";
 import { Item, ResumePreview, ResumeTag } from "./Item";
 import { Selection } from "./Selection";
 import { GatherLine, OnlyOne, type RowGroup, SkillRows, SkillsList } from "./SkillsList";
-import { APPROVES, EDITS, FREE_UNDO, GATHERS_AGAIN, groupOf, KEEPS_BOTH, KIND_OPTIONS, KINDS, type Kind, LEAVES_OUT, NO_GROUP, plural, REJECTS, REOPENS, SHOWS, type Skill, type Tab, TAB_LABELS, UNAPPROVES, WHY } from "./words";
+import { APPROVES, EDITS, FREE_UNDO, GATHERS_AGAIN, groupOf, KEEPS_BOTH, KIND_OPTIONS, KINDS, type Kind, LEAVES_OUT, NO_GROUP, NOTED, plural, REJECTS, REOPENS, SHOWS, type Skill, type Tab, TAB_LABELS, UNAPPROVES } from "./words";
 
 // Skills, Tools and Certifications: one screen per kind (the route says which), each a list of what's proposed,
 // approved or rejected, by group, and the one open beside it (?item=; one of another kind opens on its own route).
-// Proposed ones are reviewed one at a time (Approve A, Edit E, Reject R with why; Merge M or Keep both for a
-// near-duplicate) or several at once from the bulk bar. J and K move through the list, Esc closes what's open. Gather
-// again reads the record for new ones. On a phone the list comes first and an item opens full screen with a way back.
+// Proposed ones are reviewed one at a time (Approve A, Edit E, Reject R; Merge M or Keep both for a near-duplicate;
+// each at once with Undo, while Reject with a note, in ⋯, asks why first) or several at once from the bulk bar. J and
+// K move through the list, Esc closes what's open. Gather again reads the record for new ones. On a phone the list
+// comes first and an item opens full screen with a way back.
 
 const TABS: Tab[] = ["proposed", "approved", "rejected"];
 const busyElsewhere = (e: KeyboardEvent) =>
@@ -194,18 +196,24 @@ export function Skills({ kind }: { kind: Kind }) {
       s.status === "approved"
         ? { label: "Undo approval", icon: "undo", hint: "Free", detail: UNAPPROVES(s.kind), note: FREE_UNDO, onSelect: () => act.unapprove([s]) }
         : s.sameAs && h.keepBoth
-          ? { label: "Keep both", icon: "reject", keys: "R", detail: KEEPS_BOTH, note: WHY, onSelect: h.keepBoth }
-          : { label: "Reject", icon: "reject", keys: "R", detail: REJECTS(s.kind), note: WHY, onSelect: h.reject },
+          ? { label: "Keep both", icon: "reject", keys: "R", detail: KEEPS_BOTH, note: FREE_UNDO, onSelect: h.keepBoth }
+          : { label: "Reject", icon: "reject", keys: "R", detail: REJECTS(s.kind), note: FREE_UNDO, onSelect: h.reject },
     ];
   };
-  const rowMenu = (s: Skill) =>
-    menuFor(s, {
+  // A row's Reject runs at once; Reject with a note asks why under the row first.
+  const rowMenu = (s: Skill): MenuEntry[] => [
+    ...menuFor(s, {
       edit: () => {
         setEditFor(s.id);
         openRow(s.id);
       },
-      reject: () => setRowWhy(s.id),
-    });
+      reject: () => {
+        moveOn(s);
+        act.reject([s]);
+      },
+    }),
+    ...(s.status === "proposed" ? [{ label: "Reject with a note", icon: "reject" as const, detail: `${REJECTS(s.kind)} Asks why first.`, note: NOTED, onSelect: () => setRowWhy(s.id) }] : []),
+  ];
 
   const listMenu: MenuEntry[] = [
     { label: "Gather again", icon: "tryAgain", hint: cost, detail: GATHERS_AGAIN, note: cost, onSelect: gather, ...(busy ? { disabled: true, reason: "Gathering now" } : {}) },
@@ -214,6 +222,7 @@ export function Skills({ kind }: { kind: Kind }) {
     tour.menu,
   ];
   const bulkMore: MenuEntry[] = [
+    ...(tab === "proposed" ? [{ label: "Reject with a note", icon: "reject" as const, detail: `${REJECTS(kind, checked.size)} Asks why first.`, note: NOTED, onSelect: () => setBulkWhy(true) }, "separator" as const] : []),
     {
       label: "Group",
       items: [
@@ -231,7 +240,7 @@ export function Skills({ kind }: { kind: Kind }) {
     ...(shown.length > checked.size ? [{ label: `Select all ${shown.length}`, detail: "Checks every row shown.", note: "Free", onSelect: () => sel.check(shown.map((s) => s.id), true) }] : []),
   ];
 
-  // J/K, Esc; and while selecting, A approves the checked rows and R asks why before rejecting them.
+  // J/K, Esc; and while selecting, A approves the checked rows and R rejects them, each at once with Undo.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented || busyElsewhere(e)) return;
@@ -248,7 +257,7 @@ export function Skills({ kind }: { kind: Kind }) {
       } else if (checked.size && !bulkWhy && tab === "proposed" && (key === "a" || key === "r")) {
         e.preventDefault();
         if (key === "a") bulkApprove();
-        else setBulkWhy(true);
+        else bulkReject();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -297,12 +306,19 @@ export function Skills({ kind }: { kind: Kind }) {
             actions:
               tab === "proposed" ? (
                 <>
-                  <Button size="lg" className="flex-1" detail={REJECTS(kind, checked.size)} note={WHY} reason={none} onClick={() => setBulkWhy(true)}>
+                  <Button size="lg" className="flex-1" detail={REJECTS(kind, checked.size)} note={FREE_UNDO} reason={none} onClick={() => bulkReject()}>
                     Reject
                   </Button>
                   <Button size="lg" variant="primary" className="flex-1" detail={APPROVES(kind, checked.size)} note={FREE_UNDO} reason={none} onClick={bulkApprove}>
                     Approve
                   </Button>
+                  {checked.size > 0 && (
+                    <Menu
+                      label="More for the checked ones"
+                      items={[{ label: "Reject with a note", icon: "reject", detail: `${REJECTS(kind, checked.size)} Asks why first.`, note: NOTED, onSelect: () => setBulkWhy(true) }]}
+                      trigger={<Button size="lg" iconOnly icon="more" aria-label="More for the checked ones" />}
+                    />
+                  )}
                 </>
               ) : (
                 <>
@@ -339,10 +355,11 @@ export function Skills({ kind }: { kind: Kind }) {
     },
   ];
 
+  // The empty page's one action, with its estimate beside it.
   const gatherButton = (
-    <Button variant="primary" loading={busy} loadingLabel="Gathering" detail="Reads your approved roles, projects and facts for skills, tools and certifications, and proposes each one once." note={cost} onClick={gather}>
+    <CostAction variant="primary" amount={cost} loading={busy} loadingLabel="Gathering" detail="Reads your approved roles, projects and facts for skills, tools and certifications, and proposes each one once." onClick={gather}>
       Gather
-    </Button>
+    </CostAction>
   );
   let body;
   if (!all.length && !certs)
@@ -423,7 +440,7 @@ export function Skills({ kind }: { kind: Kind }) {
               tab === "proposed"
                 ? [
                     { label: "Approve", keys: "A", detail: APPROVES(kind, checked.size), note: FREE_UNDO, onSelect: bulkApprove, primary: true },
-                    { label: "Reject", keys: "R", detail: REJECTS(kind, checked.size), note: WHY, onSelect: () => setBulkWhy(true) },
+                    { label: "Reject", keys: "R", detail: REJECTS(kind, checked.size), note: FREE_UNDO, onSelect: () => bulkReject() },
                   ]
                 : [{ label: "Undo approval", detail: UNAPPROVES(kind, checked.size), note: FREE_UNDO, onSelect: () => (act.unapprove(chosen), clear()) }]
             }

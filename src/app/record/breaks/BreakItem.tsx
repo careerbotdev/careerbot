@@ -19,11 +19,12 @@ import { type ItemNav, ItemTop, onItemKey } from "../../pursuits/third";
 import { useNow } from "../../clock";
 import { useBar } from "../../shell/ShellContext";
 import { Facts, openAddFact } from "../facts/Facts";
+import { useFreshLook } from "../freshLook";
 import { BreakForm, type BreakValues } from "./BreakForm";
 import { choiceOf, OnResumes, usePlaceBreak } from "./OnResumes";
 import { employerName, fullSpan, jobsOf, lengthOf, neighbours, type Role, type Row, span } from "./words";
 
-// A career break: its months and reason, Edit (E) and Remove (with why, and Undo); how it shows on every resume, with
+// A career break: its months and reason, Edit (E) and Remove (at once, with Undo; Remove with a note, in ⋯, asks why first); how it shows on every resume, with
 // the excerpt; its facts and notes; its details beside (under it on smaller screens): dates, length, reason, the roles
 // before and after it, and its status. The ⋯ menu adds a fact or a note, undoes the approval, and copies its link. A
 // removed break says it's left out of every resume, with Restore.
@@ -82,6 +83,8 @@ export function BreakItem({
   const edit = useMutation(api.breaks.edit);
   const presentation = useQuery(api.resume.presentation);
   const place = usePlaceBreak();
+  // Approving a break from a story with no facts left to review gathers skills: the note says so.
+  const approvedNote = useFreshLook().approveNote([role]);
   const [editing, setEditing] = useState(false);
   const [removing, setRemoving] = useState(false);
   const now = useNow(true);
@@ -143,10 +146,13 @@ export function BreakItem({
     { label: "Add a note", icon: "add", keys: "N", onSelect: addNote, detail: "Adds a dated note to this break.", note: "Free" },
     "separator",
     ...(role.status === "approved" ? [{ label: "Undo approval", icon: "undo" as const, onSelect: () => approval(false), detail: "Takes the break back to review, so resumes stop using it.", note: "Free · Undo with U" }] : []),
-    ...(role.status === "proposed" ? [{ label: "Approve", icon: "approve" as const, onSelect: () => approval(true), detail: "Puts the break back in your record, so resumes use it.", note: "Free · Undo with U" }] : []),
-    removed
-      ? { label: "Restore", icon: "undo", onSelect: restore, detail: "Puts the break back in your record, approved.", note: "Free · Undo with U" }
-      : { label: "Remove", icon: "setAside", onSelect: () => setRemoving(true), detail: "Takes the break out of your record and every resume, with why if you like.", note: "Free · Undo with U" },
+    ...(role.status === "proposed" ? [{ label: "Approve", icon: "approve" as const, onSelect: () => approval(true), detail: "Puts the break back in your record, so resumes use it.", note: approvedNote }] : []),
+    ...(removed
+      ? [{ label: "Restore", icon: "undo", onSelect: restore, detail: "Puts the break back in your record, approved.", note: "Free · Undo with U" } satisfies MenuEntry]
+      : ([
+          { label: "Remove", icon: "setAside", onSelect: () => remove(), detail: "Takes the break out of your record and every resume.", note: "Free · Undo with U" },
+          { label: "Remove with a note", icon: "setAside", onSelect: () => setRemoving(true), detail: "Takes the break out of your record and every resume. Asks why first.", note: "Free · Undo with U · Why steers what’s proposed next" },
+        ] satisfies MenuEntry[])),
     "separator",
     { label: "Copy link", icon: "link", onSelect: copyLink, detail: "Copies a link to this break.", note: "Free" },
   ];
@@ -164,7 +170,7 @@ export function BreakItem({
     const phone = size === "lg";
     const list = [
       role.status === "proposed" && (
-        <Button key="approve" variant="primary" size={size} className={phone ? "flex-1" : ""} icon={phone ? undefined : "approve"} detail="Puts the break back in your record, so resumes use it." note="Free · Undo with U" onClick={() => approval(true)}>
+        <Button key="approve" variant="primary" size={size} className={phone ? "flex-1" : ""} icon={phone ? undefined : "approve"} detail="Puts the break back in your record, so resumes use it." note={approvedNote} onClick={() => approval(true)}>
           Approve
         </Button>
       ),
@@ -177,7 +183,7 @@ export function BreakItem({
         Edit
       </Button>,
       !removed && (
-        <Button key="remove" size={size} className={phone ? "flex-1" : ""} icon={phone ? undefined : "setAside"} detail="Takes the break out of your record and every resume, with why if you like." note="Free · Undo with U" onClick={() => setRemoving(true)}>
+        <Button key="remove" size={size} className={phone ? "flex-1" : ""} icon={phone ? undefined : "setAside"} detail="Takes the break out of your record and every resume." note="Free · Undo with U" onClick={() => remove()}>
           Remove
         </Button>
       ),

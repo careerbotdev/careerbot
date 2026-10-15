@@ -3,7 +3,8 @@ import type { Recognition } from "./Talk";
 // A stand-in for the browser's speech recognition, for Storybook and the rendered checks (never the app): Talk starts
 // it, and `window.talkFake` plays what it "hears": `hear("words")` for words still being heard, `hear("words", true)`
 // once they're final, `fail("not-allowed")` for an error, `end()` for the browser ending a session by itself.
-// `installTalkFake(false)` takes speech recognition away, as in Firefox; `device` pretends to be that device.
+// `installTalkFake(false)` takes speech recognition away, as in Firefox; `device` pretends to be that device; `brave`
+// pretends to be Brave, which has the API but not the service behind it.
 
 type Said = { transcript: string; isFinal: boolean };
 export type TalkFake = { hear: (text: string, final?: boolean) => void; fail: (error: string) => void; end: () => void; listening: () => boolean; starts: () => number };
@@ -74,11 +75,13 @@ declare global {
   }
 }
 
-export function installTalkFake(supported: boolean, device?: keyof typeof AGENTS) {
+export function installTalkFake(supported: boolean, device?: keyof typeof AGENTS, brave = false) {
   const w = window as unknown as Record<string, unknown>;
   w.SpeechRecognition = supported ? FakeRecognition : undefined;
   w.webkitSpeechRecognition = supported ? FakeRecognition : undefined;
   if (device) Object.defineProperty(navigator, "userAgent", { value: AGENTS[device], configurable: true });
   else delete (navigator as unknown as Record<string, unknown>).userAgent;
+  if (brave) Object.defineProperty(navigator, "brave", { value: { isBrave: async () => true }, configurable: true });
+  else delete (navigator as unknown as Record<string, unknown>).brave;
   window.talkFake = talkFake;
 }

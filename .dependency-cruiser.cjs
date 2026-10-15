@@ -11,7 +11,7 @@ module.exports = {
       from: { path: "^src/" },
       to: {
         path: "^convex/",
-        pathNot: ["^convex/_generated/(api|dataModel)", "^convex/(limitBuckets|directionPaths|directionVocab|resumeDoc|docxFiles|lens|roleDetails|pursuitSteps|contactGroups|reviewKinds|factPairs|companySets|aiTasks|passwordRules|demoRefusal|exportRules)\\.ts$"],
+        pathNot: ["^convex/_generated/(api|dataModel)", "^convex/(limitBuckets|directionPaths|directionVocab|resumeDoc|docxFiles|lens|roleDetails|pursuitSteps|contactGroups|reviewKinds|factPairs|companySets|aiTasks|passwordRules|demoRefusal|exportRules|freshLook)\\.ts$"],
         dependencyTypesNot: ["type-only"],
       },
     },
@@ -19,8 +19,8 @@ module.exports = {
       name: "shared-module-imports-server",
       comment: "Modules the browser loads must stay free of server code, or the client bundle pulls in Convex server runtime.",
       severity: "error",
-      from: { path: "^convex/(limitBuckets|directionPaths|directionVocab|resumeDoc|lens|roleDetails|pursuitSteps|contactGroups|reviewKinds|factPairs|companySets|aiTasks|passwordRules|demoRefusal|exportRules)\\.ts$" },
-      to: { path: "^convex/", pathNot: ["^convex/(limitBuckets|directionPaths|directionVocab|resumeDoc|lens|roleDetails|pursuitSteps|contactGroups|reviewKinds|factPairs|companySets|aiTasks|passwordRules|demoRefusal|exportRules)\\.ts$"], dependencyTypesNot: ["type-only"] },
+      from: { path: "^convex/(limitBuckets|directionPaths|directionVocab|resumeDoc|lens|roleDetails|pursuitSteps|contactGroups|reviewKinds|factPairs|companySets|aiTasks|passwordRules|demoRefusal|exportRules|freshLook)\\.ts$" },
+      to: { path: "^convex/", pathNot: ["^convex/(limitBuckets|directionPaths|directionVocab|resumeDoc|lens|roleDetails|pursuitSteps|contactGroups|reviewKinds|factPairs|companySets|aiTasks|passwordRules|demoRefusal|exportRules|freshLook)\\.ts$"], dependencyTypesNot: ["type-only"] },
     },
     { name: "no-circular", severity: "error", from: {}, to: { circular: true, dependencyTypesNot: ["type-only"] } },
     {

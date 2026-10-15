@@ -9,6 +9,7 @@ import { DEFAULT_LENS } from "./lens";
 import { screenCompanies } from "./screening";
 import { dayOf, tally } from "./tallies";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
+import { searchReadiness } from "./directionFill";
 
 // Finds companies with Apollo for each direction whose search criteria are approved: one search from the criteria, and
 // lookalike searches from seed companies (the workspace's default seeds, or the direction's own when set). Seeds are
@@ -331,8 +332,9 @@ export const list = query({
           const seeding = targets.filter((t) => t.directionIds.includes(d._id) && !seedIds.includes(t.apolloId)).map((t) => t.name);
           return { id: d._id, name: d.data.name, ownSeeds: d.data.criteria?.seeds ?? null, hasTitles: (d.data.criteria?.titles.length ?? 0) > 0, targets: seeding };
         }),
-      // Approved directions whose search criteria aren't approved yet: not searched until they are.
-      needCriteria: directions.filter((d) => d.data.criteriaStatus !== "approved").map((d) => ({ id: d._id, name: d.data.name })),
+      // Approved directions whose search criteria aren't approved yet, not searched until they are: each being filled
+      // in, with criteria to review, or to fill in; and how far the fill-in underway has got.
+      needCriteria: await searchReadiness(ctx, workspaceId),
       last: last ? { status: last.status, error: last.error, result: last.result } : null,
       enriching: lastEnrich ? { status: lastEnrich.status, error: lastEnrich.error, remaining: lastEnrich.result?.remaining ?? null } : null,
       companies: companies.map((c) => ({

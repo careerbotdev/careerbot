@@ -7,11 +7,12 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type KeyboardEvent, type ReactNode, useCallback, useState } from "react";
 import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import { pursuitHref as hrefOf, type Path, takesApply, takesOutreach } from "../../../convex/pursuitSteps";
 import type { FirstPursuit, SetupStep } from "../../../convex/today";
 import { Button, type ButtonSize, type ButtonVariant, buttonLook } from "@/components/Button";
 import { Checkbox } from "@/components/Checkbox";
-import { CostAction } from "@/components/CostEstimate";
+import { CostAction, CostEstimate } from "@/components/CostEstimate";
 import { Field, Input, Textarea } from "@/components/Field";
 import { Icons } from "@/components/icons";
 import { List, ListGroup, ListRow } from "@/components/ListRow";
@@ -24,8 +25,9 @@ import { SegmentedControl } from "@/components/SegmentedControl";
 import { StatusTag } from "@/components/StatusTag";
 import { Heading, Text } from "@/components/Text";
 import { toast } from "@/components/Toast";
-import { addSpoken, DeviceDictation, Listening, LiveText, Saved, TalkButton, TalkStopped, TalkTip, useCanTalk, useDevice, useTalk, useTalkKey } from "@/components/Talk";
+import { addSpoken, DeviceDictation, Listening, LiveText, Saved, TalkButton, TalkStopped, TalkTip, useBrave, useCanTalk, useDevice, useTalk, useTalkKey } from "@/components/Talk";
 import { Tooltip } from "@/components/Tooltip";
+import { aboutUsd } from "../costs";
 import { draftKey } from "../localDrafts";
 import { ModelChoice, type ModelChoiceValue, useRecommended } from "../ModelChoice";
 import { day } from "../pursuits/dates";
@@ -404,7 +406,10 @@ function SetupStepPane({ k, setup, small, onNext }: { k: SetupKey; setup: Setup;
     ) : k === "drive" ? (
       <DriveStep setup={setup} small={small} onDone={() => onNext(next)} />
     ) : go ? (
-      <Actions small={small} main={(size) => <GoLink go={go} href={go.href} size={size} variant={state.done ? "secondary" : "primary"} className={size === "md" ? "self-start" : ""} />} />
+      <>
+        {k === "companies" && !state.done && setup.directions.rows.length > 0 && <DirectionsForSearch directions={setup.directions} />}
+        <Actions small={small} main={(size) => <GoLink go={go} href={go.href} size={size} variant={state.done ? "secondary" : "primary"} className={size === "md" ? "self-start" : ""} />} />
+      </>
     ) : null;
   return (
     <>
@@ -412,6 +417,69 @@ function SetupStepPane({ k, setup, small, onNext }: { k: SetupKey; setup: Setup;
       {body}
       <Unlocks unlocks={s.unlocks} learn={s.learn} />
     </>
+  );
+}
+
+// Finding companies: each approved direction whose criteria aren't approved, as it stands. While a fill-in runs, how far
+// it has got stands in for those it hasn't reached; filled in, Review; never filled in or failed, Fill in (each, or all
+// of them at once), with about what that costs.
+function DirectionsForSearch({ directions }: { directions: Setup["directions"] }) {
+  const detail = useMutation(api.directions.detail);
+  const fillUsd = useQuery(api.estimates.costs, {})?.directionDetail;
+  const toFill = directions.rows.filter((d) => d.state === "fillIn" || d.state === "failed");
+  const each = aboutUsd(fillUsd);
+  const fill = (id?: Id<"items">) =>
+    void detail(id ? { id } : {}).then(
+      () => toast({ message: id ? `Filling in ${directions.rows.find((d) => d.id === id)?.name ?? "it"}` : "Filling in your directions", icon: "running" }),
+      (e: unknown) => toast({ message: e instanceof ConvexError ? String(e.data) : "Couldn’t start.", icon: "failed" }),
+    );
+  const words = (n: number) => ({ detail: `Proposes the positioning, titles and search criteria for ${n === 1 ? "this direction" : `these ${n} directions`}, from your approved record. Nothing changes until you approve them.`, note: each ? `${each} each` : "Uses your AI budget" });
+  const row = "flex items-start gap-2.5 border-t py-3";
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <span className="text-label leading-label font-medium text-text">Directions</span>
+        <Text size="sm" muted>
+          Companies are found for a direction once you approve its criteria.
+        </Text>
+        {toFill.length > 1 && (
+          <div className="flex items-center gap-3 pt-1">
+            <Button size="sm" {...words(toFill.length)} onClick={() => fill()}>
+              Fill in {toFill.length} directions
+            </Button>
+            {each && <CostEstimate amount={`${each} each`} />}
+          </div>
+        )}
+      </div>
+      <ul className="flex flex-col border-b">
+        {directions.filling && (
+          <li className={`${row} items-center`}>
+            <Icons.running aria-hidden className="size-4 shrink-0 text-steel" />
+            <span className="min-w-0 flex-1 text-body-md leading-body-md font-medium text-text">
+              Filling in your directions ({directions.filling.done} of {directions.filling.total})
+            </span>
+          </li>
+        )}
+        {directions.rows
+          .filter((d) => d.state !== "filling")
+          .map((d) => (
+            <li key={d.id} className={row}>
+              <span aria-hidden className="w-4 shrink-0" />
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="text-body-md leading-body-md font-medium text-text">{d.name}</span>
+                <span className="text-body-sm leading-body-sm text-muted">{d.state === "review" ? "Criteria to review" : d.state === "failed" ? "Couldn’t fill in. Try again." : "Not filled in yet"}</span>
+              </span>
+              {d.state === "review" ? (
+                <GoLink go={{ label: "Review", detail: `Opens ${d.name}’s criteria, to approve or change them.`, note: "Free" }} href={`/goals/directions?direction=${d.id}&tab=criteria`} variant="secondary" size="sm" />
+              ) : (
+                <Button size="sm" {...words(1)} note={each ?? "Uses your AI budget"} onClick={() => fill(d.id)}>
+                  Fill in
+                </Button>
+              )}
+            </li>
+          ))}
+      </ul>
+    </section>
   );
 }
 
@@ -739,6 +807,7 @@ function StoryWriter({ setup, small }: { setup: Setup; small: boolean }) {
   // time show under what was there (`split`: where they start).
   const canTalk = useCanTalk();
   const device = useDevice();
+  const brave = useBrave();
   const [split, setSplit] = useState<number | null>(null);
   const talk = useTalk({
     onStart: () => setSplit(draft.body.replace(/\s+$/, "").length),
@@ -829,7 +898,7 @@ function StoryWriter({ setup, small }: { setup: Setup; small: boolean }) {
         />
         {listening && <TalkTip href={docsHref(STORY_GUIDE)} />}
         {talk.state === "stopped" && <TalkStopped talk={talk} saved="saved" phone={small} />}
-        {canTalk === false && <DeviceDictation device={device} />}
+        {canTalk === false && <DeviceDictation device={device} brave={brave} />}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {!small && done("md")}

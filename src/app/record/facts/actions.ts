@@ -61,12 +61,14 @@ export function useFactActions(r: RecordData | undefined, f: Fact | undefined): 
   };
 }
 
-// What opens in place for a fact: its words to edit, a note to rewrite it with, or why it's rejected.
-export type FactFields = { edit: () => void; context: () => void; reject: () => void; open?: () => void };
+// What opens in place for a fact: its words to edit, a note to rewrite it with, or why it's rejected (Reject with a note).
+export type FactFields = { edit: () => void; context: () => void; why: () => void; open?: () => void };
 
 // The fact's ⋯ menu (and its right-click menu): Edit, Add context or rewrite, Move to role, Approve or Undo approval,
-// Reject or Restore, and Keep it or Not the same work when those apply.
-export function factMenu(r: RecordData, f: Fact, a: FactActions, fields: FactFields, cost: string): MenuEntry[] {
+// Reject (at once) and Reject with a note (asks why first) or Restore, and Keep it or Not the same work when those apply.
+// `notes`: the notes on what approves it (Approve, Edit) and rejects it, which say when that starts a fresh look
+// (record/freshLook).
+export function factMenu(r: RecordData, f: Fact, a: FactActions, fields: FactFields, cost: string, notes: { approve: string; reject: string }): MenuEntry[] {
   const rejected = f.status === "rejected";
   const roles = f.projectKey ? [] : r.roles.filter((x) => x.roleKey && x.roleKey !== f.roleKey && x.status !== "rejected");
   const orphan = !rejected && (f.data.noLongerSaid || f.data.sourceDeleted);
@@ -74,7 +76,7 @@ export function factMenu(r: RecordData, f: Fact, a: FactActions, fields: FactFie
   const suggestion = !!f.data.suggestion;
   return [
     ...(fields.open ? [{ label: "Sources and history", icon: "thirdPane" as const, onSelect: fields.open, ...EXPLAIN.sources }] : []),
-    { label: "Edit", icon: "edit", keys: "E", onSelect: fields.edit, ...EXPLAIN.edit },
+    { label: "Edit", icon: "edit", keys: "E", onSelect: fields.edit, ...EXPLAIN.edit, note: notes.approve },
     {
       label: "Add context or rewrite",
       icon: "builtOn",
@@ -92,11 +94,14 @@ export function factMenu(r: RecordData, f: Fact, a: FactActions, fields: FactFie
       ? [{ label: `Not the same work as ${connected.where}`, icon: "link" as const, hint: "Free", detail: "Resumes write the two facts as separate lines again.", note: FREE_UNDO, onSelect: a.disconnect }]
       : []),
     ...(f.status === "approved" ? [{ label: "Undo approval", icon: "undo" as const, detail: "Takes it back to review. Resumes stop using it.", note: FREE_UNDO, onSelect: a.undoApproval }] : []),
-    ...(f.status === "proposed" ? [{ label: "Approve", icon: "approve" as const, detail: "Adds it to your record, where resumes, letters and ranking can use it.", note: FREE_UNDO, onSelect: a.approve }] : []),
+    ...(f.status === "proposed" ? [{ label: "Approve", icon: "approve" as const, detail: "Adds it to your record, where resumes, letters and ranking can use it.", note: notes.approve, onSelect: a.approve }] : []),
     "separator",
-    rejected
-      ? { label: "Restore", icon: "undo", detail: "Puts it back in your record to review.", note: FREE_UNDO, onSelect: a.restore }
-      : { label: "Reject", icon: "reject", keys: "R", detail: "Takes it out of your record. Resumes stop using it.", note: FREE_UNDO, onSelect: fields.reject },
+    ...(rejected
+      ? [{ label: "Restore", icon: "undo" as const, detail: "Puts it back in your record to review.", note: FREE_UNDO, onSelect: a.restore }]
+      : [
+          { label: "Reject", icon: "reject" as const, keys: "R", detail: "Takes it out of your record. Resumes stop using it.", note: notes.reject, onSelect: () => a.reject() },
+          { label: "Reject with a note", icon: "reject" as const, detail: "Takes it out of your record. Resumes stop using it. Asks why first.", note: `${notes.reject} · Why steers what’s proposed next`, onSelect: fields.why },
+        ]),
   ];
 }
 

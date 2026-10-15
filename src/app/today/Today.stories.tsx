@@ -44,6 +44,7 @@ const SETUP: Setup = {
     drive: done("Skipped"),
   },
   firstPursuit: null,
+  directions: { filling: null, rows: [] },
 };
 
 function todayFixtures({ empty, allowance }: { empty: boolean; allowance?: { spentUsd: number } }): Answers {

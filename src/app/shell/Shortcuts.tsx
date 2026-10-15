@@ -77,11 +77,13 @@ const GROUPS: { label: string; keys: [string, string][] }[] = [
   {
     label: "Review",
     keys: [
-      ["A", "Approve"],
-      ["E", "Edit"],
-      ["R", "Reject"],
-      ["J or →", "Next card"],
-      ["K or ←", "Previous card"],
+      ["A or →", "Approve"],
+      ["E or ↑", "Edit"],
+      ["R or ←", "Reject"],
+      ["↓", "Reject with a note"],
+      ["S", "Skip"],
+      ["J", "Next card"],
+      ["K", "Previous card"],
       ["U", "Undo"],
     ],
   },

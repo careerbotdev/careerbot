@@ -5,14 +5,33 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { ReviewKind } from "../../../convex/reviewKinds";
 import type { IconName } from "@/components/icons";
+import { type Deciding, type FreshLookOpen, freshLook } from "../../../convex/freshLook";
+import { approveNote, rejectNote, thenNote } from "../costs";
 import { readMonth } from "../record/roles/words";
 
 export type Items = FunctionReturnType<typeof api.review.items>;
 export type Card = Items["cards"][number];
 export type Declined = Items["declined"][number];
 
+// What a decision may start that's paid, for its explainer: filling in a direction with nothing filled in (fillUsd: one
+// fill-in's estimate), and the fresh look that finishing a story's review starts (gatherUsd and insightsUsd: their
+// estimates; open: what's waiting, from insights.freshLookOpen).
+export type DecisionCosts = { fillUsd: number | null | undefined; gatherUsd: number | null | undefined; insightsUsd: number | null | undefined; open: FreshLookOpen | undefined };
+
+// A card as a decision freshLook.ts reads: roles, projects, facts and rewrites (a fact) carry where they count.
+export const decidingOf = (card: Card, to: Deciding["to"]): Deciding => ({
+  kind: card.type === "rewrite" ? "fact" : card.type,
+  ...("scope" in card ? card.scope : {}),
+  was: "status" in card ? card.status : undefined,
+  to,
+});
+// What deciding these cards this way starts, as a note's words with the estimate (null when nothing).
+export const thenOf = (cards: Card[], to: Deciding["to"], costs?: DecisionCosts) =>
+  thenNote(freshLook(cards.map((c) => decidingOf(c, to)), costs?.open), costs?.gatherUsd, costs?.insightsUsd);
+
 // One way to decide a card. The first is the Amber one; `keys` is the key the screen binds; `detail` and `note` are the
-// explainer. `why`: a negative decision, which asks why before anything is sent (decision and reason go in one call).
+// explainer. `why`: a negative decision that can also be made with a note (Reject with a note), which asks why before
+// anything is sent (decision and reason go in one call); made plainly, it runs at once.
 // `field`: asks for words first (an edit, an answer). `href`: goes where it's done instead. `undo` takes it back.
 // `bulk`: several cards can be decided this way at once.
 export type Decision = {
@@ -49,7 +68,8 @@ const PICKS = {
 };
 
 const FREE_UNDO = "Free · Undo with U";
-const WHY = "Free · Undo with U · Why is optional and steers what’s proposed next";
+// A negative decision made with a note.
+export const NOTED = "Free · Undo with U · Why steers what’s proposed next";
 
 // Every mutation Review decides with (and the searches it starts), by name.
 export const MUTATIONS = {
@@ -133,16 +153,22 @@ export function unlocks(card: Card) {
 }
 
 // The ways to decide a card, in the order they show. The review mutations' statuses go back as they were on Undo.
-export function decisionsFor(card: Card, m: Decide): Decision[] {
+// costs: what a decision may start that's paid (a direction's fill-in, a fresh look), for the explainers.
+export function decisionsFor(card: Card, m: Decide, costs?: DecisionCosts): Decision[] {
   // Only for cards that are items (the review mutation's kinds).
   const id = card.id as Id<"items">;
+  const fillUsd = costs?.fillUsd;
+  // Approving (or editing, or using a rewrite, which approve) or rejecting the last of a story's or project's items starts
+  // a fresh look (paid): the notes say so.
+  const approvedNote = approveNote(null, 0, thenOf([card], "approved", costs));
+  const rejectedNote = rejectNote(thenOf([card], "rejected", costs));
   const approve = (label: string, detail: string): Decision => ({
     label,
     keys: "A",
     intent: "approve",
     icon: "approve",
     detail,
-    note: FREE_UNDO,
+    note: approvedNote,
     run: () => m.review({ id, status: "approved" }),
     done: `Approved: ${card.title}`,
     undo: () => m.review({ id, status: "proposed" }),
@@ -154,7 +180,7 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
     intent: "reject",
     icon: "reject",
     detail,
-    note: WHY,
+    note: rejectedNote,
     why: { decision: "Reject", picks },
     run: ({ reason }) => m.review({ id, status: "rejected", note: reason }),
     done: `Rejected: ${card.title}`,
@@ -172,14 +198,14 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
               keys: "A",
               intent: "approve",
               icon: "approve",
-              detail: `${card.into.name} takes this in as part of what it includes, approved.`,
+              detail: `${card.into.name} takes this in as part of what it covers, approved.`,
               note: FREE_UNDO,
               run: () => m.goalsMerge({ id: card.id, into: card.into!.id }),
               done: `Added to ${card.into.name}: ${card.name}`,
               undo: () => m.goalsUnmerge({ id: card.id }),
             }
-          : approve("Approve", "Adds it to your goals. Its positioning and search criteria are proposed next."),
-        goTo("Edit", `/goals/directions?direction=${card.id}`, "Opens it in Directions to change its name, summary or what it includes."),
+          : { ...approve("Approve", "Adds it to your goals. Its positioning, titles and search criteria are filled in for you to review."), note: approveNote(fillUsd, card.fillsIn ? 1 : 0) },
+        goTo("Edit", `/goals/directions?direction=${card.id}`, "Opens it in Directions to change its name, summary or what it covers."),
         { ...reject(PICKS.direction, "Leaves it out of your goals. It isn’t proposed again."), bulk: !card.into },
       ];
     case "limit":
@@ -226,7 +252,7 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
         intent: "reject",
         icon: "reject",
         detail: "Passes on it: its roles aren’t read, and it isn’t proposed again.",
-        note: WHY,
+        note: FREE_UNDO,
         why: { decision: "Not for me", picks: PICKS.company },
         run: ({ reason }) => m.rate({ id: card.id, value: "no", reason }),
         done: `Not for me: ${card.name}`,
@@ -305,7 +331,7 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
             intent: "reject",
             icon: "reject",
             detail: "Takes it out of your record. Resumes stop using it.",
-            note: WHY,
+            note: FREE_UNDO,
             why: { decision: "Reject", picks: PICKS.fact },
             run: ({ reason }) => m.review({ id: card.id, status: "rejected", note: reason }),
             done: `Rejected: ${card.title}`,
@@ -320,7 +346,7 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
           keys: "E",
           icon: "edit",
           detail: "Your wording, approved as you write it.",
-          note: FREE_UNDO,
+          note: approvedNote,
           field: { label: "The fact", initial: card.text, save: "Save and approve" },
           run: ({ text }) => m.edit({ id: card.id, text: text ?? card.text }),
           done: `Approved in your words: ${card.title}`,
@@ -337,7 +363,7 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
           intent: "approve",
           icon: "approve",
           detail: "The fact takes the new wording and is approved. The old wording stays in its history.",
-          note: FREE_UNDO,
+          note: approvedNote,
           run: () => m.accept({ id: card.id }),
           done: `Rewritten: ${card.proposed}`,
           undo: () => m.revertWording({ id: card.id }),
@@ -347,7 +373,7 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
           keys: "E",
           icon: "edit",
           detail: "Your wording instead, approved as you write it.",
-          note: FREE_UNDO,
+          note: approvedNote,
           field: { label: "The fact", initial: card.proposed, save: "Save and approve" },
           run: ({ text }) => m.edit({ id: card.id, text: text ?? card.proposed }),
           done: `Approved in your words: ${card.now}`,
@@ -359,7 +385,7 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
           intent: "reject",
           icon: "reject",
           detail: "Keeps the wording it has. The rewrite stays in its history.",
-          note: WHY,
+          note: FREE_UNDO,
           why: { decision: "Keep current", picks: PICKS.rewrite },
           run: ({ reason }) => m.dismiss({ id: card.id, reason }),
           done: `Kept the current wording: ${card.now}`,
@@ -401,7 +427,7 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
           },
           {
             label: "Fix start date",
-            keys: "S",
+            keys: "D",
             icon: "edit",
             detail: `Give the month your ${starts.employer} job started; your record takes it.`,
             note: FREE_UNDO,
@@ -445,7 +471,7 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
           intent: "reject",
           icon: "reject",
           detail: `Keeps your record as it is: ${card.recordSays}.`,
-          note: WHY,
+          note: FREE_UNDO,
           why: { decision: "Record is right", picks: PICKS.conflict },
           run: ({ reason }) => m.answerConflict({ id: card.id, pick: "record", reason }),
           done: `Kept: ${card.recordSays}`,
@@ -474,7 +500,7 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
           intent: "reject",
           icon: "reject",
           detail: "Sets the question aside. It isn’t asked again.",
-          note: WHY,
+          note: FREE_UNDO,
           why: { decision: "Not now", picks: PICKS.followup },
           run: ({ reason }) => m.notNow({ id: card.id, reason }),
           done: `Not now: ${card.question}`,
@@ -533,7 +559,7 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
           intent: "reject",
           icon: "reject",
           detail: "They’re different; the pair isn’t offered again.",
-          note: WHY,
+          note: FREE_UNDO,
           why: { decision: "Keep both", picks: PICKS.apart },
           run: ({ reason }) => m.keepApart({ id: card.id, reason }),
           done: `Kept both: ${card.name} and ${card.otherName}`,
@@ -569,7 +595,7 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
           intent: "reject",
           icon: "reject",
           detail: "They say different things; the pair isn’t flagged again.",
-          note: WHY,
+          note: FREE_UNDO,
           why: { decision: "Keep both", picks: PICKS.apart },
           run: ({ reason }) => m.keepBoth({ id: card.id, reason }),
           done: "Kept both",
@@ -596,7 +622,7 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
           intent: "reject",
           icon: "reject",
           detail: "They’re different work; the pair isn’t suggested again.",
-          note: WHY,
+          note: FREE_UNDO,
           why: { decision: "Keep separate", picks: PICKS.apart },
           run: ({ reason }) => m.keepSeparate({ id: card.id, reason }),
           done: "Kept separate",
@@ -624,7 +650,7 @@ export function decisionsFor(card: Card, m: Decide): Decision[] {
           intent: "reject",
           icon: "reject",
           detail: "Sets this version aside; your current resume stays as it is.",
-          note: WHY,
+          note: FREE_UNDO,
           why: { decision: "Discard", picks: PICKS.resume },
           run: ({ reason }) => m.discardResume({ id: card.id, reason }),
           done: `Discarded the new ${card.name}`,

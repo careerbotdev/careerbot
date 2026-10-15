@@ -9,7 +9,7 @@ import { Kbd } from "./Kbd";
 // Talking instead of typing (the Voice boards in Paper): Talk (⇧T) listens with the browser's own speech recognition,
 // shows the words it's still hearing greyed at the caret, and hands each finished phrase to the writing, which saves it
 // like typing. Stop (⇧T) ends it and says how many words went in. Nothing is recorded or kept. Where the browser can't
-// (Firefox), there's no Talk: a line points to the device's own dictation instead.
+// (Firefox; Brave on a computer), there's no Talk: a line points to the device's own dictation instead.
 
 // The Web Speech API, as much of it as Talk uses (TypeScript's DOM types don't carry it yet).
 type Heard = { isFinal: boolean; length: number; [i: number]: { transcript: string } };
@@ -36,9 +36,21 @@ const recognition = () => {
 
 const never = () => () => {};
 
+// Brave has the speech recognition API but not the service behind it (Chrome's is Google's), so on a computer it fails
+// at once with "network", after asking for the microphone; nothing tells it apart but navigator.brave. On a phone it
+// may use the phone's own, so Talk stays and a failure there names Brave.
+const brave = () => "brave" in navigator;
+export function useBrave(): boolean {
+  return useSyncExternalStore(never, brave, () => false);
+}
+
+export function canTalkIn({ recognition, brave, device }: { recognition: boolean; brave: boolean; device: Device | null }) {
+  return recognition && !(brave && device !== "phone");
+}
+
 // Whether this browser can listen: null until it's known (on the server and in the first render).
 export function useCanTalk(): boolean | null {
-  return useSyncExternalStore(never, () => !!recognition(), () => null);
+  return useSyncExternalStore(never, () => canTalkIn({ recognition: !!recognition(), brave: brave(), device: device() }), () => null);
 }
 
 // Which device's own dictation to point to where the browser can't listen: a phone's (or tablet's) keyboard, a Mac's,
@@ -68,6 +80,9 @@ const PROBLEMS: Record<string, string> = {
   "language-not-supported": "Your browser can’t turn this language into text.",
 };
 const SOMETHING = "Listening stopped. Press Talk to try again.";
+// "network" in Brave is its missing service, not the connection.
+const NO_SERVICE_IN_BRAVE = "Talk doesn’t work in this Brave. Tap the mic on your keyboard, or use Chrome or Safari.";
+export const problemFor = (error: string, inBrave: boolean) => (error === "network" && inBrave ? NO_SERVICE_IN_BRAVE : (PROBLEMS[error] ?? SOMETHING));
 
 export type TalkState = "idle" | "listening" | "stopped";
 export type Talk = {
@@ -146,7 +161,7 @@ export function useTalk({ onStart, onWords, onStopped }: { onStart?: () => void;
     };
     rec.onerror = (e) => {
       if (s.rec !== rec || e.error === "aborted" || (e.error === "no-speech" && s.heard)) return;
-      fail(s, PROBLEMS[e.error] ?? SOMETHING);
+      fail(s, problemFor(e.error, brave()));
     };
     rec.onend = () => {
       if (s.rec !== rec) return;
@@ -410,8 +425,8 @@ export function TalkStopped({ talk, saved, noun = "story", phone = false }: { ta
 }
 
 // Where the browser can't listen: the device's own dictation, which types into the text box. Nothing on a device
-// without one.
-export function DeviceDictation({ device }: { device: Device | null }) {
+// without one, except in Brave, which is named with the browsers that can listen.
+export function DeviceDictation({ device, brave = false }: { device: Device | null; brave?: boolean }) {
   const muted = "text-body-sm leading-body-sm text-muted";
   if (device === "phone")
     return (
@@ -420,14 +435,15 @@ export function DeviceDictation({ device }: { device: Device | null }) {
         To talk instead, tap the mic on your keyboard.
       </p>
     );
+  if (brave && !device) return <p className={muted}>Talk doesn’t work in Brave. Use Chrome or Edge.</p>;
   if (!device) return null;
   const mac = device === "mac";
   return (
     <p className={`flex flex-wrap items-center gap-1.5 ${muted}`}>
-      To talk instead, press
+      {brave ? `Talk doesn’t work in Brave. Use ${mac ? "Safari" : "Edge"} or Chrome, or press` : "To talk instead, press"}
       <Kbd>{mac ? "Fn" : "Win"}</Kbd>
       <Kbd>{mac ? "Fn" : "H"}</Kbd>
-      {mac ? "for your Mac’s dictation" : "for Windows dictation"}
+      {brave ? "for dictation." : mac ? "for your Mac’s dictation" : "for Windows dictation"}
     </p>
   );
 }

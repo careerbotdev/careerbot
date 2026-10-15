@@ -111,10 +111,11 @@ export async function chat(ctx: ActionCtx, args: ChatArgs): Promise<ChatReply> {
   const maxTokens = Math.min(args.maxTokens ?? REPLY_TOKENS, price.maxTokens ?? Infinity);
   // usage.include asks OpenRouter to report the real dollar cost of this call. JSON mode alone isn't kept by every
   // provider (Anthropic's models write what they like under it), so a reply with a schema goes as structured output,
-  // only to the providers that keep it (require_parameters), when the model has one.
+  // only to the providers that keep it (require_parameters), when the model has one. An alias goes to the model it was
+  // priced as (modelPrices: target).
   const structured = args.json && args.schema && price.structured;
   const request = JSON.stringify({
-    model: args.model,
+    model: price.target ?? args.model,
     messages: args.messages,
     usage: { include: true },
     max_tokens: maxTokens,
@@ -146,7 +147,7 @@ export async function chat(ctx: ActionCtx, args: ChatArgs): Promise<ChatReply> {
   await ctx.runMutation(internal.metering.settle, {
     usageId,
     ok: res.ok,
-    model: body.model ?? args.model,
+    model: body.model ?? price.target ?? args.model,
     inputTokens: body.usage?.prompt_tokens,
     outputTokens: body.usage?.completion_tokens,
     costUsd: body.usage?.cost ?? 0,
@@ -157,7 +158,7 @@ export async function chat(ctx: ActionCtx, args: ChatArgs): Promise<ChatReply> {
   return {
     text: body.choices?.[0]?.message?.content ?? "",
     costUsd: body.usage?.cost ?? 0,
-    model: body.model ?? args.model,
+    model: body.model ?? price.target ?? args.model,
     inputTokens: body.usage?.prompt_tokens,
     outputTokens: body.usage?.completion_tokens,
     // OpenRouter normalizes every provider's stop reason; "length" is max_tokens reached.
@@ -332,7 +333,7 @@ export async function decide(ctx: ActionCtx, args: { workspaceId: Id<"workspaces
   let costUsd = 0;
   let inputTokens = 0;
   let outputTokens = 0;
-  let model = args.model;
+  let model = price.target ?? args.model;
   const lookup: string[] = [];
   let unseen = 0;
   const one = async (d: Decision) => {
@@ -341,7 +342,7 @@ export async function decide(ctx: ActionCtx, args: { workspaceId: Id<"workspaces
       res = await fetch("https://openrouter.ai/api/alpha/decisions", {
         method: "POST",
         headers: openrouterHeaders({ Authorization: `Bearer ${key}`, "Content-Type": "application/json" }),
-        body: JSON.stringify({ model: args.model, state: d.state, questions: d.questions }),
+        body: JSON.stringify({ model: price.target ?? args.model, state: d.state, questions: d.questions }),
       });
     } catch (e) {
       unseen++;

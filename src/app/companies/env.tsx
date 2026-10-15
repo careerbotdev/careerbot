@@ -43,6 +43,7 @@ export const MUTATIONS = {
   editNote: api.notes.edit,
   removeNote: api.notes.remove,
   startOutreach: api.pursuits.startAtCompany,
+  fillInDirections: api.directions.detail,
 } as const;
 type Mutations = typeof MUTATIONS;
 export type Act = { [K in keyof Mutations]: (args: FunctionArgs<Mutations[K]>) => Promise<FunctionReturnType<Mutations[K]>> };

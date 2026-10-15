@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { aboutUsd } from "../../costs";
+import { useFreshLook } from "../freshLook";
 import { Button } from "@/components/Button";
 import { CostAction } from "@/components/CostEstimate";
 import { Icons } from "@/components/icons";
@@ -16,14 +17,15 @@ import { ReasonField } from "@/components/ReasonField";
 import { Skeleton } from "@/components/Skeleton";
 import { StatusTag } from "@/components/StatusTag";
 import { EXPLAIN, factMenu, useFactActions } from "./actions";
-import { act, type Fact, failed, FREE_UNDO, monthDay, PICKS, projectOf, type RecordData, storyLine, useRecord, WHY } from "./shared";
+import { act, type Fact, failed, FREE_UNDO, monthDay, NOTED, PICKS, projectOf, type RecordData, storyLine, useRecord } from "./shared";
 import { WordsField } from "./WordsField";
 
 const typing = "input, textarea, select, [contenteditable=''], [contenteditable='true'], [role=menu], [role=listbox], [role=dialog], [role=alertdialog]";
 
 // A fact's third pane for the host's PaneLayout: its words with Edit (E) and Rewrite, a rewrite waiting or being
-// written, its sources (story quotes, your notes, the repository), its context, its history, the resumes it shows on
-// and notes on it; its ⋯ holds the rest (R rejects). Undefined while no fact is open.
+// written (Use this, or Keep current at once with Keep current with a note in its ⋯), its sources (story quotes, your
+// notes, the repository), its context, its history, the resumes it shows on and notes on it; its ⋯ holds the rest (R
+// rejects at once; Reject with a note asks why first). Undefined while no fact is open.
 export function useFactPane(factId: string | null, onClose: () => void): ThirdPane | undefined {
   // The last fact open stays in the pane while it closes.
   const [last, setLast] = useState(factId);
@@ -49,11 +51,13 @@ function PaneMenu({ id }: { id: string }) {
   const costs = useQuery(api.estimates.costs, {});
   const f = r?.facts.find((x) => x.id === id);
   const a = useFactActions(r, f);
+  const look = useFreshLook();
+  const noteFor = look.approveNote;
   if (!r || !f) return null;
   const cost = aboutUsd(costs?.rewrite) ?? "Uses your AI budget";
   const open = (m: Mode) => () => setPaneMode?.(m);
   const items = [
-    ...factMenu(r, f, a, { edit: open("edit"), context: open("context"), reject: open("why") }, cost),
+    ...factMenu(r, f, a, { edit: open("edit"), context: open("context"), why: open("why") }, cost, { approve: noteFor([f]), reject: look.rejectNote([f]) }),
     "separator" as const,
     { label: "Copy link", icon: "copy" as const, onSelect: () => void navigator.clipboard.writeText(`${window.location.origin}${linkTo(r, f)}`) },
   ];
@@ -75,6 +79,8 @@ function FactPane({ id }: { id: string }) {
   const [mode, setMode] = useState<Mode>(null);
   const f = r?.facts.find((x) => x.id === id);
   const a = useFactActions(r, f);
+  const look = useFreshLook();
+  const noteFor = look.approveNote;
   const accept = useMutation(api.extract.acceptSuggestion);
   const dismiss = useMutation(api.extract.dismissSuggestion);
   const revert = useMutation(api.extract.revertWording);
@@ -87,7 +93,7 @@ function FactPane({ id }: { id: string }) {
     };
   }, []);
 
-  // E edits and R rejects the open fact, ahead of anything the item binds.
+  // E edits and R rejects the open fact at once, ahead of anything the item binds.
   const rejected = f?.status === "rejected";
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -95,25 +101,27 @@ function FactPane({ id }: { id: string }) {
       if (e.target instanceof Element && e.target.closest(typing)) return;
       const key = e.key.toLowerCase();
       if (key === "e") setMode("edit");
-      else if (key === "r" && !rejected) setMode("why");
+      else if (key === "r" && !rejected) a.reject();
       else return;
       e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode, rejected]);
+  }, [mode, rejected, a]);
 
   if (!r) return <PaneSkeleton />;
   if (!f) return <p className="pt-1 text-body-md leading-body-md text-muted">This fact is no longer in your record.</p>;
   const cost = aboutUsd(costs?.rewrite) ?? "Uses your AI budget";
   const sug = f.data.suggestion;
   const done = () => setMode(null);
+  const keepCurrent = (reason?: string) => act(dismiss({ id: f.id, reason }), "Kept your wording", "reject", () => revert({ id: f.id }));
+  const KEEPS = "Keeps the wording it has. The rewrite stays in its history.";
 
   return (
     <div className="flex flex-col gap-5 pt-1 pb-4">
       <div className="flex flex-col gap-2.5">
         {mode === "edit" ? (
-          <WordsField label="Edit fact" initial={f.data.text} save="Save and approve" detail={EXPLAIN.edit.detail} note={FREE_UNDO} onSave={(text) => (done(), a.edit(text))} onCancel={done} />
+          <WordsField label="Edit fact" initial={f.data.text} save="Save and approve" detail={EXPLAIN.edit.detail} note={noteFor([f])} onSave={(text) => (done(), a.edit(text))} onCancel={done} />
         ) : (
           <>
             <p className={`text-body-md leading-body-md font-medium ${rejected ? "text-muted line-through decoration-1" : "text-text"}`}>{f.data.text}</p>
@@ -136,7 +144,7 @@ function FactPane({ id }: { id: string }) {
                   </Button>
                 ) : (
                   <>
-                    <Button variant="outline" size="sm" keys="E" detail={EXPLAIN.edit.detail} note={FREE_UNDO} onClick={() => setMode("edit")}>
+                    <Button variant="outline" size="sm" keys="E" detail={EXPLAIN.edit.detail} note={noteFor([f])} onClick={() => setMode("edit")}>
                       Edit
                     </Button>
                     <CostAction
@@ -172,23 +180,28 @@ function FactPane({ id }: { id: string }) {
                 picks={PICKS.rewrite}
                 onDone={({ reason }) => {
                   setKeepWhy(false);
-                  act(dismiss({ id: f.id, reason }), "Kept your wording", "reject", () => revert({ id: f.id }));
+                  keepCurrent(reason);
                 }}
               />
             ) : (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   variant="primary"
                   size="sm"
                   detail="The fact takes the new wording and is approved. The old wording stays in its history."
-                  note={FREE_UNDO}
+                  note={noteFor([f])}
                   onClick={() => act(accept({ id: f.id }), "Rewritten", "approve", () => revert({ id: f.id }))}
                 >
                   Use this
                 </Button>
-                <Button size="sm" detail="Keeps the wording it has. The rewrite stays in its history." note={WHY} onClick={() => setKeepWhy(true)}>
+                <Button size="sm" detail={KEEPS} note={FREE_UNDO} onClick={() => keepCurrent()}>
                   Keep current
                 </Button>
+                <Menu
+                  label="More for this rewrite"
+                  items={[{ label: "Keep current with a note", icon: "reject", detail: `${KEEPS} Asks why first.`, note: NOTED, onSelect: () => setKeepWhy(true) }]}
+                  trigger={<Button variant="ghost" size="sm" iconOnly icon="more" aria-label="More for this rewrite" />}
+                />
               </div>
             )}
           </div>

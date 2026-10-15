@@ -24,7 +24,8 @@ type Story = FunctionReturnType<typeof api.narratives.list>[number];
 export type Owner = { roleKey: string } | { projectKey: string };
 
 export const FREE_UNDO = "Free · Undo with U";
-export const WHY = "Free · Undo with U · Why is optional and steers what’s proposed next";
+// A negative decision made with a note (its ⋯ entry asks why first).
+export const NOTED = "Free · Undo with U · Why steers what’s proposed next";
 
 // Quick reasons, most common first.
 export const PICKS = {

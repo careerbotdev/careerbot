@@ -1,6 +1,7 @@
 import type { FunctionReturnType } from "convex/server";
 import type { api } from "../../../../convex/_generated/api";
-import { CONDITION_LABELS, CONDITIONS, LIMIT_BUCKETS, LEVELS, type LimitBucket, RULE_FIELDS, type RuleField, cap, ruleRows } from "../../../../convex/limitBuckets";
+import { clashOf, CONDITION_LABELS, CONDITIONS, LIMIT_BUCKETS, LEVELS, type LimitBucket, RULE_FIELDS, type RuleField, cap, ruleRows } from "../../../../convex/limitBuckets";
+import { limitSummary } from "../limitWords";
 
 // Limits in words: the item types, what a limit's rule does to roles, where it applies, and which other limit it
 // clashes with.
@@ -91,17 +92,30 @@ export function ruleFieldRows(kind: string, rule: Record<string, unknown> | null
   return ruleRows(kind, rule).map((row) => ({ ...row, key: fields.find((f: RuleField) => f.label.replace(/ \(.*\)$/, "") === row.label)?.key ?? row.label }));
 }
 
-// Another approved limit a limit would clash with: the same kind and condition, over the same directions (a limit for
-// some directions replaces an every-direction one there, so those don't clash).
-export function clashWith(limits: readonly Limit[], draft: { id?: string; kind: string; appliesTo: readonly string[]; when: readonly string[] }) {
-  const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x) => b.includes(x));
+// Another limit (approved or proposed, on) a limit or a draft can't hold beside (limitBuckets.clashOf), with the rule
+// fields they set differently and the directions both apply to.
+export type Clash = { limit: Limit; fields: string[]; shared: string[] };
+export function clashWith(limits: readonly Limit[], draft: { id?: string; kind: string; appliesTo: readonly string[]; when: readonly string[]; rule: Record<string, unknown> | null }): Clash | null {
+  const mine = { kind: draft.kind, appliesTo: [...draft.appliesTo], when: Object.fromEntries(draft.when.map((c) => [c, true])), rule: draft.rule };
   for (const l of limits) {
-    if (l.id === draft.id || l.status !== "approved" || l.data.kind !== draft.kind || !same(conditionsOf(l.data), draft.when)) continue;
-    const theirs = l.data.appliesTo ?? [];
-    const shared = theirs.filter((d) => draft.appliesTo.includes(d));
-    if ((!theirs.length && !draft.appliesTo.length) || shared.length) return { limit: l, shared };
+    if (l.id === draft.id || (l.status !== "approved" && l.status !== "proposed") || l.data.off) continue;
+    const c = clashOf(mine, l.data);
+    if (c) return { limit: l, ...c };
   }
   return null;
+}
+
+// A limit as its list row sums it up ("Up to 20%"), lowercased after its kind: "Travel, up to 20%".
+export const clashName = (l: Limit) => {
+  const s = limitSummary(l.data.kind, l.data.rule, l.data.value);
+  return s ? `${kindName(l.data.kind)}, ${s[0].toLowerCase()}${s.slice(1)}` : kindName(l.data.kind);
+};
+
+// Why two limits clash, in words: where both apply, under which condition, and the fields they set differently.
+export function clashWhy(kind: string, c: { fields: string[]; shared: string[] }, when: readonly string[]) {
+  const labels = c.fields.map((k) => RULE_FIELDS[kind as LimitBucket]?.find((f) => f.key === k)?.label.replace(/ \(.*\)$/, "") ?? k);
+  const fields = labels.length > 1 ? `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}` : labels[0];
+  return { where: `Both apply to ${c.shared.length ? c.shared.join(", ") : "every direction"}, ${when.length ? "under the same condition" : "always"}, and set ${fields} differently`, fields };
 }
 
 // Where a limit came from: its goals version, or none when they added it.

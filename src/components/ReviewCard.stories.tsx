@@ -204,7 +204,7 @@ function Working() {
   const actions = factActions({ approve: () => decide("approved"), edit: () => setEditing(true), reject: () => decide("rejected") });
 
   const pane = useRef<HTMLDivElement>(null);
-  useReviewKeys({ approve: () => decide("approved"), edit: () => setEditing(true), reject: () => decide("rejected"), next: () => step(1), previous: () => step(-1) }, !!fact && !editing, { keys: "cards", scope: pane });
+  useReviewKeys({ approve: () => decide("approved"), edit: () => setEditing(true), reject: () => decide("rejected"), next: () => step(1), previous: () => step(-1) }, !!fact && !editing, pane);
 
   if (!fact)
     return (
@@ -266,7 +266,7 @@ function Working() {
     <div ref={pane} className="flex w-122.5 max-w-full flex-col gap-3.5">
       {card}
       {next && <ReviewNext group="New facts" title={text[next.id] ?? next.text} line="Network Operations Manager, Ironbridge Logistics" onOpen={() => step(1)} />}
-      <ReviewKeyLegend />
+      <ReviewKeyLegend items={[["A or →", "Approve"], ["E or ↑", "Edit"], ["R or ←", "Reject"], ["J", "Next"], ["K", "Previous"]]} />
     </div>
   );
 }

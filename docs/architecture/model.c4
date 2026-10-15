@@ -198,7 +198,7 @@ model {
 
     ai = area 'AI steps' {
       extract = aiStep 'Read a narrative' {
-        description 'Turns one career narrative into proposed roles, facts and context. Every role gets at least one other title, which resumes use until the official one is given. Time away from paid work comes out as a proposed career break keyed by its start (side projects named on it, their facts on it), never an employer named after an activity. Facts keep the person’s own hedge on a number they only guessed at.'
+        description 'Turns one career narrative into proposed roles, facts and context. Every role gets at least one other title, which resumes use until the official one is given. Time away from paid work comes out as a proposed career break keyed by its start (side projects named on it, their facts on it), never an employer named after an activity. Each role lists every tool (a suite’s apps by name) and skill the narrative names. Facts are written in a confident, factual voice: a number as they give it (a rounded figure plainly), with no softening qualifier the story doesn’t make; only a number they guessed at or heard secondhand stays an estimate.'
         metadata {
           functions 'extract:start, extract:inputs, extract:saveProposals, extract:tryExtract, extract:runFor'
           model_task 'extract'
@@ -233,7 +233,7 @@ model {
         }
       }
       gatherSkills = aiStep 'Gather skills' {
-        description 'On request (Gather skills on Record): reads the approved record that counts (roles’ skills and tools, projects’ stack, approved facts) and proposes each skill, tool and certification once, named the way resumes and postings write it, with a group and where the record shows it (roles, projects, facts; anything else dropped). Vague ones are flagged low value; near-duplicates are offered as merges (an item awaiting review flagged as the same as another; never an approved one, never a pair kept apart). An item named by id or by a name they already have is that item: an approved one only gains sources, one awaiting review may be renamed, regrouped or re-kinded. A rejected one is never proposed again, in any spelling (checked in code). A run saves once.'
+        description 'On its own once a story or project has nothing left to review (and again when one of the story’s roles is approved after that), and on request (Gather skills on Record): reads the approved record that counts (roles’ skills and tools, projects’ stack, approved facts) and proposes each skill, tool and certification once, named the way resumes and postings write it, with a group and where the record shows it (roles, projects, facts; anything else dropped). Vague ones are flagged low value; near-duplicates are offered as merges (an item awaiting review flagged as the same as another; never an approved one, never a pair kept apart). An item named by id or by a name they already have is that item: an approved one only gains sources, one awaiting review may be renamed, regrouped or re-kinded. A rejected one is never proposed again, in any spelling (checked in code). A run saves once.'
         metadata {
           functions 'skills:start, skills:inputs, skills:save'
           model_task 'skills'
@@ -255,7 +255,7 @@ model {
         }
       }
       insights = aiStep 'Insights' {
-        description 'Reads across the approved record and proposes what is true of the person across roles and projects; each cites approved facts, a role’s or an approved project’s alike (a project’s facts are first-class evidence). Runs after a narrative or project is fully reviewed (a project approved, by Approve or Save and approve, with none of its facts left to review; its last fact approved once the project is) and on request.'
+        description 'Reads across the approved record and proposes what is true of the person across roles and projects; each cites approved facts, a role’s or an approved project’s alike (a project’s facts are first-class evidence). Runs after a narrative or project is fully reviewed (a project approved, by Approve or Save and approve, with none of its facts left to review; its last fact approved once the project is) and on request. Only a decision on something waiting counts: an edit or rewrite of an approved fact, or rejecting one, doesn’t start it.'
         metadata {
           functions 'insights:start, insights:inputs, insights:save'
           model_task 'insights'
@@ -337,9 +337,9 @@ model {
         }
       }
       directionsStep = aiStep 'Directions and search criteria' {
-        description 'Per approved direction: positioning, target titles, market vocabulary, stories that carry over or need reframing (citing approved facts), title translation, and search criteria. Suggest more proposes new directions. Approved detail and criteria are never overwritten.'
+        description 'Per approved direction: positioning, target titles, market vocabulary, stories that carry over or need reframing (citing approved facts), title translation, and search criteria. Starts on its own when a direction with nothing filled in is approved (origin automatic, within the AI budget, in Activity), or from Fill in / Fill in all. One pass per workspace fills its directions one call each (nextToFill, saveFill per step); directions asked for while it runs join it. Suggest more proposes new directions. Approved detail and criteria are never overwritten.'
         metadata {
-          functions 'directions:detail, directions:suggest, directions:inputs, directions:save'
+          functions 'directions:detail, directions:suggest, directions:inputs, directions:save, directions:nextToFill, directions:saveFill'
           model_task 'directions'
         }
       }
@@ -367,9 +367,9 @@ model {
         }
       }
       goalsApi = service 'Goals review' {
-        description 'Directions: edit (title, includes, fit), merge. Limits: one updateLimit (wording, firm, filters, scope, condition; hand-entered filters must be valid), add (in their words, or as its fields approved as given and worded from them: the Goals page adds Eligibility this way, the security clearance they hold and whether they need visa sponsorship). An edit to a direction\u2019s title or summary records when it changed, so roles ranked before it are marked.'
+        description 'Directions: edit (title, what it covers, fit), merge; either one approving a direction with nothing filled in starts its fill-in (directionsStep, automatic). Limits: clashes recomputed for the workspace on every change (syncClashes: Work and Companies never clash; others when a field both rules set differs for the same scope and condition; each limit names the other, clashWith); keepBoth keeps a pair unmarked until either changes; recomputeClashes (operator, once) recomputes every workspace and drops the old flag. Limits: one updateLimit (wording, firm, filters, scope, condition; hand-entered filters must be valid), add (in their words, or as its fields approved as given and worded from them: the Goals page adds Eligibility this way, the security clearance they hold and whether they need visa sponsorship). An edit to a direction\u2019s title or summary records when it changed, so roles ranked before it are marked.'
         metadata {
-          functions 'goals:items, goals:edit, goals:merge, goals:unmerge, goals:updateLimit, goals:addLimit, goals:setLimitOn, goals:updateRule, goals:keepRule, goals:removeLimit, goals:lastRead, goals:effects, goals:hiddenBy'
+          functions 'goals:items, goals:edit, goals:merge, goals:unmerge, goals:updateLimit, goals:addLimit, goals:setLimitOn, goals:updateRule, goals:keepRule, goals:removeLimit, goals:keepBoth, goals:recomputeClashes, goals:lastRead, goals:effects, goals:hiddenBy'
         }
       }
       questionsApi = service 'Questions' {
@@ -415,8 +415,9 @@ model {
         }
       }
       insightsApi = service 'Insights review' {
+        description 'list: their insights. freshLookOpen: the facts waiting per story and project and how many approved facts count, so Review and Record can say, before the click, that deciding the last of a story’s items reads insights and gathers skills, with the estimate (freshLook.ts).'
         metadata {
-          functions 'insights:list'
+          functions 'insights:list, insights:freshLookOpen'
         }
       }
       followupsApi = service 'Follow-ups' {
@@ -510,7 +511,7 @@ model {
         }
       }
       modelPrices = service 'Model prices' {
-        description 'Each AI model\u2019s highest prices across the providers OpenRouter may route it to (per prompt token, per reply token, per request, and the long-prompt tier), the longest reply any of them writes and the longest request any of them takes (context), and whether any of them keeps a reply to a JSON schema (structured outputs), from OpenRouter\u2019s list of the model\u2019s endpoints. Kept per model and read again every hour, or when a call finds its model\u2019s missing or an hour old; when it can\u2019t be read again then, the call is refused. A model OpenRouter no longer lists is dropped. Routers whose price depends on the model they pick have no set price.'
+        description 'Each AI model\u2019s highest prices across the providers OpenRouter may route it to (per prompt token, per reply token, per request, and the long-prompt tier), the longest reply any of them writes and the longest request any of them takes (context), and whether any of them keeps a reply to a JSON schema (structured outputs), from OpenRouter\u2019s list of the model\u2019s endpoints. Kept per model and read again every hour, or when a call finds its model\u2019s missing or an hour old; when it can\u2019t be read again then, the call is refused. A model OpenRouter no longer lists is dropped. Routers whose price depends on the model they pick have no set price. An alias (\u2018~vendor/name-latest\u2019, no endpoints of its own) is priced as the model OpenRouter\u2019s model list says it points at (target), and its calls go to that model.'
         metadata {
           functions 'modelPrices:get, modelPrices:save, modelPrices:models, modelPrices:refresh'
         }
@@ -795,7 +796,7 @@ model {
         }
       }
       tModelPrices = table 'modelPrices' {
-        description 'Each AI model\u2019s highest prices, longest reply and context across its providers, what AI calls reserve against the budget; and whether a provider of it keeps to a JSON schema.'
+        description 'Each AI model\u2019s highest prices, longest reply and context across its providers, what AI calls reserve against the budget; whether a provider of it keeps to a JSON schema; and for an alias, the model it points at.'
         metadata {
           table 'modelPrices'
         }
@@ -1135,7 +1136,7 @@ model {
   careerbot.platform.metering -[writes]-> careerbot.data.tAiSpend 'each call\u2019s reservation, then its cost'
   careerbot.platform.metering -[uses]-> careerbot.platform.modelPrices 'price of the call\u2019s model'
   careerbot.platform.metering -[calls]-> careerbot.platform.jobs 'a settled call restarts work waiting on what it held'
-  careerbot.platform.modelPrices -[calls]-> openrouter 'each model\u2019s endpoints and their prices'
+  careerbot.platform.modelPrices -[calls]-> openrouter 'each model\u2019s endpoints and their prices; for an alias, the model list (what it points at)'
   careerbot.platform.modelPrices -[writes]-> careerbot.data.tModelPrices
   careerbot.platform.jobs -[reads]-> careerbot.data.tAiSpend 'whether calls still hold the budget, before pausing for them'
   careerbot.platform.metering -[uses]-> careerbot.platform.plan 'CareerBot\u2019s key when the workspace has none of its own'
@@ -1219,6 +1220,8 @@ model {
   careerbot.core.questionsApi -[writes]-> careerbot.data.tItems.roles 'answer; role value and its change log'
 
   careerbot.ui.recordScreen -[calls]-> careerbot.ai.gatherSkills 'Gather skills'
+  careerbot.core.reviewApi -[calls]-> careerbot.ai.gatherSkills 'narrative or project fully reviewed; a role approved after its narrative was'
+  careerbot.core.projectsApi -[calls]-> careerbot.ai.gatherSkills 'Save and approve: a project approved with nothing left to review'
   careerbot.ui.recordScreen -[calls]-> careerbot.core.skillsApi 'Skills and tools: Edit, Merge, Keep both'
   careerbot.ui.recordScreen -[calls]-> careerbot.core.resumeApi 'Skills and tools: On resumes Show / Leave out (setSkillPresentation)'
   careerbot.ai.gatherSkills -[reads]-> careerbot.data.tItems.roles 'approved roles that count: their skills and tools' {
@@ -1242,6 +1245,8 @@ model {
   careerbot.core.skillsApi -[writes]-> careerbot.data.tResumes 'merge: skill lines and left-out choices move to the kept item'
   careerbot.core.skillsApi -[writes]-> careerbot.data.tResumeSettings 'merge: left-out choices move to the kept item'
   careerbot.core.reviewApi -[writes]-> careerbot.data.tItems.skillsKind 'approve, reject with reason, reopen, undo approval'
+  careerbot.core.reviewApi -[calls]-> careerbot.ai.directionsStep 'a direction approved with nothing filled in: filled in on its own'
+  careerbot.core.reviewApi -[writes]-> careerbot.data.tItems.limits 'clashes recomputed on approve, reject, undo'
   careerbot.ai.resume -[reads]-> careerbot.data.tItems.skillsKind 'approved skills, tools and certifications that count (the only skills a resume lists; roles’ own skill lists are not sent)' {
     #approvedOnly
     description 'A reply’s skills are kept only as approved items (by id, or matched by name), printed with the record’s name, each once.'
@@ -1426,7 +1431,8 @@ model {
   careerbot.ai.revision -[writes]-> careerbot.data.tItems.facts 'new proposals; suggestions and no-longer-said flags only on facts this narrative is a source of'
 
   // ---- Directions, direction and tailored resumes ----
-  careerbot.ui.goalsScreen -[calls]-> careerbot.ai.directionsStep 'Fill in / Suggest more'
+  careerbot.ui.goalsScreen -[calls]-> careerbot.ai.directionsStep 'Fill in / Fill in all / Suggest more'
+  careerbot.core.goalsApi -[calls]-> careerbot.ai.directionsStep 'a direction approved with nothing filled in'
   careerbot.ui.goalsScreen -[calls]-> careerbot.core.directionsApi
   careerbot.ui.goalsScreen -[calls]-> careerbot.ai.resume 'direction resume, tailor to a posting'
   careerbot.ui.goalsScreen -[calls]-> careerbot.core.resumeApi 'versions; title, fold and career break choices; Updates: Rewrite, Update all, Keep, Discard'
@@ -1566,6 +1572,7 @@ model {
   }
   careerbot.platform.discovery -[calls]-> careerbot.platform.enrich 'after each run'
   careerbot.ui.companiesScreen -[calls]-> careerbot.platform.enrich 'Fill in details'
+  careerbot.ui.companiesScreen -[calls]-> careerbot.ai.directionsStep 'Fill in a direction not filled in (Find companies)'
   careerbot.platform.enrich -[calls]-> companyWebsites 'public hostnames only; every redirect re-checked'
   jinaReader = external 'Jina Reader' {
     description 'r.jina.ai: loads a public page in a real browser and returns its text and links. Used only when a site turns away direct requests.'
@@ -1777,6 +1784,8 @@ model {
   careerbot.ui.today -[calls]-> careerbot.ai.extract 'Done, read it'
   careerbot.ui.reviewScreen -[calls]-> careerbot.core.reviewQueue 'summary, items'
   careerbot.ui.reviewScreen -[calls]-> careerbot.core.reviewApi 'approve, reject with reason, edit, rewrites, orphans, undo'
+  careerbot.ui.reviewScreen -[calls]-> careerbot.core.insightsApi 'freshLookOpen: whether a decision starts a fresh look (insights, skills), for its note with the estimate'
+  careerbot.ui.recordScreen -[calls]-> careerbot.core.insightsApi 'freshLookOpen: whether a decision starts a fresh look (insights, skills), for its note with the estimate'
   careerbot.ui.reviewScreen -[calls]-> careerbot.core.goalsApi 'directions and limits, Add to a direction and its undo'
   careerbot.ui.reviewScreen -[calls]-> careerbot.core.directionsApi 'approve positioning and criteria'
   careerbot.ui.reviewScreen -[calls]-> careerbot.core.questionsApi 'answer, reopen'
@@ -1792,6 +1801,8 @@ model {
   careerbot.core.reviewQueue -[reads]-> careerbot.data.tResumes 'versions waiting'
   careerbot.core.reviewQueue -[reads]-> careerbot.data.tNarratives 'the quotes a card rests on'
   careerbot.core.todayApi -[reads]-> careerbot.data.tRoleRanks 'strong fits ranked in the last week'
+  careerbot.core.todayApi -[reads]-> careerbot.data.tItems.directions 'Getting started, finding companies: each approved direction without approved criteria, being filled in, to review or to fill in'
+  careerbot.ui.today -[calls]-> careerbot.ai.directionsStep 'Getting started: Fill in a direction, or all of them'
   careerbot.core.todayApi -[reads]-> careerbot.data.tApiKeys 'Getting started: whether the OpenRouter and Apollo keys are added'
   careerbot.core.todayApi -[reads]-> careerbot.data.tBudgets 'Getting started: the AI budget and Apollo credits'
   careerbot.core.todayApi -[reads]-> careerbot.data.tDriveConnections 'Getting started: Google Drive connected'

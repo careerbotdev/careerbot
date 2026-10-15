@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useMemo } from "react";
 import { api } from "../../../convex/_generated/api";
 import { REVIEW_KINDS, type ReviewKind } from "../../../convex/reviewKinds";
-import { type Decide, type Items, MUTATIONS } from "./decisions";
+import { type DecisionCosts, type Decide, type Items, MUTATIONS } from "./decisions";
 
 export type Summary = FunctionReturnType<typeof api.review.summary>;
 export type SetParams = (next: { kind?: ReviewKind | null; item?: string | null }, replace?: boolean) => void;
@@ -19,7 +19,16 @@ export type ReviewEnv = {
   useItems: (kind: ReviewKind) => Items | undefined;
   useParams: () => ReviewParams;
   useDecide: () => Decide;
+// What a decision may start that's paid, for its explainer: filling in a direction with nothing filled in, and the
+  // fresh look that finishing a story's review starts (decisions.DecisionCosts).
+  useDecisionCosts: () => DecisionCosts;
 };
+
+function useConvexDecisionCosts(): DecisionCosts {
+  const costs = useQuery(api.estimates.costs, {});
+  const open = useQuery(api.insights.freshLookOpen);
+  return { fillUsd: costs?.directionDetail, gatherUsd: costs?.skills, insightsUsd: costs?.insights, open };
+}
 
 function useConvexDecide(): Decide {
   const client = useConvex();
@@ -52,6 +61,7 @@ const convexEnv: ReviewEnv = {
   useItems: (kind) => useQuery(api.review.items, { kind }),
   useParams: useUrlParams,
   useDecide: useConvexDecide,
+  useDecisionCosts: useConvexDecisionCosts,
 };
 
 export const ReviewEnvContext = createContext<ReviewEnv>(convexEnv);

@@ -7,6 +7,7 @@ import { api } from "../../../../convex/_generated/api";
 import type { MenuEntry } from "@/components/Menu";
 import { toast } from "@/components/Toast";
 import { aboutUsd } from "../../costs";
+import { useFreshLook } from "../freshLook";
 import { useConfirm } from "../../shell/ShellContext";
 import { ADD_BREAK } from "../breaks/words";
 import { openAddFact } from "../facts/Facts";
@@ -36,6 +37,7 @@ export function useRoleActions(rows: Row[]) {
   const startCheck = useMutation(api.conflicts.start);
   const startSameWork = useMutation(api.sameWork.start);
   const link = useMutation(api.projects.link);
+  const noteFor = useFreshLook().approveNote;
 
   const roles = rows.filter((r): r is Role => r.kind === "role");
   const projects = rows.filter((r): r is Project => r.kind === "project");
@@ -174,8 +176,9 @@ export function useRoleActions(rows: Row[]) {
     },
   ];
 
-  // A role's ⋯ (and right-click): `item` adds what only the open item can do (edit in place, add context).
-  const roleMenu = (role: Role, opts: { item?: { edit: () => void; addContext: () => void }; onGone: () => void }): MenuEntry[] => {
+  // A role's ⋯ (and right-click): `item` adds what only the open item can do (edit in place, add context, and for a
+  // proposed role, reject with a note).
+  const roleMenu = (role: Role, opts: { item?: { edit: () => void; addContext: () => void; rejectWithNote?: () => void }; onGone: () => void }): MenuEntry[] => {
     const story = storyOf(role);
     const inRecord = role.status !== "rejected";
     const approved = role.status === "approved";
@@ -255,10 +258,14 @@ export function useRoleActions(rows: Row[]) {
       ...(approved
         ? ["separator" as const, { label: "Undo approval", icon: "undo" as const, detail: "Takes the role back to review; resumes stop using it.", note: "Free · Undo with U", onSelect: () => unapprove(role) }]
         : []),
+      ...(opts.item?.rejectWithNote && role.status === "proposed" ? ["separator" as const, { label: "Reject with a note", icon: "reject" as const, onSelect: opts.item.rejectWithNote, ...EXPLAIN.rejectWithNote }] : []),
       "separator",
       { label: "Delete role…", icon: "delete", tone: "danger", detail: "Deletes the role with its facts, context and notes.", note: "Free · Asks first · can’t be undone", onSelect: () => void remove(role, opts.onGone) },
     ];
   };
 
-  return { approve, unapprove, reject, restore, remove, read, findDuplicates, checkDisagreements, findSameWork, breakBefore, storyOf, listMenu, roleMenu, cost, running, linked };
+  // Approving a role from a story with no facts left to review gathers skills: the note says so.
+  const approveNote = (role: Role) => noteFor([role]);
+
+  return { approve, approveNote, unapprove, reject, restore, remove, read, findDuplicates, checkDisagreements, findSameWork, breakBefore, storyOf, listMenu, roleMenu, cost, running, linked };
 }

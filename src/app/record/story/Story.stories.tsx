@@ -187,9 +187,9 @@ export const PhoneDelete: S = {
 
 // Talk, with a stand-in for the browser's speech recognition (talkFake): idle, listening (finished words, then words
 // still being heard), stopped, and where the browser can't listen, the line for a Mac's, Windows' or a phone's own
-// dictation.
-function TalkScreen({ supported = true, device }: { supported?: boolean; device?: "mac" | "windows" | "phone" }) {
-  useState(() => installTalkFake(supported, device));
+// dictation; in Brave on a Mac, the same line naming Brave and the browsers that can.
+function TalkScreen({ supported = true, device, brave }: { supported?: boolean; device?: "mac" | "windows" | "phone"; brave?: boolean }) {
+  useState(() => installTalkFake(supported, device, brave));
   return <Screen query={bw} />;
 }
 const talkAndHear = async () => {
@@ -216,6 +216,7 @@ export const TalkStopped: S = {
 };
 export const TalkUnsupportedMac: S = { name: "Talk, unsupported browser (Mac)", render: () => <TalkScreen supported={false} device="mac" /> };
 export const TalkUnsupportedWindows: S = { name: "Talk, unsupported browser (Windows)", render: () => <TalkScreen supported={false} device="windows" /> };
+export const TalkBraveMac: S = { name: "Talk, Brave (Mac)", render: () => <TalkScreen device="mac" brave /> };
 export const PhoneTalk: S = { name: "Phone, talk", globals: phone, render: () => <TalkScreen /> };
 export const PhoneTalkListening: S = { name: "Phone, talk, listening", globals: phone, render: () => <TalkScreen />, play: talkAndHear };
 export const PhoneTalkStopped: S = {

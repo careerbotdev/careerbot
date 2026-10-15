@@ -28,7 +28,7 @@ import { useDirectionActs } from "./acts";
 import { DirectionItem } from "./Direction";
 import { ProposedItem } from "./Proposed";
 import { ResumePane, ResumeStateTag, TailorPane } from "./Resume";
-import { APPROVE_WORDS, type Direction, type ItemTab, lineOf, type ListTab, type Pane, PATH_ORDER, pathOf, proposedParts, REJECT_PICKS, REJECT_WORDS, rolesWord } from "./words";
+import { approveWords, type Direction, type ItemTab, lineOf, type ListTab, type Pane, PATH_ORDER, pathOf, proposedParts, REJECT_NOTE_WORDS, REJECT_PICKS, REJECT_WORDS, rolesWord } from "./words";
 
 // Directions: the kinds of work they're going for, approved or proposed, grouped by how their record fits (Current,
 // Adjacent, Stretch), and the one open beside the list (?direction=). An approved one has tabs (?tab=) and a third pane
@@ -55,7 +55,7 @@ export function Directions() {
   const [showRejected, setShowRejected] = useState(false);
   // Decided here in the Proposed list: kept in place (as approved or rejected) until the list changes.
   const [kept, setKept] = useState<Record<string, true>>({});
-  // The row whose reason is being asked, under it, after Reject from the list.
+  // The proposed row whose reason is being asked, under it, after Reject with a note from its menu.
   const [why, setWhy] = useState<Id<"items"> | null>(null);
   const [version, setVersion] = useState<string | null>(null);
 
@@ -141,22 +141,22 @@ export function Directions() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const busy = data?.last?.status === "queued" || data?.last?.status === "running";
+  const busy = data?.suggest?.status === "queued" || data?.suggest?.status === "running";
   const suggestCost = aboutUsd(costs?.suggestDirections);
   const fillCost = aboutUsd(costs?.directionDetail);
   const suggestNote = `${suggestCost ?? "Uses your AI budget"} · Nothing changes until you approve one`;
-  const missing = approved.filter((d) => !d.data.detail).length;
+  const missing = approved.filter((d) => !d.data.detail && d.fill !== "filling").length;
   const suggestMore = useCallback(
     () =>
       void suggest({}).then(
-        (jobId) => toast(jobId ? { message: "Suggesting directions", icon: "running" } : { message: "Directions are being worked on. Try again when it’s done.", icon: "failed" }),
+        (jobId) => toast(jobId ? { message: "Suggesting directions", icon: "running" } : { message: "Already suggesting directions. Try again when it’s done.", icon: "failed" }),
         (e: unknown) => failed(e, "Couldn’t start."),
       ),
     [suggest],
   );
   const fillMissing = () =>
     void fillIn({}).then(
-      (jobId) => toast(jobId ? { message: "Filling in your directions", icon: "running" } : { message: "Directions are being worked on. Try again when it’s done.", icon: "failed" }),
+      (jobId) => toast(jobId ? { message: "Filling in your directions", icon: "running" } : { message: "Every approved direction is filled in or being filled in.", icon: "failed" }),
       (e: unknown) => failed(e, "Couldn’t start."),
     );
 
@@ -173,15 +173,15 @@ export function Directions() {
   if (!data) return null;
 
   const listMenu: MenuEntry[] = [
-    { label: "Suggest more", icon: "add", hint: suggestCost ?? undefined, detail: SUGGEST_DETAIL, note: suggestNote, onSelect: suggestMore, ...(busy ? { disabled: true, reason: "Working on your directions now" } : {}) },
+    { label: "Suggest more", icon: "add", hint: suggestCost ?? undefined, detail: SUGGEST_DETAIL, note: suggestNote, onSelect: suggestMore, ...(busy ? { disabled: true, reason: "Suggesting directions now" } : {}) },
     {
-      label: "Fill in directions missing detail",
+      label: "Fill in all",
       icon: "tryAgain",
-      hint: fillCost ?? undefined,
-      detail: "Proposes the positioning, titles and criteria for each approved direction that doesn’t have them yet.",
-      note: `${fillCost ?? "Uses your AI budget"} · Nothing changes until you approve them`,
+      hint: fillCost ? `${fillCost} each` : undefined,
+      detail: "Proposes the positioning, titles and criteria for each approved direction that doesn’t have them yet, one after another.",
+      note: `${fillCost ? `${fillCost} each` : "Uses your AI budget"} · Nothing changes until you approve them`,
       onSelect: fillMissing,
-      ...(busy ? { disabled: true, reason: "Working on your directions now" } : !missing ? { disabled: true, reason: "Every approved direction is filled in" } : {}),
+      ...(!missing ? { disabled: true, reason: "Every approved direction is filled in or being filled in" } : {}),
     },
     tour.menu,
   ];
@@ -191,27 +191,6 @@ export function Directions() {
   const row = (d: Direction) => {
     const selected = d.id === openId;
     const onOpen = () => openRow(d.id);
-    if (d.status === "rejected" && why === d.id)
-      return (
-        <ListRow
-          key={d.id}
-          title={d.data.name}
-          line={lineOf(d)}
-          muted
-          tag={<StatusTag tone="neutral">Rejected</StatusTag>}
-          onOpen={onOpen}
-          below={
-            <ReasonField
-              bar={false}
-              picks={REJECT_PICKS}
-              onDone={({ reason }) => {
-                setWhy(null);
-                if (reason) acts.because(d, reason);
-              }}
-            />
-          }
-        />
-      );
     if (d.status === "rejected")
       return <RejectedRow key={d.id} title={d.data.name} line={lineOf(d)} decision="Rejected" reason={d.data.rejectedBecause ?? undefined} onRestore={() => acts.restore(d)} selected={selected} onOpen={onOpen} />;
     if (d.status === "approved" && tab === "approved") {
@@ -222,7 +201,7 @@ export function Directions() {
           key={d.id}
           title={d.data.name}
           line={lineOf(d)}
-          tag={toReview ? <StatusTag tone="info">{toReview} to review</StatusTag> : undefined}
+          tag={d.fill === "filling" ? <StatusTag tone="info">Filling in</StatusTag> : toReview ? <StatusTag tone="info">{toReview} to review</StatusTag> : undefined}
           meta={f ? rolesWord(f.count) : undefined}
           selected={selected}
           onOpen={onOpen}
@@ -230,9 +209,11 @@ export function Directions() {
       );
     }
     if (d.status === "approved") return <ListRow key={d.id} title={d.data.name} line={lineOf(d)} tag={<StatusTag tone="good">Approved</StatusTag>} selected={selected} onOpen={onOpen} />;
-    const reject = () => {
+    // Reject runs at once; Reject with a note asks why under the row first.
+    const reject = (reason?: string) => {
+      setWhy(null);
       setKept((k) => ({ ...k, [d.id]: true }));
-      void acts.reject(d).then(() => setWhy(d.id));
+      void acts.reject(d, reason);
     };
     const approve = () => {
       setKept((k) => ({ ...k, [d.id]: true }));
@@ -246,13 +227,15 @@ export function Directions() {
         selected={selected}
         onOpen={onOpen}
         actions={[
-          { label: "Approve", icon: "approve", detail: APPROVE_WORDS.detail, note: APPROVE_WORDS.note, onSelect: approve },
-          { label: "Reject", icon: "reject", detail: REJECT_WORDS.detail, note: REJECT_WORDS.note, onSelect: reject },
+          { label: "Approve", icon: "approve", ...approveWords(d, costs?.directionDetail), onSelect: approve },
+          { label: "Reject", icon: "reject", detail: REJECT_WORDS.detail, note: REJECT_WORDS.note, onSelect: () => reject() },
         ]}
         menu={[
-          { label: "Approve", icon: "approve", detail: APPROVE_WORDS.detail, note: APPROVE_WORDS.note, onSelect: approve },
-          { label: "Reject", icon: "reject", detail: REJECT_WORDS.detail, note: REJECT_WORDS.note, onSelect: reject },
+          { label: "Approve", icon: "approve", ...approveWords(d, costs?.directionDetail), onSelect: approve },
+          { label: "Reject", icon: "reject", detail: REJECT_WORDS.detail, note: REJECT_WORDS.note, onSelect: () => reject() },
+          { label: "Reject with a note", icon: "reject", detail: REJECT_NOTE_WORDS.detail, note: REJECT_NOTE_WORDS.note, onSelect: () => setWhy(d.id) },
         ]}
+        below={why === d.id ? <ReasonField bar={false} decision="Reject" picks={REJECT_PICKS} onDone={({ reason }) => reject(reason)} /> : undefined}
       />
     );
   };
@@ -268,12 +251,12 @@ export function Directions() {
       </EmptyState>
     );
   const noteLine =
-    data.last?.status === "failed" ? (
+    data.suggest?.status === "failed" ? (
       <p className="flex items-start gap-1.5 text-body-sm leading-body-sm text-text">
         <Icons.failed aria-hidden className="mt-px shrink-0 text-red" />
-        {data.last.mode === "suggest" ? "Suggesting failed" : "Filling in failed"}: {data.last.error ?? "try again."}
+        Suggesting failed: {data.suggest.error ?? "try again."}
       </p>
-    ) : data.last?.status === "done" && data.last.mode === "suggest" && (data.last.result as { suggested?: number } | null)?.suggested === 0 ? (
+    ) : data.suggest?.status === "done" && (data.suggest.result as { suggested?: number } | null)?.suggested === 0 ? (
       <p className="text-body-sm leading-body-sm text-muted">No new directions this time.</p>
     ) : null;
 
@@ -325,7 +308,7 @@ export function Directions() {
             size="sm"
             icon="add"
             loading={busy}
-            loadingLabel={data.last?.mode === "suggest" ? "Suggesting" : "Filling in"}
+            loadingLabel="Suggesting"
             detail="Proposes kinds of work your approved record supports that you haven’t considered. They wait under Proposed."
             note={suggestCost ?? "Uses your AI budget"}
             onClick={suggestMore}

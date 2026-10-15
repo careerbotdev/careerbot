@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
+import { freshLook } from "./freshLook";
 import type { Id } from "./_generated/dataModel";
 import { seedModelPrices } from "./modelPrices.testing";
 import schema from "./schema";
@@ -136,6 +137,64 @@ test("finishing a narrative's review queues a fresh look; an unfinished one does
   expect(await insightJobs()).toBe(0);
   await asA.mutation(api.extract.review, { id: a2, status: "approved" });
   expect(await insightJobs()).toBe(1);
+});
+
+test("finishing a narrative's review gathers skills, tools and certifications; approving one of its roles afterwards gathers again", async () => {
+  const { t, asA, add, settle } = await setup();
+  const first = await add("role", "proposed", { employer: "Acme", title: "Head of CS" });
+  const fact = await add("fact", "proposed", { text: "Rebuilt onboarding at Acme." });
+  const gathers = () => t.run(async (ctx) => (await ctx.db.query("jobs").collect()).filter((j) => j.kind === "skills").map((j) => [j.origin, j.args.why]));
+  // A role approved while its narrative still has facts to review waits for them.
+  await asA.mutation(api.extract.review, { id: first, status: "approved" });
+  expect(await gathers()).toEqual([]);
+  await asA.mutation(api.extract.review, { id: fact, status: "approved" });
+  expect(await gathers()).toEqual([["automatic", "review"]]);
+  await settle();
+  const later = await add("role", "proposed", { employer: "Acme", title: "VP of CS" }, "acme-vp");
+  await asA.mutation(api.extract.review, { id: later, status: "approved" });
+  expect(await gathers()).toEqual([["automatic", "review"], ["automatic", "review"]]);
+  // Rejecting a role gathers nothing.
+  const gone = await add("role", "proposed", { employer: "Acme", title: "Intern" }, "acme-intern");
+  await settle();
+  await asA.mutation(api.extract.review, { id: gone, status: "rejected" });
+  expect(await gathers()).toHaveLength(2);
+});
+
+test("what Review and Record say before a decision matches what it starts; changing an approved fact starts nothing", async () => {
+  const { t, asA, narrativeId, add, settle } = await setup();
+  const role = await add("role", "proposed", { employer: "Acme", title: "Head of CS" });
+  const one = await add("fact", "proposed", { text: "Rebuilt onboarding at Acme." });
+  const two = await add("fact", "proposed", { text: "Cut churn by 20% at Acme." });
+  const three = await add("fact", "proposed", { text: "Ran the renewals desk at Acme." });
+  const suggest = (id: Id<"items">, text: string, rewrite: string) => t.run((ctx) => ctx.db.patch(id, { data: { text, suggestion: { text: rewrite, at: 0 } } }));
+  await suggest(three, "Ran the renewals desk at Acme.", "Ran renewals for 40 accounts at Acme.");
+  const runs = async () => {
+    const jobs = await t.run((ctx) => ctx.db.query("jobs").collect());
+    return { gathers: jobs.filter((j) => j.kind === "skills").length, insights: jobs.filter((j) => j.kind === "insights").length };
+  };
+  const statusOf = async (id: Id<"items">) => (await t.run((ctx) => ctx.db.get(id)))!.status;
+  // Each step: what the screens predict from insights.freshLookOpen, then what deciding it queued.
+  const steps: [Id<"items">, "role" | "fact", "approved" | "rejected", () => Promise<unknown>, { gathers: boolean; insights: boolean }][] = [
+    [role, "role", "approved", () => asA.mutation(api.extract.review, { id: role, status: "approved" }), { gathers: false, insights: false }],
+    [one, "fact", "approved", () => asA.mutation(api.extract.review, { id: one, status: "approved" }), { gathers: false, insights: false }],
+    [two, "fact", "rejected", () => asA.mutation(api.extract.review, { id: two, status: "rejected" }), { gathers: false, insights: false }],
+    // Using the rewrite of the last fact waiting approves it and finishes the story's review.
+    [three, "fact", "approved", () => asA.mutation(api.extract.acceptSuggestion, { id: three }), { gathers: true, insights: true }],
+    // Changing an approved fact (an edit, a rewrite, a rejection) starts nothing.
+    [one, "fact", "approved", () => asA.mutation(api.extract.edit, { id: one, text: "Rebuilt onboarding for 40 clinics at Acme." }), { gathers: false, insights: false }],
+    [one, "fact", "approved", async () => (await suggest(one, "Rebuilt onboarding for 40 clinics at Acme.", "Rebuilt onboarding at 40 clinics."), await asA.mutation(api.extract.acceptSuggestion, { id: one })), { gathers: false, insights: false }],
+    [one, "fact", "rejected", () => asA.mutation(api.extract.review, { id: one, status: "rejected" }), { gathers: false, insights: false }],
+  ];
+  for (const [id, kind, to, run, expected] of steps) {
+    const open = await asA.query(api.insights.freshLookOpen, {});
+    expect(freshLook([{ kind, narrativeId: String(narrativeId), was: await statusOf(id), to }], open)).toEqual(expected);
+    const before = await runs();
+    await run();
+    const after = await runs();
+    expect({ gathers: after.gathers > before.gathers, insights: after.insights > before.insights }).toEqual(expected);
+    await settle();
+  }
+  expect(await asA.query(api.insights.freshLookOpen, {})).toEqual({ stories: {}, projects: {}, approvedFacts: 1 });
 });
 
 test("a revised narrative changes its own facts only as suggestions or flags, never silently and never another narrative's", async () => {
@@ -298,8 +357,8 @@ test("directions: detail cites only approved facts, approved parts are never ove
   let d = (await asA.query(api.directions.list, {})).directions[0];
   expect(d.data.detail).toMatchObject({ positioning: "First", carriesOver: [{ text: "Retention", factIds: [fact] }] });
   expect(d.data.criteria!.industries).toEqual(["ai"]);
-  // Saving the same run twice writes nothing twice.
-  await t.mutation(internal.directions.save, { workspaceId: w, runId: d.data.detailRunId!, mode: "detail", out: detail("Replayed") });
+  // Saving the same direction twice in one pass writes nothing twice.
+  expect(await t.mutation(internal.directions.saveFill, { jobId: d.data.detailRunId!, id: dir, out: detail("Replayed") })).toBe(false);
   expect((await asA.query(api.directions.list, {})).directions[0].data.detail!.positioning).toBe("First");
   await asA.mutation(api.directions.approvePart, { id: dir, part: "detail" });
   stub(detail("Second"));
@@ -342,6 +401,83 @@ test("tailoring starts from the direction resume and grades requirements honestl
   expect(tailored[0].doc!.summary).toBe("Tailored");
   expect(tailored[0].requirements.map((r) => r.strength)).toEqual(["strong", "partial", "thin"]);
   expect((await asA.query(api.resume.list, {})).versions).toEqual([]);
+});
+
+// A fill-in reply for whichever direction the call asks about, by its id; positioning null for the ones named in fail.
+const fillReply = (fact: Id<"items">, fail: string[] = []) =>
+  vi.fn(async (_url: string, init: { body: string }) => {
+    const ask = JSON.parse(init.body).messages[1].content as string;
+    const [{ id, name }] = JSON.parse(ask.slice(ask.indexOf("["), ask.indexOf("]\n") + 1)) as { id: string; name: string }[];
+    const positioning = fail.includes(name) ? "" : `Lead with ${name}.`;
+    return reply({ directions: [{ id, positioning, targetTitles: [`${name} Lead`], vocabulary: [], carriesOver: [{ text: "Retention", factIds: [fact] }], reframe: [], titleMap: [], criteria: { industries: ["ai"], sizes: [], stages: [], titles: [`${name} Lead`], keywords: [] } }] });
+  });
+
+test("approving directions fills them in on their own: one pass for several, one call each, within the budget, in Activity", async () => {
+  const { t, asA, w, add, settle } = await setup();
+  const fact = await add("fact", "approved", { text: "Cut churn by 20% at Acme." });
+  const proposed = (name: string, data: Record<string, unknown> = {}) => t.run((ctx) => ctx.db.insert("items", { workspaceId: w, kind: "direction", status: "proposed", data: { name, ...data }, sources: [], at: 0 }));
+  const names = ["Supply Chain Product", "Solutions Consulting", "Customer Success"];
+  const ids: Id<"items">[] = [];
+  for (const name of names) ids.push(await proposed(name));
+  const detailed = await proposed("Already Detailed", { detail: { positioning: "P", targetTitles: [], vocabulary: [], carriesOver: [], reframe: [], titleMap: [] }, detailStatus: "proposed" });
+  const f = fillReply(fact);
+  vi.stubGlobal("fetch", f);
+  // Approved one after another: they join the pass that's waiting; one with positioning already isn't filled in.
+  for (const id of [...ids, detailed]) await asA.mutation(api.extract.review, { id, status: "approved" });
+  const passes = async () => (await t.run((ctx) => ctx.db.query("jobs").collect())).filter((j) => j.kind === "directions");
+  expect((await passes()).map((j) => [j.origin, j.args.ids])).toEqual([["automatic", ids]]);
+  expect((await asA.query(api.today.setup, {})).directions).toEqual({ filling: { done: 0, total: 3 }, rows: [...names.map((name, i) => ({ id: ids[i], name, state: "filling" })), { id: detailed, name: "Already Detailed", state: "fillIn" }] });
+  await settle();
+  expect(f).toHaveBeenCalledTimes(3);
+  const list = (await asA.query(api.directions.list, {})).directions;
+  expect(ids.map((id) => list.find((d) => d.id === id)).map((d) => [d?.data.detail?.positioning, d?.data.detailStatus, d?.data.criteriaStatus, d?.fill])).toEqual(names.map((n) => [`Lead with ${n}.`, "proposed", "proposed", null]));
+  expect((await passes()).map((j) => j.status)).toEqual(["done"]);
+  expect((await asA.query(api.activity.list, {})).find((r) => r.kind === "directions")).toMatchObject({ label: "Filled in your directions", state: "done" });
+  // Filled in with criteria to review: Review.
+  expect((await asA.query(api.today.setup, {})).directions.rows.filter((r) => ids.includes(r.id)).map((r) => r.state)).toEqual(["review", "review", "review"]);
+
+  // With the AI budget used up, the pass waits instead of calling: paused, shown in Activity, the direction still filling.
+  await t.run(async (ctx) => {
+    const b = await ctx.db.query("budgets").withIndex("by_workspace", (q) => q.eq("workspaceId", w)).unique();
+    await ctx.db.patch(b!._id, { aiMonthlyUsd: 0 });
+  });
+  const later = await proposed("Partnerships");
+  const g = fillReply(fact);
+  vi.stubGlobal("fetch", g);
+  await asA.mutation(api.extract.review, { id: later, status: "approved" });
+  await settle();
+  expect(g).not.toHaveBeenCalled();
+  expect((await passes()).map((j) => j.status)).toEqual(["done", "paused"]);
+  expect((await asA.query(api.activity.list, {})).find((r) => r.state === "running")).toMatchObject({ label: "Filling in Partnerships", detail: expect.stringContaining("Paused until your AI budget allows") });
+  expect((await asA.query(api.directions.list, {})).directions.find((d) => d.id === later)?.fill).toBe("filling");
+});
+
+test("a direction whose fill-in failed shows Fill in, isn't tried again on its own, and Fill in all fills only the empty ones", async () => {
+  const { t, asA, w, add, settle } = await setup();
+  const fact = await add("fact", "approved", { text: "Cut churn by 20% at Acme." });
+  const approved = (name: string) => t.run((ctx) => ctx.db.insert("items", { workspaceId: w, kind: "direction", status: "approved", data: { name }, sources: [], at: 0 }));
+  // Approved before filling in started on its own: nothing fills them until asked.
+  const [ops, sales, cs] = [await approved("Operations"), await approved("Sales"), await approved("Customer Success")];
+  expect((await asA.query(api.today.setup, {})).directions.rows.map((r) => r.state)).toEqual(["fillIn", "fillIn", "fillIn"]);
+  const f = fillReply(fact, ["Sales"]);
+  vi.stubGlobal("fetch", f);
+  await asA.mutation(api.directions.detail, {});
+  await settle();
+  expect(f).toHaveBeenCalledTimes(3);
+  const rows = (await asA.query(api.today.setup, {})).directions.rows;
+  expect(rows.map((r) => [r.id, r.state])).toEqual([
+    [ops, "review"],
+    [sales, "failed"],
+    [cs, "review"],
+  ]);
+  expect((await asA.query(api.directions.list, {})).directions.find((d) => d.id === sales)?.fill).toBe("failed");
+  // Fill in all again: only the one still empty.
+  const g = fillReply(fact);
+  vi.stubGlobal("fetch", g);
+  await asA.mutation(api.directions.detail, {});
+  await settle();
+  expect(g).toHaveBeenCalledTimes(1);
+  expect((await asA.query(api.directions.list, {})).directions.find((d) => d.id === sales)?.data.detail?.positioning).toBe("Lead with Sales.");
 });
 
 test("industries an approved limit avoids never become search criteria", async () => {

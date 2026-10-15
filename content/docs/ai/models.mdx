@@ -7,6 +7,7 @@ sources:
   - convex/aiSettings.ts
   - convex/compare.ts
   - src/app/settings/Ai.tsx
+  - convex/modelPrices.ts
   - src/app/settings/Compare.tsx
   - src/app/ModelChoice.tsx
   - src/app/useModelCatalog.ts
@@ -25,7 +26,8 @@ models are listed, each with a line on what it's good at and what it would cost:
 - After that, it shows what your last 30 days of AI work would cost a month with that model, at today's price.
 
 To use a model that isn't listed, open **Advanced** and choose it under **A model that isn’t listed**. Any OpenRouter
-model works.
+model works, including one that always points at a family's newest model (such as "Claude Haiku Latest"): each call
+goes to the model it points at then, at that model's price, and **Compare models** names the model that answered.
 
 ## A task's own model
 

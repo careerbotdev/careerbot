@@ -469,3 +469,43 @@ export function sameRule(a: unknown, b: unknown): boolean {
     : x;
   return JSON.stringify(canon(a)) === JSON.stringify(canon(b));
 }
+
+// ---- Clashes ----
+
+// Buckets where several limits add up (more work, employers or industries to want or avoid, more company sizes): two of
+// them never clash. In every other bucket a limit holds one value per field (a pay floor, the levels that work, where
+// and how), so two limits for the same roles clash when a field both of them set holds different values.
+export const ADDS_UP: readonly LimitBucket[] = ["companies", "work"];
+
+// A field's value for comparing: lists as sets, objects whatever their key order.
+const canonical = (x: unknown): string =>
+  JSON.stringify(
+    Array.isArray(x)
+      ? x.map(canonical).sort()
+      : x && typeof x === "object"
+        ? Object.keys(x).sort().map((k) => [k, canonical((x as Record<string, unknown>)[k])])
+        : x,
+  );
+const conditionsOf = (when?: Record<string, unknown> | null) => CONDITIONS.filter((c) => when?.[c]);
+
+// How two limits clash, or null when they can both hold. They clash in the same bucket (one whose limits don't add up)
+// and condition, for the same roles (both for every direction, or sharing directions: one for some directions replaces
+// an every-direction one there), when a field both rules set holds different values. A limit whose rule isn't read yet
+// clashes with nothing. fields: the rule fields that differ; shared: the directions both apply to (none: every one).
+export function clashOf(a: LimitLike, b: LimitLike): { fields: string[]; shared: string[] } | null {
+  if (a.kind !== b.kind || (ADDS_UP as readonly string[]).includes(a.kind) || !a.rule || !b.rule) return null;
+  if (canonical(conditionsOf(a.when)) !== canonical(conditionsOf(b.when))) return null;
+  const as = a.appliesTo ?? [];
+  const bs = b.appliesTo ?? [];
+  const shared = as.filter((d) => bs.includes(d));
+  if ((as.length || bs.length) && !shared.length) return null;
+  const ra = a.rule;
+  const rb = b.rule;
+  const set = (x: unknown) => x !== undefined && x !== null && !(Array.isArray(x) && !x.length);
+  const fields = Object.keys(ra).filter((k) => set(ra[k]) && set(rb[k]) && canonical(ra[k]) !== canonical(rb[k]));
+  return fields.length ? { fields, shared } : null;
+}
+
+// The pair as it stands, from a's side: what Keep both remembers, so the pair shows as clashing again once either
+// limit's rule, scope or condition changes.
+export const clashKey = (a: LimitLike, b: LimitLike) => canonical([a.rule, a.appliesTo ?? [], conditionsOf(a.when), b.rule, b.appliesTo ?? [], conditionsOf(b.when)]);

@@ -23,9 +23,9 @@ import { Notes } from "./Overview";
 import { useTailor } from "./Resume";
 import { type ItemNav, ItemTop, onItemKey, useThird } from "./third";
 import { aboutUsd } from "../costs";
-import { ASK_BESIDE, INTERESTED, NOT_FOR_ME, NOT_INTERESTED, OPEN_POSTING, placeAndPay, RESTORE_ROLE, RESUME_BESIDE, type Role } from "./words";
+import { ASK_BESIDE, INTERESTED, NOT_FOR_ME, NOT_FOR_ME_NOTE, NOT_INTERESTED, OPEN_POSTING, placeAndPay, RESTORE_ROLE, RESUME_BESIDE, type Role } from "./words";
 
-// A role not started yet: what it is and what it pays, Start (S), Interested (I) and Not for me (R, with why); About
+// A role not started yet: what it is and what it pays, Start (S), Interested (I) and Not for me (R, at once; with a note, in ⋯, it asks why); About
 // the job, For you, how it fits each direction, its stretch, the full description and their notes; its details beside
 // (under it on smaller screens). The ⋯ menu holds the rest: tailor a resume, write a letter, ask, find people (each
 // starts the pursuit first where it needs one), rate the company, adjust the direction, open or copy the posting.
@@ -161,14 +161,19 @@ export function RoleItem({ role, direction, nav, small }: { role: Role; directio
     ...(small ? [{ label: interested ? "Not interested" : "Interested", icon: "approve" as const, keys: "I", ...(interested ? NOT_INTERESTED : INTERESTED), onSelect: toggleInterested }] : []),
     ...common,
     "separator",
-    setAside ? { label: "Restore", icon: "undo", ...RESTORE_ROLE, onSelect: restore } : { label: "Not for me", icon: "reject", keys: "R", ...NOT_FOR_ME, onSelect: () => setWhy(true) },
+    ...(setAside
+      ? [{ label: "Restore", icon: "undo", ...RESTORE_ROLE, onSelect: restore } satisfies MenuEntry]
+      : ([
+          { label: "Not for me", icon: "reject", keys: "R", ...NOT_FOR_ME, onSelect: () => notForMe() },
+          { label: "Not for me with a note", icon: "reject", ...NOT_FOR_ME_NOTE, onSelect: () => setWhy(true) },
+        ] satisfies MenuEntry[])),
   ];
 
   useEffect(() => {
     const onKey = onItemKey({
       s: () => void start(),
       i: toggleInterested,
-      r: () => (setAside ? restore() : setWhy(true)),
+      r: () => (setAside ? restore() : notForMe()),
       l: () => hasResume && letter(),
       o: () => window.open(role.url, "_blank", "noreferrer"),
       ...(open ? { "/": askAboutIt } : {}),
@@ -197,7 +202,7 @@ export function RoleItem({ role, direction, nav, small }: { role: Role; directio
           Restore
         </Button>
       ) : (
-        <Button key="no" size={size} keys={phone ? undefined : "R"} {...NOT_FOR_ME} onClick={() => setWhy(true)} aria-pressed={why}>
+        <Button key="no" size={size} keys={phone ? undefined : "R"} {...NOT_FOR_ME} onClick={() => notForMe()}>
           Not for me
         </Button>
       ),

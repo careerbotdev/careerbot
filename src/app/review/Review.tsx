@@ -26,7 +26,8 @@ import { useBar, useCommands } from "../shell/ShellContext";
 import { useTour } from "../shell/useTour";
 import { REVIEW_TOUR } from "../tours/review";
 import { builtOn, CardBody } from "./CardBody";
-import { type Card, type Decision, decisionsFor, extrasFor, GROUP_ICON, type Items, restore, TYPE_LABEL, unlocks } from "./decisions";
+import { type Card, type Decision, decisionsFor, extrasFor, GROUP_ICON, type Items, restore, thenOf, TYPE_LABEL, unlocks } from "./decisions";
+import { approveNote, rejectNote } from "../costs";
 import { type SetParams, type Summary, useReviewEnv } from "./env";
 
 type Mode = "cards" | "list";
@@ -36,7 +37,8 @@ const failed = (e: unknown) => toast({ message: e instanceof ConvexError ? Strin
 
 // Deciding the checked rows together, beside the list and in the phone's bar.
 const APPROVE_CHECKED = { detail: "Approves every one you checked.", note: "Free · Undo with U" } as const;
-const REJECT_CHECKED = { detail: "Rejects every one you checked, with why if you like.", note: "Free · Undo with U" } as const;
+const REJECT_CHECKED = { detail: "Rejects every one you checked.", note: "Free · Undo with U" } as const;
+const REJECT_CHECKED_NOTE = { detail: "Rejects every one you checked, and asks why first. Why steers what’s proposed next.", note: "Free · Undo with U" } as const;
 
 // Runs a decision and says what happened, with Undo on U when it can be taken back.
 function commit(d: Decision, input: { reason?: string; text?: string }) {
@@ -228,7 +230,7 @@ function GroupPane({ group, mode, item, set, small }: { group: Group; mode: Mode
       const next = data.cards[index + by];
       if (next) set({ item: next.key }, true);
     };
-    return <Deciding key={card.key} card={card} label={group.label} index={index} total={data.cards.length} next={data.cards[index + 1]} move={move} small={small} onBack={() => set({ item: null })} fromList />;
+    return <Deciding key={card.key} card={card} label={group.label} index={index} total={data.cards.length} next={data.cards[index + 1]} move={move} skip={data.cards[index + 1] ? () => move(1) : undefined} small={small} onBack={() => set({ item: null })} fromList />;
   }
   return <Rows data={data} label={group.label} small={small} onBack={back} onOpen={(key) => set({ item: key })} current={from} />;
 }
@@ -236,7 +238,10 @@ function GroupPane({ group, mode, item, set, small }: { group: Group; mode: Mode
 // ---- Cards: one decision at a time ----
 
 function Cards({ data, label, item, set, small, onBack }: { data: Items; label: string; item: string | null; set: SetParams; small: boolean; onBack: () => void }) {
-  const cards = data.cards;
+  // Skipped cards go to the back of the group, in the order they were skipped, and come round again there.
+  const [skipped, setSkipped] = useState<string[]>([]);
+  const back = skipped.flatMap((k) => data.cards.filter((c) => c.key === k));
+  const cards = [...data.cards.filter((c) => !skipped.includes(c.key)), ...back];
   // A decided card leaves the list; the one after it takes its place, so the position is kept rather than the key.
   const [last, setLast] = useState(0);
   const found = cards.findIndex((c) => c.key === item);
@@ -247,22 +252,29 @@ function Cards({ data, label, item, set, small, onBack }: { data: Items; label: 
     const next = cards[index + by];
     if (next) set({ item: next.key }, true);
   };
+  const skip = () => {
+    const next = cards[index + 1] ?? cards[0];
+    setSkipped((s) => [...s.filter((k) => k !== card.key), card.key]);
+    set({ item: next.key }, true);
+  };
   if (!card)
     return (
       <EmptyState icon="review" title={`Nothing left in ${label}`}>
         New facts, roles and updates arrive here.
       </EmptyState>
     );
-  return <Deciding key={card.key} card={card} label={label} index={index} total={cards.length} next={cards[index + 1]} move={move} small={small} onBack={onBack} />;
+  return <Deciding key={card.key} card={card} label={label} index={index} total={cards.length} next={cards[index + 1]} move={move} skip={cards.length > 1 ? skip : undefined} small={small} onBack={onBack} />;
 }
 
 type Pending = { d: Decision; stage: "why" | "field" };
 
-// `fromList`: opened from a row of the list, so Back (and Esc) returns to the list, on every screen size.
-function Deciding({ card, label, index, total, next, move, small, onBack, fromList = false }: { card: Card; label: string; index: number; total: number; next?: Card; move: (by: number) => void; small: boolean; onBack: () => void; fromList?: boolean }) {
+// `fromList`: opened from a row of the list, so Back (and Esc) returns to the list, on every screen size. `skip` moves
+// on and sends this card to the back of the group (absent when it's the only one).
+function Deciding({ card, label, index, total, next, move, skip, small, onBack, fromList = false }: { card: Card; label: string; index: number; total: number; next?: Card; move: (by: number) => void; skip?: () => void; small: boolean; onBack: () => void; fromList?: boolean }) {
   const router = useRouter();
   const m = useReviewEnv().useDecide();
-  const decisions = decisionsFor(card, m);
+  const costs = useReviewEnv().useDecisionCosts();
+  const decisions = decisionsFor(card, m, costs);
   const extras = extrasFor(card, m);
   const [pending, setPending] = useState<Pending | null>(null);
   const [text, setText] = useState("");
@@ -275,15 +287,16 @@ function Deciding({ card, label, index, total, next, move, small, onBack, fromLi
     holder.current?.querySelector<HTMLElement>("article")?.focus({ preventScroll: true });
   }, []);
 
+  // A decision runs at once (Undo takes it back); `withNote` asks why first, for a reject.
   const select = (d: Decision) => {
     if (d.href) return go(router, d.href);
-    if (d.why) return setPending({ d, stage: "why" });
     if (d.field) {
       setText(d.field.initial);
       return setPending({ d, stage: "field" });
     }
     commit(d, {});
   };
+  const withNote = (d: Decision) => setPending({ d, stage: "why" });
   const finish = (d: Decision, input: { reason?: string; text?: string }) => {
     setPending(null);
     commit(d, input);
@@ -296,27 +309,31 @@ function Deciding({ card, label, index, total, next, move, small, onBack, fromLi
   const byKey = (k: string) => decisions.find((d) => d.keys === k);
   const approve = decisions.find((d) => d.intent === "approve");
   const reject = decisions.find((d) => d.intent === "reject");
+  const noted = reject?.why ? reject : undefined;
   const other = Object.fromEntries(decisions.filter((d) => d.keys && !["A", "R", "E"].includes(d.keys)).map((d) => [d.keys!, () => select(d)]));
   if (fromList) other.Escape = onBack;
-  // The arrows step too, within this pane: all four on a card, ↓ and ↑ on a row opened from the list.
+  // The arrows decide too, within this pane.
   const pane = useRef<HTMLDivElement>(null);
   useReviewKeys(
     {
       approve: approve && (() => select(approve)),
       reject: reject && (() => select(reject)),
+      rejectWithNote: noted && (() => withNote(noted)),
       edit: byKey("E") && (() => select(byKey("E")!)),
+      skip,
       next: () => move(1),
       previous: () => move(-1),
       other,
     },
     !pending,
-    { keys: fromList ? "list" : "cards", scope: pane },
+    pane,
   );
 
   const actions: ReviewAction[] = decisions.map((d) => ({ label: d.label, onSelect: () => select(d), keys: d.keys, detail: d.detail, note: d.note, intent: d.intent }));
   const more: MenuEntry[] = [
+    ...(noted ? [{ label: `${noted.label} with a note`, icon: noted.icon, keys: "↓", detail: `${noted.detail} Asks why first.`, note: `${noted.note} · Why steers what’s proposed next`, onSelect: () => withNote(noted) }] : []),
     ...extras.map((d): MenuEntry => ({ label: d.label, icon: d.icon, detail: d.detail, note: d.note, onSelect: () => select(d) })),
-    ...(index + 1 < total ? ["separator" as const, { label: "Skip for now", icon: "time" as const, keys: "J", detail: "Moves on to the next one; this one keeps waiting.", note: "Free", onSelect: () => move(1) }] : []),
+    ...(skip ? ["separator" as const, { label: "Skip", icon: "time" as const, keys: "S", detail: "Moves on to the next one; this one comes back at the end of the group.", note: "Free", onSelect: skip }] : []),
   ];
   const sources = builtOn(card);
 
@@ -432,9 +449,13 @@ function Deciding({ card, label, index, total, next, move, small, onBack, fromLi
         <div data-tour="review.keys">
           <ReviewKeyLegend
             items={[
-              ...decisions.filter((d) => d.keys).map((d): [string, string] => [d.keys!, d.label]),
-              [fromList ? "J or ↓" : "J or →", "Next"],
-              [fromList ? "K or ↑" : "K or ←", "Previous"],
+              ...decisions
+                .filter((d) => d.keys)
+                .map((d): [string, string] => [d === approve ? "A or →" : d === reject ? "R or ←" : d.keys === "E" ? "E or ↑" : d.keys!, d.label]),
+              ...(noted ? [["↓", `${noted.label} with a note`] as [string, string]] : []),
+              ...(skip ? [["S", "Skip"] as [string, string]] : []),
+              ["J", "Next"],
+              ["K", "Previous"],
               ["U", "Undo"],
               ...(fromList ? [["Esc", "Back"] as [string, string]] : []),
             ]}
@@ -458,7 +479,8 @@ function Rows({ data, label, small, onBack, onOpen, current }: { data: Items; la
   const m = useReviewEnv().useDecide();
   const sel = useSelection();
   const [why, setWhy] = useState<{ key: string; d: Decision } | "bulk" | null>(null);
-  const rows = data.cards.map((card) => ({ card, decisions: decisionsFor(card, m) }));
+  const costs = useReviewEnv().useDecisionCosts();
+  const rows = data.cards.map((card) => ({ card, decisions: decisionsFor(card, m, costs) }));
   // Bulk makes sense where approving and rejecting are plain review decisions.
   const bulkable = rows.filter((r) => r.decisions.some((d) => d.bulk && d.intent === "approve") && r.decisions.some((d) => d.bulk && d.intent === "reject"));
   const chosen = bulkable.filter((r) => sel.checked.has(r.card.key));
@@ -479,13 +501,22 @@ function Rows({ data, label, small, onBack, onOpen, current }: { data: Items; la
   };
 
   const none = chosen.length ? undefined : "None selected";
+  // Approving directions with nothing filled in fills them in, and deciding the last of a story's items starts a fresh
+  // look: the notes say so, with the estimates.
+  const approveChecked = {
+    ...APPROVE_CHECKED,
+    note: approveNote(costs.fillUsd, chosen.filter((r) => r.card.type === "direction" && r.card.fillsIn).length, thenOf(chosen.map((r) => r.card), "approved", costs)),
+  };
+  const rejectThen = thenOf(chosen.map((r) => r.card), "rejected", costs);
+  const rejectChecked = { ...REJECT_CHECKED, note: rejectNote(rejectThen) };
+  const rejectCheckedNote = { ...REJECT_CHECKED_NOTE, note: rejectNote(rejectThen) };
   useReviewKeys(
     {
       approve: () => {
         if (chosen.length) bulk("approve");
       },
       reject: () => {
-        if (chosen.length) setWhy("bulk");
+        if (chosen.length) bulk("reject");
       },
       other: { Escape: sel.done },
     },
@@ -510,12 +541,19 @@ function Rows({ data, label, small, onBack, onOpen, current }: { data: Items; la
                 onDone: sel.done,
                 actions: (
                   <>
-                    <Button size="lg" {...REJECT_CHECKED} reason={none} onClick={() => setWhy("bulk")}>
+                    <Button size="lg" {...rejectChecked} reason={none} onClick={() => bulk("reject")}>
                       Reject
                     </Button>
-                    <Button size="lg" variant="primary" className="flex-1" {...APPROVE_CHECKED} reason={none} onClick={() => bulk("approve")}>
+                    <Button size="lg" variant="primary" className="flex-1" {...approveChecked} reason={none} onClick={() => bulk("approve")}>
                       Approve {chosen.length}
                     </Button>
+                    {chosen.length > 0 && (
+                      <Menu
+                        label="More for the checked ones"
+                        items={[{ label: "Reject with a note", icon: "reject", ...rejectCheckedNote, onSelect: () => setWhy("bulk") }]}
+                        trigger={<Button size="lg" iconOnly icon="more" aria-label="More for the checked ones" />}
+                      />
+                    )}
                   </>
                 ),
               }
@@ -523,9 +561,10 @@ function Rows({ data, label, small, onBack, onOpen, current }: { data: Items; la
       : null,
   );
 
-  const pick = (card: Card, d: Decision) => {
+  // A row's reject runs at once; `noted` asks why first.
+  const pick = (card: Card, d: Decision, noted = false) => {
     if (d.href) return go(router, d.href);
-    if (d.why) return setWhy({ key: card.key, d });
+    if (noted) return setWhy({ key: card.key, d });
     if (d.field) return onOpen(card.key);
     commit(d, {});
   };
@@ -573,7 +612,10 @@ function Rows({ data, label, small, onBack, onOpen, current }: { data: Items; la
                   ...(approve ? [{ label: approve.label, icon: approve.icon, detail: approve.detail, note: approve.note, onSelect: () => pick(card, approve) }] : []),
                   ...(reject ? [{ label: reject.label, icon: reject.icon, detail: reject.detail, note: reject.note, onSelect: () => pick(card, reject) }] : []),
                 ]}
-                menu={[...decisions, ...extrasFor(card, m)].map((d): MenuEntry => ({ label: d.label, icon: d.icon, keys: d.keys, detail: d.detail, note: d.note, onSelect: () => pick(card, d) }))}
+                menu={[
+                  ...[...decisions, ...extrasFor(card, m)].map((d): MenuEntry => ({ label: d.label, icon: d.icon, keys: d.keys, detail: d.detail, note: d.note, onSelect: () => pick(card, d) })),
+                  ...(reject?.why ? [{ label: `${reject.label} with a note`, icon: reject.icon, detail: `${reject.detail} Asks why first.`, note: `${reject.note} · Why steers what’s proposed next`, onSelect: () => pick(card, reject, true) }] : []),
+                ]}
                 trail={sources.length > 0 ? <BuiltOnPeek sources={sources} align="end" onOpenRecord={() => onOpen(card.key)} /> : undefined}
                 below={rowWhy?.key === card.key && !small ? <ReasonField decision={rowWhy.d.why!.decision} picks={rowWhy.d.why!.picks} onDone={({ reason }) => decideRow(rowWhy.d, reason)} /> : undefined}
               />
@@ -604,9 +646,10 @@ function Rows({ data, label, small, onBack, onOpen, current }: { data: Items; la
             count={chosen.length}
             onDone={sel.done}
             actions={[
-              { label: "Approve", keys: "A", primary: true, ...APPROVE_CHECKED, onSelect: () => bulk("approve") },
-              { label: "Reject", keys: "R", ...REJECT_CHECKED, onSelect: () => setWhy("bulk") },
+              { label: "Approve", keys: "A", primary: true, ...approveChecked, onSelect: () => bulk("approve") },
+              { label: "Reject", keys: "R", ...rejectChecked, onSelect: () => bulk("reject") },
             ]}
+            more={[{ label: "Reject with a note", icon: "reject", ...rejectCheckedNote, onSelect: () => setWhy("bulk") }]}
           />
         </div>
       )}

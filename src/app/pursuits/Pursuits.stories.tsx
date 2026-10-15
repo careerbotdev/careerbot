@@ -58,11 +58,12 @@ export const RoleMenu: Story = {
 };
 
 export const NotForMe: Story = {
-  name: "Not for me",
+  name: "Not for me with a note",
   render: () => <Fixture query={role} />,
   play: async () => {
-    await page().findByRole("heading", { name: "Solutions Consultant, Demand Planning" });
-    await userEvent.keyboard("r");
+    const more = await page().findAllByRole("button", { name: "More for Solutions Consultant, Demand Planning" });
+    await userEvent.click(more.at(-1)!);
+    await userEvent.click(await page().findByRole("menuitem", { name: /^Not for me with a note/ }));
   },
 };
 

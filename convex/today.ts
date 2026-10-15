@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { query, type QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
+import { searchReadiness } from "./directionFill";
 import { itemsOf } from "./itemShapes";
 import { allowanceOf } from "./plan";
 import { resumeOf } from "./pursuits";
@@ -202,6 +203,8 @@ export const setup = query({
         drive: step(!!drive || skipped.includes("drive"), drive ? `Connected · ${drive.account}` : skipped.includes("drive") ? "Skipped" : null),
       },
       firstPursuit: await firstPursuit(ctx, workspaceId),
+      // Finding companies: where each approved direction stands for search until its criteria are approved.
+      directions: await searchReadiness(ctx, workspaceId),
     };
   },
 });

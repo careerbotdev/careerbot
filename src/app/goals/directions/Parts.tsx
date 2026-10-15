@@ -1,16 +1,17 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { api } from "../../../../convex/_generated/api";
 import { cap } from "../../../../convex/limitBuckets";
 import { BuiltOnPeek, type BuiltOnSource } from "@/components/BuiltOn";
 import { Button } from "@/components/Button";
+import { CostEstimate } from "@/components/CostEstimate";
 import { StatusTag } from "@/components/StatusTag";
 import { Text } from "@/components/Text";
 import { ValueTags } from "@/components/ValueTags";
 import { inlineLink, Notice, Section, ValueRows } from "../ui";
-import { capAll, type Direction, seniorityClashes, sizeLabel, stageLabel } from "./words";
+import { capAll, type Direction, fillInWords, seniorityClashes, sizeLabel, stageLabel } from "./words";
 
 // A direction's parts as read: its criteria, its title map and vocabulary, and the stories that carry over or need
 // reframing, each line with what it's built on.
@@ -59,16 +60,44 @@ export function criteriaRows(d: Direction, all = true) {
 
 const EDIT_CRITERIA = "Change what search looks for in this direction. Saving approves them.";
 
-export function CriteriaView({ d, onEdit }: { d: Direction; onEdit: () => void }) {
+// Filling a direction in from an empty tab: what starts it and its estimate.
+type Fill = { run: () => void; cost: string | null };
+
+// An empty part: being filled in, its fill-in failed, or never filled in, with Fill in (and what else they can do).
+function NotFilled({ d, fill, what, children }: { d: Direction; fill: Fill; what: string; children?: ReactNode }) {
+  if (d.fill === "filling")
+    return (
+      <Text size="sm" muted>
+        Filling in {what} now. It’s proposed for you to review when it’s done.
+      </Text>
+    );
+  const words = fillInWords(false, fill.cost);
+  return (
+    <>
+      <Text size="sm" muted>
+        {d.fill === "failed" ? "Couldn’t fill in. Try again: " : "Not filled in yet: "}
+        {what}.
+      </Text>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button icon="tryAgain" detail={words.detail} note={words.note} onClick={fill.run}>
+          Fill in
+        </Button>
+        {fill.cost && <CostEstimate amount={fill.cost} />}
+        {children}
+      </div>
+    </>
+  );
+}
+
+export function CriteriaView({ d, onEdit, fill }: { d: Direction; onEdit: () => void; fill: Fill }) {
   if (!d.data.criteria)
     return (
-      <Section label="Criteria">
-        <Text size="sm" muted>
-          Not filled in yet. Fill in again from ⋯ to propose them, or add them yourself.
-        </Text>
-        <Button className="self-start" icon="edit" detail="Write what search looks for in this direction. Saving approves them." note="Free" onClick={onEdit}>
-          Add criteria
-        </Button>
+      <Section label="Criteria" tag={d.fill === "filling" ? <StatusTag tone="info">Filling in</StatusTag> : undefined}>
+        <NotFilled d={d} fill={fill} what="the industries, company sizes and titles search looks for in this direction">
+          <Button variant="ghost" icon="edit" detail="Write what search looks for in this direction. Saving approves them." note="Free" onClick={onEdit}>
+            Add criteria
+          </Button>
+        </NotFilled>
       </Section>
     );
   return (
@@ -91,14 +120,12 @@ export function CriteriaView({ d, onEdit }: { d: Direction; onEdit: () => void }
   );
 }
 
-export function TitlesView({ d, onEdit }: { d: Direction; onEdit: () => void }) {
+export function TitlesView({ d, onEdit, fill }: { d: Direction; onEdit: () => void; fill: Fill }) {
   const t = d.data.detail;
   if (!t)
     return (
-      <Section label="Title map">
-        <Text size="sm" muted>
-          Not filled in yet. Fill in again from ⋯ to propose how your titles translate.
-        </Text>
+      <Section label="Title map" tag={d.fill === "filling" ? <StatusTag tone="info">Filling in</StatusTag> : undefined}>
+        <NotFilled d={d} fill={fill} what="how your titles translate in this market, the titles to aim at and the words to use" />
       </Section>
     );
   const approved = d.data.detailStatus === "approved";

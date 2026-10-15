@@ -1,4 +1,4 @@
-import { getFunctionName } from "convex/server";
+import { type FunctionReturnType, getFunctionName } from "convex/server";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { Path } from "../../../convex/pursuitSteps";
@@ -17,7 +17,7 @@ import type { Setup } from "./GettingStarted";
 // Systems role, so its people are the same. What the stories do (Start, choosing a path, Outreach too or Apply too,
 // Mark Applied, Skip, Hide until later) changes the stage as the server would.
 
-export type Stage = "key" | "story" | "apollo" | "drive" | "starting" | "choosing" | "outreach" | "apply" | "outreachSent" | "applied" | "done";
+export type Stage = "key" | "story" | "apollo" | "companies" | "drive" | "starting" | "choosing" | "outreach" | "apply" | "outreachSent" | "applied" | "done";
 
 const DAY = 86_400_000;
 const done = (detail: string | null = null, at: number | null = null): SetupStep => ({ done: true, detail, at });
@@ -35,7 +35,7 @@ const DONE_LINES: Record<(typeof SETUP_ORDER)[number], string> = {
   drive: "Skipped",
 };
 // How many Setup steps each stage has done.
-const SETUP_DONE: Record<Stage, number> = { key: 1, story: 2, apollo: 6, drive: 8, starting: 9, choosing: 9, outreach: 9, apply: 9, outreachSent: 9, applied: 9, done: 9 };
+const SETUP_DONE: Record<Stage, number> = { key: 1, story: 2, apollo: 6, companies: 7, drive: 8, starting: 9, choosing: 9, outreach: 9, apply: 9, outreachSent: 9, applied: 9, done: 9 };
 // The path each stage's pursuit is on.
 const PATH: Partial<Record<Stage, Path>> = { outreach: "outreach", apply: "apply", outreachSent: "outreach", applied: "apply", done: "outreach" };
 
@@ -78,6 +78,21 @@ export function gettingStartedFixtures(stage: Stage, now = Date.now(), { platfor
     };
   };
 
+  // Finding companies: three of nine directions filled in so far, one with criteria to review, one whose fill-in
+  // failed and one never filled in.
+  const directionsFor = (): Setup["directions"] =>
+    stage === "companies"
+      ? {
+          filling: { done: 3, total: 9 },
+          rows: [
+            { id: "dir-supply" as Id<"items">, name: "Supply Chain Product", state: "review" },
+            { id: "dir-partners" as Id<"items">, name: "Partnerships", state: "failed" },
+            { id: "dir-cs" as Id<"items">, name: "Customer Success", state: "fillIn" },
+            { id: "dir-ops" as Id<"items">, name: "Business Operations", state: "filling" },
+          ],
+        }
+      : { filling: null, rows: [] };
+
   const setup = (): Setup => {
     const n = SETUP_DONE[current];
     const steps = Object.fromEntries(
@@ -88,7 +103,7 @@ export function gettingStartedFixtures(stage: Stage, now = Date.now(), { platfor
       steps.key = done("CareerBot’s AI · $5 a month");
       if (skipped.has("apollo")) steps.apollo = done("Skipped");
     }
-    return { workspaceId: "ws", hidden, storyUsdPerWord: stage === "story" ? null : 0.00002, platformAi: platform ? { allowanceUsd: 5 } : null, firstStory: null, skipped: [...skipped], steps, firstPursuit: firstPursuit() };
+    return { workspaceId: "ws", hidden, storyUsdPerWord: stage === "story" ? null : 0.00002, platformAi: platform ? { allowanceUsd: 5 } : null, firstStory: null, skipped: [...skipped], steps, firstPursuit: firstPursuit(), directions: directionsFor() };
   };
 
   return {
@@ -98,6 +113,8 @@ export function gettingStartedFixtures(stage: Stage, now = Date.now(), { platfor
     // Nothing in the workspace yet: Getting started offers to bring it from another copy.
     ...(stage === "key" || stage === "story" ? yourDataFixtures("empty") : {}),
     ...answer(api.today.setup, setup),
+    ...answer(api.directions.detail, () => "job-fill" as Id<"jobs">),
+    ...answer(api.estimates.costs, () => ({ directionDetail: 0.012 }) as FunctionReturnType<typeof api.estimates.costs>),
     ...answer(api.today.roles, () => ranked({ filters: {} }).page.filter((r) => r.level === "strong" && !r.pursuit)),
     // Today's own lines, behind Getting started.
     ...answer(api.review.summary, () => ({ total: 0, groups: [] })),

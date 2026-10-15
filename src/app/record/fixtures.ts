@@ -1,6 +1,7 @@
 import type { FunctionReturnType } from "convex/server";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
+import type { FreshLookOpen } from "../../../convex/freshLook";
 import { answer, type Answers } from "../storyConvex";
 
 // Fixture data for the Record stories: the record of Wren Castellano, a fictional person, as of Sep 28, 2026 (seven roles
@@ -500,6 +501,18 @@ export function recordAnswers(state: RecordState): Answers {
           state.items.flatMap((p) => (p.kind === "project" && p.projectKey ? [[p.projectKey, { setAside: state.items.filter((i) => i.status === "setAside" && i.projectKey === p.projectKey).length, run: run(p.projectKey) }] as const] : [])),
         ),
       };
+    }),
+    // The facts waiting per story and per project, as insights.freshLookOpen counts them (every approved fact counts).
+    ...answer(api.insights.freshLookOpen, () => {
+      const open: FreshLookOpen = { stories: {}, projects: {}, approvedFacts: state.items.filter((i) => i.kind === "fact" && i.status === "approved").length };
+      for (const p of state.items) if (p.kind === "project" && p.status === "approved" && p.projectKey) open.projects[p.projectKey] = { open: 0, approved: true };
+      for (const f of state.items) {
+        if (f.kind !== "fact" || f.status !== "proposed") continue;
+        const story = f.sources[0]?.narrativeId;
+        if (story) open.stories[story] = (open.stories[story] ?? 0) + 1;
+        else if (f.projectKey) (open.projects[f.projectKey] ??= { open: 0, approved: false }).open++;
+      }
+      return open;
     }),
     ...answer(api.skills.list, () => {
       const job = latestJob(state, (j) => j.kind === "skills");

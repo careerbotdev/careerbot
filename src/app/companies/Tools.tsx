@@ -104,14 +104,38 @@ export function FindCompanies({ data }: { data: CompaniesData }) {
             Change
           </Link>
         </div>
-        {data.needCriteria.map((d) => (
-          <div key={d.id} className={`${row} py-1.5`}>
-            <span className="min-w-0 flex-1 text-muted">{d.name} needs search criteria first</span>
-            <Link href={`/goals/directions?direction=${d.id}&tab=criteria`} className="tap shrink-0 font-medium text-text underline decoration-border underline-offset-3 hover:decoration-text">
-              Review
-            </Link>
+        {data.needCriteria.filling && (
+          <div className={`${row} py-1.5`}>
+            <span className="min-w-0 flex-1 text-text">
+              Filling in your directions ({data.needCriteria.filling.done} of {data.needCriteria.filling.total})
+            </span>
           </div>
-        ))}
+        )}
+        {data.needCriteria.rows
+          .filter((d) => d.state !== "filling")
+          .map((d) =>
+            d.state === "review" ? (
+              <div key={d.id} className={`${row} py-1.5`}>
+                <span className="min-w-0 flex-1 text-muted">{d.name}: criteria to review</span>
+                <Link href={`/goals/directions?direction=${d.id}&tab=criteria`} className="tap shrink-0 font-medium text-text underline decoration-border underline-offset-3 hover:decoration-text">
+                  Review
+                </Link>
+              </div>
+            ) : (
+              <div key={d.id} className={`${row} py-1.5`}>
+                <span className="min-w-0 flex-1 text-muted">{d.name}: {d.state === "failed" ? "couldn’t fill in, try again" : "not filled in yet"}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  detail={`Proposes the positioning, titles and search criteria for ${d.name}, from your approved record.`}
+                  note="Uses your AI budget · Nothing changes until you approve it"
+                  onClick={() => void act.fillInDirections({ id: d.id }).then(() => toast({ message: `Filling in ${d.name}`, icon: "running" }), (e: unknown) => setError(problem(e, "Couldn’t start.")))}
+                >
+                  Fill in
+                </Button>
+              </div>
+            ),
+          )}
       </div>
       <div className="flex items-center gap-3 border-t pt-3">
         <Button

@@ -21,7 +21,7 @@ import { Properties, Property } from "@/components/Properties";
 import { ReasonField } from "@/components/ReasonField";
 import { Select } from "@/components/Select";
 import { TabPanel, Tabs } from "@/components/Tabs";
-import { addSpoken, DeviceDictation, Listening, LiveText, Saved, TalkButton, TalkStopped, TalkTip, useCanTalk, useDevice, useTalk, useTalkKey } from "@/components/Talk";
+import { addSpoken, DeviceDictation, Listening, LiveText, Saved, TalkButton, TalkStopped, TalkTip, useBrave, useCanTalk, useDevice, useTalk, useTalkKey } from "@/components/Talk";
 import { toast } from "@/components/Toast";
 import { Tooltip } from "@/components/Tooltip";
 import { WritingArea } from "@/components/WritingArea";
@@ -98,7 +98,7 @@ function Item({ id, size, nav, tab, onTab, third, onThird, pair, onPair, fresh, 
   // click. Save and ⌘S still say why.
   const demo = useDemo();
   const [again, setAgain] = useState(false);
-  // Reject… asks why first; the decision and its reason are saved together once they save or skip it.
+  // Reject acts at once; Reject with a note (from ⋯) asks why first, and the decision and its reason are saved together once they save or skip it.
   const [rejecting, setRejecting] = useState(false);
   const [comparing, setComparing] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -117,6 +117,7 @@ function Item({ id, size, nav, tab, onTab, third, onThird, pair, onPair, fresh, 
   // (`split`: where they start) and the text above stays editable. Stop saves once the last words are in.
   const canTalk = useCanTalk();
   const device = useDevice();
+  const brave = useBrave();
   const [split, setSplit] = useState<number | null>(null);
   const talk = useTalk({
     onStart: () => setSplit(draft.body.replace(/\s+$/, "").length),
@@ -260,9 +261,12 @@ function Item({ id, size, nav, tab, onTab, third, onThird, pair, onPair, fresh, 
       onSelect: () => setAgain(true),
       ...(againReason ? { disabled: true, reason: againReason } : {}),
     },
-    story.rejected
-      ? { label: "Restore", icon: "undo", onSelect: restoreIt, ...EXPLAIN.restore }
-      : { label: "Reject…", icon: "reject", onSelect: () => setRejecting(true), detail: `Leaves this ${noun} and what came from it out of your record, with why if you like.`, note: "Free · Undo with U" },
+    ...(story.rejected
+      ? [{ label: "Restore", icon: "undo", onSelect: restoreIt, ...EXPLAIN.restore } satisfies MenuEntry]
+      : ([
+          { label: "Reject", icon: "reject", onSelect: () => rejectIt(), detail: `Leaves this ${noun} and what came from it out of your record.`, note: "Free · Undo with U" },
+          { label: "Reject with a note", icon: "reject", onSelect: () => setRejecting(true), detail: `Leaves this ${noun} and what came from it out of your record. Asks why first.`, note: "Free · Undo with U · Why steers what’s proposed next" },
+        ] satisfies MenuEntry[])),
     "separator",
     {
       label: `Delete ${noun}…`,
@@ -319,7 +323,12 @@ function Item({ id, size, nav, tab, onTab, third, onThird, pair, onPair, fresh, 
         : []),
       { id: "story-proposals", group: story.title, label: "What the read proposed", icon: "review", onSelect: () => onTab("proposals") },
       ...(againReason ? [] : [{ id: "story-again", group: story.title, label: "Read again…", icon: "tryAgain" as const, onSelect: () => setAgain(true) }]),
-      story.rejected ? { id: "story-restore", group: story.title, label: `Restore ${story.title}`, icon: "undo", onSelect: restoreIt } : { id: "story-reject", group: story.title, label: `Reject ${story.title}…`, icon: "reject", onSelect: () => setRejecting(true) },
+      ...(story.rejected
+        ? [{ id: "story-restore", group: story.title, label: `Restore ${story.title}`, icon: "undo" as const, onSelect: restoreIt }]
+        : [
+            { id: "story-reject", group: story.title, label: `Reject ${story.title}`, icon: "reject" as const, onSelect: () => rejectIt() },
+            { id: "story-reject-note", group: story.title, label: `Reject ${story.title} with a note…`, icon: "reject" as const, onSelect: () => setRejecting(true) },
+          ]),
       { id: "story-delete", group: story.title, label: `Delete ${noun}…`, icon: "delete", onSelect: () => void deleteIt() },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -556,7 +565,7 @@ function Item({ id, size, nav, tab, onTab, third, onThird, pair, onPair, fresh, 
         </>
       )}
       {talk.state === "stopped" && <TalkStopped talk={talk} noun={noun} saved={saving ? "saving" : dirty ? "unsaved" : "saved"} phone={small} />}
-      {canTalk === false && size === "medium" && <DeviceDictation device={device} />}
+      {canTalk === false && size === "medium" && <DeviceDictation device={device} brave={brave} />}
     </div>
   );
 
@@ -579,7 +588,7 @@ function Item({ id, size, nav, tab, onTab, third, onThird, pair, onPair, fresh, 
             { value: "story", label: note ? "Note" : "Story" },
             { value: "proposals", label: "Proposals", count: proposals.count || undefined },
           ]}
-          end={canTalk === false && size === "large" ? <DeviceDictation device={device} /> : undefined}
+          end={canTalk === false && size === "large" ? <DeviceDictation device={device} brave={brave} /> : undefined}
         >
           <TabPanel value="story" className="flex min-h-0 flex-1 flex-col">
             {size === "large" ? (
@@ -599,9 +608,9 @@ function Item({ id, size, nav, tab, onTab, third, onThird, pair, onPair, fresh, 
           </TabPanel>
         </Tabs>
       )}
-      {canTalk === false && small && showWriting && device && (
+      {canTalk === false && small && showWriting && (device || brave) && (
         <div className="sticky bottom-0 mt-auto border-t bg-surface px-4 py-2.5">
-          <DeviceDictation device={device} />
+          <DeviceDictation device={device} brave={brave} />
         </div>
       )}
       <ReadAgain open={again} onOpenChange={setAgain} title={story.title} version={story.version} cost={againCost} onRead={(lookFor, includingRejected) =>

@@ -35,6 +35,7 @@ import type * as crons from "../crons.js";
 import type * as demo from "../demo.js";
 import type * as demoRefusal from "../demoRefusal.js";
 import type * as demoSeed from "../demoSeed.js";
+import type * as directionFill from "../directionFill.js";
 import type * as directionPaths from "../directionPaths.js";
 import type * as directionVocab from "../directionVocab.js";
 import type * as directions from "../directions.js";
@@ -152,6 +153,7 @@ declare const fullApi: ApiFromModules<{
   demo: typeof demo;
   demoRefusal: typeof demoRefusal;
   demoSeed: typeof demoSeed;
+  directionFill: typeof directionFill;
   directionPaths: typeof directionPaths;
   directionVocab: typeof directionVocab;
   directions: typeof directions;

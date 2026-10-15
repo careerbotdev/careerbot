@@ -7,7 +7,7 @@ import { Skills } from "./Skills";
 
 // The Skills screen with the fixture record: a near-duplicate to merge or keep apart, several selected for the bulk
 // bar, an approved one being edited (PostgreSQL left out of resumes), one proposed one reviewed on its own (and
-// rejected with why), the rejected tab, and a record with none yet. Clicks, J and K, A, E, R, M, X, Enter and Esc
+// rejected with a note, asking why), the rejected tab, and a record with none yet. Clicks, J and K, A, E, R, M, X, Enter and Esc
 // work as in the app; resize the window for medium (768 to 1279) and the phone (under 768).
 
 function Fixture({ query, leftOut, empty }: { query?: string; leftOut?: string[]; empty?: boolean }) {
@@ -45,11 +45,13 @@ export const SeveralSelected: Story = {
 export const Review: Story = { name: "One at a time", render: () => <Fixture query={`item=${SKILL_IDS.recall}`} /> };
 
 export const Reject: Story = {
-  name: "Reject, with why",
+  name: "Reject with a note",
   render: () => <Fixture query={`item=${SKILL_IDS.recall}`} />,
   play: async () => {
     await page().findByRole("heading", { name: "Lot traceability and recalls" });
-    await userEvent.keyboard("r");
+    const more = await page().findAllByRole("button", { name: "More for Lot traceability and recalls" });
+    await userEvent.click(more.at(-1)!);
+    await userEvent.click(await page().findByRole("menuitem", { name: /^Reject with a note/ }));
   },
 };
 

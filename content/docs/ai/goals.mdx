@@ -44,8 +44,9 @@ limit again while it runs, its answer isn't saved.
 
 ## Filling in directions
 
-<AiStep id="directionsStep" /> runs when you choose **Fill in** on a direction (or **Fill in directions missing
-detail** for all of them). For each approved direction it proposes:
+<AiStep id="directionsStep" /> runs on its own when you approve a direction that has nothing filled in, and when you
+choose **Fill in** on a direction (or **Fill in all**). One pass fills them in one direction at a time, one call each, so
+directions approved while it runs join it. For each direction it proposes:
 
 - Positioning: how to present your record for this kind of work.
 - The titles to aim at, and the words the market uses for the work.

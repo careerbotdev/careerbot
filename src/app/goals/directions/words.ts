@@ -2,6 +2,7 @@ import type { FunctionReturnType } from "convex/server";
 import type { api } from "../../../../convex/_generated/api";
 import { PATHS } from "../../../../convex/directionPaths";
 import { cap, LEVELS } from "../../../../convex/limitBuckets";
+import { approveNote } from "../../costs";
 
 // What the Directions screen shows about a direction, in words: its rows' lines, its path, its sizes and where it came
 // from.
@@ -49,8 +50,13 @@ export const positioningFacts = (d: Direction) => [...new Set([...d.carriesOver,
 export const REJECT_PICKS = ["Not the work I want", "Pays too little", "Covered by another direction"];
 
 // Explainers for the actions a direction offers in several places (its pane, its ⋯ menu, its list row).
-export const APPROVE_WORDS = { detail: "Adds it to your directions: roles are ranked for it and its positioning can be filled in.", note: "Free · Undo with U" };
-export const REJECT_WORDS = { detail: "Rejects it, with why if you like, so it isn’t proposed again.", note: "Free · Undo with U" };
+// Approving one with nothing filled in also fills it in (paid), so its note carries the estimate (costs.approveNote).
+export const approveWords = (d: Direction, fillUsd: number | null | undefined) =>
+  d.data.detail
+    ? { detail: "Adds it to your directions: roles are ranked for it.", note: approveNote(fillUsd, 0) }
+    : { detail: "Adds it to your directions: roles are ranked for it, and its positioning, titles and search criteria are filled in for you to review.", note: approveNote(fillUsd, 1) };
+export const REJECT_WORDS = { detail: "Rejects it, so it isn’t proposed again.", note: "Free · Undo with U" };
+export const REJECT_NOTE_WORDS = { detail: `${REJECT_WORDS.detail} Asks why first.`, note: "Free · Undo with U · Why steers what’s proposed next" };
 export const COPY_LINK_WORDS = { detail: "Copies a link to this direction.", note: "Free" };
 // Filling in proposes a direction's positioning, titles and criteria; what's approved stays, what's still proposed is
 // replaced. `cost` is the estimate, when there is one.

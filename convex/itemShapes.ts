@@ -155,6 +155,9 @@ export const directionData = v.object({
   evidence: opt(strs),
   // The run that last wrote detail and criteria, so a retried run doesn't write them twice.
   detailRunId: opt(v.id("jobs")),
+  // The fill-in pass last asked to fill it in (directions.fillIn): filling while that job waits or runs; once it has
+  // ended with no detail here, the fill-in failed.
+  fillJob: opt(v.id("jobs")),
   // How to position the record for this direction. Reviewed on its own; only approved detail feeds resumes.
   detail: opt(directionDetail),
   detailStatus: opt(v.union(v.literal("proposed"), v.literal("approved"))),
@@ -189,6 +192,14 @@ export const limitData = v.object({
   off: opt(v.boolean()),
   // The wording changed after its rule was set; the rule still filters by the old wording until they update or keep it.
   sentenceChanged: opt(v.boolean()),
+  // Another limit (proposed or approved, on) that can't hold at the same time as this one (limitBuckets.limitsClash);
+  // kept current by goals.syncClashes whenever a limit changes.
+  clashWith: opt(v.id("items")),
+  // Limits they chose to keep this one beside (Keep both), each with the pair as it stood (limitBuckets.clashKey): not
+  // marked as clashing until either one's rule, scope or condition changes.
+  keptWith: opt(v.array(v.object({ id: v.id("items"), key: str }))),
+  // Before clashWith: whether the goals read that proposed it held another of the same bucket and scope. Dropped by
+  // goals.recomputeClashes; remove once that has run on every deployment.
   clash: opt(v.boolean()),
   rejectedBecause: opt(strOrNull),
 });
@@ -299,7 +310,7 @@ export function pickDirection(d: Record<string, unknown>) {
   });
 }
 
-// The caller has already cleaned the scope, condition and rule and set the label, readKey, rev and clash.
+// The caller has already cleaned the scope, condition and rule and set the label, readKey and rev.
 type LimitIn = Record<string, unknown> & {
   kind: string;
   label: string;
@@ -308,7 +319,6 @@ type LimitIn = Record<string, unknown> & {
   rule?: Record<string, unknown> | null;
   readKey?: string;
   rev?: number;
-  clash?: boolean;
 };
 export function pickLimit(l: LimitIn) {
   return drop({
@@ -323,7 +333,6 @@ export function pickLimit(l: LimitIn) {
     note: s(l.note) ?? (l.note === null ? null : undefined),
     readKey: l.readKey,
     rev: l.rev,
-    clash: l.clash,
   });
 }
 

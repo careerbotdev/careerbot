@@ -382,11 +382,14 @@ export function directionsFixtures(): Answers {
     ],
   };
   const FIT: Record<string, [number, number]> = { "dir-planning": [1, 1], "dir-logistics": [0, 1], "dir-product": [3, 4], "dir-solutions": [2, 3], "dir-procurement": [1, 2], "dir-analytics": [0, 1], "dir-plant": [0, 0], "dir-consulting": [0, 0] };
-  let last: FunctionReturnType<typeof api.directions.list>["last"] = { status: "done", error: undefined, mode: "suggest", result: { suggested: 9 } };
+  let suggesting: FunctionReturnType<typeof api.directions.list>["suggest"] = { status: "done", error: undefined, result: { suggested: 9 } };
+  // Directions being filled in now (Fill in, or approved with nothing filled in).
+  const filling = new Set<string>();
   const find = (id: string) => rows.find((r) => r.spec.id === id)!;
 
   const list = (): FunctionReturnType<typeof api.directions.list> => ({
-    last,
+    suggest: suggesting,
+    filling: filling.size ? { done: 0, total: filling.size } : null,
     directions: rows
       .filter((r) => !r.mergedInto)
       .map(({ spec, status, data }) => ({
@@ -398,6 +401,7 @@ export function directionsFixtures(): Answers {
         reframe: (data.detail?.reframe ?? []).map(withFacts),
         evidence: (spec.evidence ?? []).map((k) => FACTS[k]),
         avoided: [],
+        fill: filling.has(spec.id) ? ("filling" as const) : null,
       })),
   });
 
@@ -495,12 +499,12 @@ export function directionsFixtures(): Answers {
       const r = find(id);
       r.data = { ...r.data, detail: { ...r.data.detail!, positioning, targetTitles, vocabulary }, detailStatus: "approved" };
     }),
-    ...answer(api.directions.detail, () => {
-      last = { status: "running", error: undefined, mode: "detail", result: null };
+    ...answer(api.directions.detail, ({ id }) => {
+      for (const r of rows) if (r.status === "approved" && (id ? r.spec.id === id : !r.data.detail)) filling.add(r.spec.id);
       return "job-detail" as Id<"jobs">;
     }),
     ...answer(api.directions.suggest, () => {
-      last = { status: "running", error: undefined, mode: "suggest", result: null };
+      suggesting = { status: "running", error: undefined, result: null };
       return "job-suggest" as Id<"jobs">;
     }),
     ...answer(api.goals.edit, ({ id, fields: { path, ...fields } }) => {

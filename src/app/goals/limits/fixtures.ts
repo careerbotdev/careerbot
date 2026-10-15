@@ -7,7 +7,7 @@ import type { Item, Limit } from "./words";
 
 // Fixture data for the Limits stories, from the fixture persona's record: their eight approved limits (Eligibility,
 // Companies with its sentence changed after the rule was set, Seniority twice, Pay, Work, Travel switched off,
-// Location), the rejected pivot trade-off and one proposed Seniority limit that clashes, with what the screen's queries
+// Location), the rejected pivot trade-off and one proposed Seniority limit that clashes with the approved one for Supply Planning, with what the screen's queries
 // return for them. Mutations change the fixtures as the real ones change the data.
 
 type Costs = FunctionReturnType<typeof api.estimates.costs>;
@@ -56,6 +56,7 @@ function items(): Item[] {
         firm: true,
         appliesTo: ["Supply Planning", "Logistics Operations"],
         rule: { exclude: ["individual", "lead", "manager"], include: MANAGER_UP.slice(1) },
+        clashWith: id("proposed"),
         note: "You said staying in planning or logistics only makes sense with a team, a budget and a network to run, not the same desk with a bigger title.",
       },
       from("If I stay in planning or logistics leadership, it has to be director-level scope: a team, a budget and a network to run, not the same desk with a bigger title."),
@@ -116,7 +117,7 @@ function items(): Item[] {
     limit(
       "proposed",
       "proposed",
-      { kind: "seniority", value: "In supply planning, you are looking for something more senior than your current senior manager role.", firm: false, appliesTo: ["Supply Planning"], rule: { exclude: ["individual", "lead"] }, clash: true },
+      { kind: "seniority", value: "In supply planning, you are looking for something more senior than your current senior manager role.", firm: false, appliesTo: ["Supply Planning"], rule: { exclude: ["individual", "lead"] }, clashWith: id("seniority-planning") },
       from("it has to be director-level scope"),
     ),
     limit(
@@ -214,6 +215,10 @@ export function limitsFixtures(): Answers {
       patch(key, (l) => ({ ...l, status: status === "skipped" ? l.status : status, data: { ...l.data, rejectedBecause: status === "rejected" ? (note ?? null) : null } })),
     ),
     ...answer(api.goals.setLimitOn, ({ id: key, on }) => patch(key, (l) => ({ ...l, data: { ...l.data, off: on ? undefined : true } }))),
+    ...answer(api.goals.keepBoth, ({ id: key, with: other, kept }) => {
+      patch(key, (l) => ({ ...l, data: { ...l.data, clashWith: kept ? undefined : other } }));
+      patch(other, (l) => ({ ...l, data: { ...l.data, clashWith: kept ? undefined : key } }));
+    }),
     ...answer(api.goals.keepRule, ({ id: key }) => patch(key, (l) => ({ ...l, data: { ...l.data, sentenceChanged: undefined } }))),
     ...answer(api.goals.updateRule, ({ id: key }) => patch(key, (l) => ({ ...l, data: { ...l.data, sentenceChanged: undefined } }))),
     ...answer(api.goals.updateLimit, ({ id: key, value, firm, rule, appliesTo, when }) =>

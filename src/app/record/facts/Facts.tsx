@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState, type KeyboardEvent } from "react";
 import { api } from "../../../../convex/_generated/api";
 import { aboutUsd } from "../../costs";
+import { useFreshLook } from "../freshLook";
 import { BuiltOnPeek } from "@/components/BuiltOn";
 import { Button } from "@/components/Button";
 import { Icons } from "@/components/icons";
@@ -158,17 +159,19 @@ function FactRow({ r, f, selected, onOpen, cost }: { r: RecordData; f: Fact; sel
   const connected = connectedOf(r).get(f.id);
   const orphan = !rejected && (f.data.noLongerSaid || f.data.sourceDeleted);
   const pending = f.data.suggestion?.pending;
-  const fields = { edit: () => setMode("edit"), context: () => setMode("context"), reject: () => setMode("why"), open: () => onOpen(f.id) };
-  const menu = factMenu(r, f, a, fields, cost);
+  const fields = { edit: () => setMode("edit"), context: () => setMode("context"), why: () => setMode("why"), open: () => onOpen(f.id) };
+  const look = useFreshLook();
+  const approvedNote = look.approveNote([f]);
+  const menu = factMenu(r, f, a, fields, cost, { approve: approvedNote, reject: look.rejectNote([f]) });
   const done = () => setMode(null);
 
-  // E and R on the focused fact; the card's keys then leave it alone.
+  // E and R on the focused fact (R rejects at once; Reject with a note, in ⋯, asks why); the card's keys then leave it alone.
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.defaultPrevented || mode) return;
     if (e.target instanceof Element && e.target.closest(typing)) return;
     const key = e.key.toLowerCase();
     if (key === "e") fields.edit();
-    else if (key === "r" && !rejected) fields.reject();
+    else if (key === "r" && !rejected) a.reject();
     else return;
     e.preventDefault();
   };
@@ -193,7 +196,7 @@ function FactRow({ r, f, selected, onOpen, cost }: { r: RecordData; f: Fact; sel
       <ContextMenu items={menu} title="Fact" description={f.data.text}>
         <div className={`relative flex items-start gap-3 border-l-2 py-2.5 pr-2 pl-1.5 transition-colors duration-100 ${selected ? "border-steel bg-steel-subtle" : "border-transparent bg-surface md:hover:bg-subtle"}`}>
           {mode === "edit" ? (
-            <WordsField label="Edit fact" initial={f.data.text} save="Save and approve" detail={EXPLAIN.edit.detail} note={FREE_UNDO} onSave={(text) => (done(), a.edit(text))} onCancel={done} />
+            <WordsField label="Edit fact" initial={f.data.text} save="Save and approve" detail={EXPLAIN.edit.detail} note={approvedNote} onSave={(text) => (done(), a.edit(text))} onCancel={done} />
           ) : (
             <>
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -228,7 +231,7 @@ function FactRow({ r, f, selected, onOpen, cost }: { r: RecordData; f: Fact; sel
                     <Button size="sm" detail="Keeps the fact as it reads." note={FREE_UNDO} onClick={a.keep}>
                       Keep it
                     </Button>
-                    <Button size="sm" variant="ghost" detail="Takes it out of your record. Resumes stop using it." note={FREE_UNDO} onClick={() => setMode("why")}>
+                    <Button size="sm" variant="ghost" detail="Takes it out of your record. Resumes stop using it." note={FREE_UNDO} onClick={() => a.reject()}>
                       Reject it
                     </Button>
                   </span>
@@ -258,7 +261,7 @@ function FactRow({ r, f, selected, onOpen, cost }: { r: RecordData; f: Fact; sel
               )}
               <span className="pointer-events-none absolute top-2 right-2 hidden items-center gap-0.5 bg-inherit pl-2 opacity-0 has-[:focus-visible]:pointer-events-auto has-[:focus-visible]:opacity-100 has-[[data-state=open]]:pointer-events-auto has-[[data-state=open]]:opacity-100 md:flex md:group-hover/fact:pointer-events-auto md:group-hover/fact:opacity-100 md:group-has-[:focus-visible]/fact:pointer-events-auto md:group-has-[:focus-visible]/fact:opacity-100">
                   {sources.length > 0 && <BuiltOnPeek sources={sources} onOpenRecord={() => onOpen(f.id)} onEdit={fields.edit} align="end" />}
-                  {!rejected && <Button variant="ghost" size="sm" iconOnly icon="edit" aria-label="Edit" keys="E" detail={EXPLAIN.edit.detail} note={FREE_UNDO} onClick={fields.edit} />}
+                  {!rejected && <Button variant="ghost" size="sm" iconOnly icon="edit" aria-label="Edit" keys="E" detail={EXPLAIN.edit.detail} note={approvedNote} onClick={fields.edit} />}
                   <Menu
                     items={menu}
                     label="More for this fact"

@@ -23,7 +23,8 @@ export const REJECT_PICKS = ["Too vague", "Not mine", "Out of date"];
 export const APART_PICKS = ["Different things", "Different work", "Different results"];
 
 export const FREE_UNDO = "Free · Undo with U";
-export const WHY = "Free · Undo with U · Why is optional and steers what’s proposed next";
+// A negative decision made with a note (its ⋯ entry asks why first).
+export const NOTED = "Free · Undo with U · Why steers what’s proposed next";
 
 // What each decision does, in the same words wherever it's offered: review card, row, ⋯ menu, bottom bar, bulk bar.
 const them = (n: number) => (n === 1 ? "it" : "them");

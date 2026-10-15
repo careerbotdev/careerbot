@@ -225,13 +225,15 @@ export function ReviewActions({ actions, aside, more, moreLabel = "More" }: Revi
   );
 }
 
-// The line under the card naming the keys ("J or →" for either key). Hidden on phones, which swipe and tap instead.
+// The line under the card naming the keys ("A or →" for either key). Hidden on phones, which swipe and tap instead.
 const defaultLegend: [string, string][] = [
-  ["A", "Approve"],
-  ["E", "Edit"],
-  ["R", "Reject"],
-  ["J or →", "Next"],
-  ["K or ←", "Previous"],
+  ["A or →", "Approve"],
+  ["E or ↑", "Edit"],
+  ["R or ←", "Reject"],
+  ["↓", "Reject with a note"],
+  ["S", "Skip"],
+  ["J", "Next"],
+  ["K", "Previous"],
   ["U", "Undo"],
 ];
 
@@ -312,31 +314,28 @@ export function ReviewUpdate({ now, proposed }: { now: string; proposed: string 
   );
 }
 
-// The screen binds the review keys with this: A approve, E edit, R reject, J next, K previous, U undo, plus `other`
-// keys a kind adds ({ T: target, M: maybe }). Keys are ignored while typing in a field or moving through a menu, list or
-// dialog, with a modifier held, or when something else already handled them (a toast's U runs its own Undo, so pass
-// `undo` only when no toast carries it).
-// `arrows` lets the arrow keys step too: "cards" takes → and ↓ for next, ← and ↑ for previous; "list" only ↓ and ↑.
-// They act only inside `scope` (the screen's pane) or with nothing focused, and never while a menu or dialog is open
-// or something that moves with arrows has focus (a field, menu trigger, combobox, slider, tabs, list, scroll area).
+// The screen binds the review keys with this: A approve, E edit, R reject (at once), S skip, J next, K previous, U undo,
+// plus `other` keys a kind adds ({ T: target, M: maybe }). Keys are ignored while typing in a field or moving through a
+// menu, list or dialog, with a modifier held, or when something else already handled them (a toast's U runs its own
+// Undo, so pass `undo` only when no toast carries it).
+// Given `arrows` (the screen's pane), the arrow keys decide too: → approve, ↑ edit, ← reject, ↓ reject with a note.
+// They act only inside that pane or with nothing focused, and never while a menu or dialog is open or something that
+// moves with arrows has focus (a field, menu trigger, combobox, slider, tabs, list, scroll area).
 export type ReviewKeyHandlers = {
   approve?: () => void;
   edit?: () => void;
   reject?: () => void;
+  rejectWithNote?: () => void;
+  skip?: () => void;
   next?: () => void;
   previous?: () => void;
   undo?: () => void;
   other?: Record<string, () => void>;
 };
 
-export type ReviewArrows = { keys: "cards" | "list"; scope: RefObject<HTMLElement | null> };
-
 const busy = "input, textarea, select, [contenteditable=''], [contenteditable='true'], [role=menu], [role=listbox], [role=dialog], [role=alertdialog]";
 const ownsArrows = `${busy}, [aria-haspopup], [role=combobox], [role=slider], [role=spinbutton], [role=scrollbar], [role=radiogroup], [role=tablist], [role=list], [role=grid], [role=tree], [role=menubar], [role=toolbar], [data-radix-scroll-area-viewport], [data-reason-field]`;
-const ARROWS: Record<ReviewArrows["keys"], Record<string, 1 | -1>> = {
-  cards: { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 },
-  list: { ArrowDown: 1, ArrowUp: -1 },
-};
+const ARROWS: Record<string, keyof ReviewKeyHandlers> = { ArrowRight: "approve", ArrowUp: "edit", ArrowLeft: "reject", ArrowDown: "rejectWithNote" };
 
 const scrolls = (el: Element) => {
   const s = getComputedStyle(el);
@@ -349,7 +348,7 @@ function arrowFree(target: EventTarget | null, scope: HTMLElement | null) {
   return !!scope?.contains(target) && !target.closest(ownsArrows) && !scrolls(target);
 }
 
-export function useReviewKeys(handlers: ReviewKeyHandlers, enabled = true, arrows?: ReviewArrows) {
+export function useReviewKeys(handlers: ReviewKeyHandlers, enabled = true, arrows?: RefObject<HTMLElement | null>) {
   const latest = useRef({ handlers, arrows });
   useEffect(() => {
     latest.current = { handlers, arrows };
@@ -360,15 +359,15 @@ export function useReviewKeys(handlers: ReviewKeyHandlers, enabled = true, arrow
       if (e.defaultPrevented || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
       if (e.target instanceof Element && e.target.closest(busy)) return;
       const { handlers: h, arrows: a } = latest.current;
-      const step = a && ARROWS[a.keys][e.key];
-      if (step) {
-        const run = step > 0 ? h.next : h.previous;
-        if (!run || !arrowFree(e.target, a.scope.current)) return;
+      const arrow = ARROWS[e.key];
+      if (arrow) {
+        const run = h[arrow] as (() => void) | undefined;
+        if (!a || !run || !arrowFree(e.target, a.current)) return;
         e.preventDefault();
         return run();
       }
       const key = e.key.toLowerCase();
-      const map: Record<string, (() => void) | undefined> = { a: h.approve, e: h.edit, r: h.reject, j: h.next, k: h.previous, u: h.undo };
+      const map: Record<string, (() => void) | undefined> = { a: h.approve, e: h.edit, r: h.reject, s: h.skip, j: h.next, k: h.previous, u: h.undo };
       for (const [k, run] of Object.entries(h.other ?? {})) map[k.toLowerCase()] = run;
       const run = map[key];
       if (!run) return;

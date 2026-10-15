@@ -118,7 +118,7 @@ export function RoleItem({
     setAddingContext(true);
   };
 
-  const menu = actions.roleMenu(role, { item: { edit: () => setEditing(true), addContext }, onGone });
+  const menu = actions.roleMenu(role, { item: { edit: () => setEditing(true), addContext, rejectWithNote: () => setRejecting(true) }, onGone });
   // ⌘K: what the ⋯ can do, under the role's name.
   useCommands(
     menu.flatMap((m, i): Command[] =>
@@ -129,7 +129,7 @@ export function RoleItem({
   useEffect(() => {
     const onKey = onItemKey({
       ...(rejected ? { u: () => actions.restore(role) } : { x: addContext }),
-      ...(proposed && !cards && !editing ? { a: () => actions.approve(role), r: () => setRejecting(true) } : {}),
+      ...(proposed && !cards && !editing ? { a: () => actions.approve(role), r: () => reject() } : {}),
     });
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -158,10 +158,10 @@ export function RoleItem({
                   kind: "actions",
                   actions: (
                     <BarMenu menu={menu} title={roleTitle(role)}>
-                      <Button size="lg" detail={EXPLAIN.reject.detail} note={EXPLAIN.reject.note} onClick={() => setRejecting(true)}>
+                      <Button size="lg" detail={EXPLAIN.reject.detail} note={EXPLAIN.reject.note} onClick={() => reject()}>
                         Reject
                       </Button>
-                      <Button size="lg" variant="primary" className="flex-1" detail={EXPLAIN.approve.detail} note={EXPLAIN.approve.note} onClick={() => actions.approve(role)}>
+                      <Button size="lg" variant="primary" className="flex-1" detail={EXPLAIN.approve.detail} note={actions.approveNote(role)} onClick={() => actions.approve(role)}>
                         Approve
                       </Button>
                     </BarMenu>
@@ -213,13 +213,13 @@ export function RoleItem({
         {!rejected && titleNote(role.data) && <p className="border-l-2 border-caution pl-3.5 text-body-sm leading-body-sm text-text md:ml-[54px]">{titleNote(role.data)}</p>}
         {proposed && !small && (
           <div className="flex flex-wrap items-center gap-2 md:pl-[54px]">
-            <Button variant="primary" keys={cards ? undefined : "A"} detail={EXPLAIN.approve.detail} note={EXPLAIN.approve.note} onClick={() => actions.approve(role)}>
+            <Button variant="primary" keys={cards ? undefined : "A"} detail={EXPLAIN.approve.detail} note={actions.approveNote(role)} onClick={() => actions.approve(role)}>
               Approve
             </Button>
             <Button icon="edit" detail={EXPLAIN.edit.detail} note={EXPLAIN.edit.note} onClick={() => setEditing(true)}>
               Edit details
             </Button>
-            <Button keys={cards ? undefined : "R"} aria-pressed={rejecting} detail={EXPLAIN.reject.detail} note={EXPLAIN.reject.note} onClick={() => setRejecting(true)}>
+            <Button keys={cards ? undefined : "R"} detail={EXPLAIN.reject.detail} note={EXPLAIN.reject.note} onClick={() => reject()}>
               Reject
             </Button>
           </div>

@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import type { FunctionReturnType } from "convex/server";
 import { activeLimits } from "./itemShapes";
 import { seedModelPrices } from "./modelPrices.testing";
 import schema from "./schema";
@@ -294,10 +295,84 @@ test("filters set by hand aren't overwritten by an older rewording job that fini
   expect(after?.data.rule).toEqual({ min: 200000, currency: "USD" });
 });
 
-test("two limits for the same bucket and scope in one read are both kept and marked as clashing", async () => {
+// Each limit in A's workspace by its sentence, with what it clashes with by sentence.
+async function clashes(asA: { query: (q: typeof api.goals.items, args: Record<string, never>) => Promise<FunctionReturnType<typeof api.goals.items>> }) {
+  const limits = (await asA.query(api.goals.items, {})).filter((i) => i.kind === "limit");
+  return Object.fromEntries(limits.map((l) => [l.data.value, limits.find((o) => o.id === l.data.clashWith)?.data.value ?? null]));
+}
+
+test("work and companies limits add up and never clash, however many there are", async () => {
   const { asA, read } = await setup();
-  await read({ directions: [], limits: [{ kind: "travel", value: "Up to 50%", rule: { maxPercent: 50 } }, { kind: "travel", value: "Up to 20%", rule: { maxPercent: 20 } }] });
-  expect((await asA.query(api.goals.items, {})).map((i) => (i.kind === "limit" ? i.data.clash : undefined))).toEqual([true, true]);
+  // The owner's shape: three Work limits and three Companies limits, every direction, no condition.
+  await read({
+    directions: [],
+    limits: [
+      { kind: "work", value: "No cold calling", rule: { avoid: ["cold calling"] } },
+      { kind: "work", value: "No quota", rule: { avoid: ["quota carrying"] } },
+      { kind: "work", value: "Want solution design", rule: { want: ["solution design"] } },
+      { kind: "companies", value: "Not Acme", rule: { exclude: ["Acme"] } },
+      { kind: "companies", value: "AI companies", rule: { industriesWant: ["ai"] } },
+      { kind: "companies", value: "No staffing", rule: { industriesAvoid: ["staffing"] } },
+    ],
+  });
+  for (const l of (await asA.query(api.goals.items, {})).filter((i) => i.kind === "limit")) await asA.mutation(api.extract.review, { id: l.id, status: "approved" });
+  expect(Object.values(await clashes(asA))).toEqual([null, null, null, null, null, null]);
+});
+
+test("two pay floors for the same roles clash and name each other; editing, rejecting or keeping both clears it", async () => {
+  const { asA, read } = await setup();
+  await read({
+    directions: [],
+    limits: [
+      { kind: "pay", value: "At least $150,000", rule: { min: 150000 } },
+      { kind: "pay", value: "At least $180,000", rule: { min: 180000 } },
+      // A different condition, or one for a direction while the others are for every direction, is a different scope.
+      { kind: "pay", value: "At least $120,000 to pivot", rule: { min: 120000 }, when: { industryChange: true } },
+      { kind: "travel", value: "Up to 20%", rule: { maxPercent: 20 }, appliesTo: ["Sales"] },
+      { kind: "travel", value: "Up to 50%", rule: { maxPercent: 50 } },
+    ],
+  });
+  expect(await clashes(asA)).toEqual({ "At least $150,000": "At least $180,000", "At least $180,000": "At least $150,000", "At least $120,000 to pivot": null, "Up to 20%": null, "Up to 50%": null });
+  const byValue = async (v: string) => (await asA.query(api.goals.items, {})).find((i) => i.kind === "limit" && i.data.value === v)!.id;
+
+  // Edited to the same floor: they agree, so the mark goes from both.
+  await asA.mutation(api.goals.updateLimit, { id: await byValue("At least $150,000"), value: "At least $180,000 too", firm: true, rule: { min: 180000 }, appliesTo: [], when: [] });
+  expect((await clashes(asA))["At least $180,000"]).toBeNull();
+  // Apart again, then the partner rejected: gone.
+  await asA.mutation(api.goals.updateLimit, { id: await byValue("At least $180,000 too"), value: "At least $150,000", firm: true, rule: { min: 150000 }, appliesTo: [], when: [] });
+  expect((await clashes(asA))["At least $180,000"]).toBe("At least $150,000");
+  await asA.mutation(api.extract.review, { id: await byValue("At least $180,000"), status: "rejected" });
+  expect(await clashes(asA)).toMatchObject({ "At least $150,000": null, "At least $180,000": null });
+
+  // Keep both: not marked until either one changes; Undo marks them again.
+  await asA.mutation(api.extract.review, { id: await byValue("At least $180,000"), status: "proposed" });
+  const [low, high] = [await byValue("At least $150,000"), await byValue("At least $180,000")];
+  await asA.mutation(api.goals.keepBoth, { id: low, with: high, kept: true });
+  expect(await clashes(asA)).toMatchObject({ "At least $150,000": null, "At least $180,000": null });
+  await asA.mutation(api.goals.updateLimit, { id: high, value: "At least $190,000", firm: true, rule: { min: 190000 }, appliesTo: [], when: [] });
+  expect((await clashes(asA))["At least $150,000"]).toBe("At least $190,000");
+  await asA.mutation(api.goals.keepBoth, { id: low, with: high, kept: true });
+  await asA.mutation(api.goals.keepBoth, { id: low, with: high, kept: false });
+  expect((await clashes(asA))["At least $150,000"]).toBe("At least $190,000");
+  // Switched off: an off limit clashes with nothing.
+  await asA.mutation(api.goals.setLimitOn, { id: high, on: false });
+  expect((await clashes(asA))["At least $150,000"]).toBeNull();
+});
+
+test("the one-off recompute replaces the old flag with what each limit clashes with, and changes nothing run again", async () => {
+  const { t, asA, read } = await setup();
+  await read({ directions: [], limits: [{ kind: "work", value: "No cold calling", rule: { avoid: ["cold calling"] } }, { kind: "work", value: "No quota", rule: { avoid: ["quota carrying"] } }] });
+  // As saved before: both flagged.
+  await t.run(async (ctx) => {
+    for (const l of await ctx.db.query("items").collect()) if (l.kind === "limit") await ctx.db.patch(l._id, { data: { ...l.data, clash: true } });
+  });
+  expect(await t.mutation(internal.goals.recomputeClashes, {})).toEqual({ changed: 2 });
+  expect(await t.mutation(internal.goals.recomputeClashes, {})).toEqual({ changed: 0 });
+  const limits = (await asA.query(api.goals.items, {})).filter((i) => i.kind === "limit");
+  expect(limits.map((l) => [l.data.clash, l.data.clashWith])).toEqual([
+    [undefined, undefined],
+    [undefined, undefined],
+  ]);
 });
 
 test("filters typed by hand are rejected when invalid, and the valid rule already saved is kept", async () => {

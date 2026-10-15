@@ -1,6 +1,6 @@
 ---
 title: Review
-description: Every decision waiting for you, one at a time or several at once, each with what it rests on and a reason when you say no.
+description: Every decision waiting for you, one at a time or several at once, each with what it rests on and a reason when you want to give one.
 sources:
   - src/app/review
   - src/components/ReviewCard.tsx
@@ -31,15 +31,15 @@ Then, under **Then**: **Companies to rate**, **Facts**, **Rewrites**, **Question
 **Show as** switches between two ways of working:
 
 - **Cards** shows one decision at a time, with **Built on** (the approved facts it rests on, or the story words and when they were written), its actions, and the next one waiting.
-- **List** shows the whole group as rows. **Select** (or **Select all**) in the group's ⋯ menu, <Kbd>X</Kbd> on a row, or <Kbd>⇧</Kbd>- or <Kbd>⌘</Kbd>-click shows checkboxes; check several and use **Approve** or **Reject** on all of them together, and **Done** or <Kbd>Esc</Kbd> stops (see [Selecting several](/docs/using/keyboard#selecting-several)). Under **Turned down** you see what you rejected in this group, with your reason, and **Restore** brings one back.
+- **List** shows the whole group as rows. **Select** (or **Select all**) in the group's ⋯ menu, <Kbd>X</Kbd> on a row, or <Kbd>⇧</Kbd>- or <Kbd>⌘</Kbd>-click shows checkboxes; check several and use **Approve** or **Reject** on all of them together (**Reject with a note** is in the bar's ⋯ menu), and **Done** or <Kbd>Esc</Kbd> stops (see [Selecting several](/docs/using/keyboard#selecting-several)). Under **Turned down** you see what you rejected in this group, with your reason if you gave one, and **Restore** brings one back.
 
 ## Decide a card
 
 <Steps>
 <Step title="Read what it rests on">The card says what it is ("New fact", "Limit", "Company to rate" and so on) and shows **Built on**.</Step>
-<Step title="Approve, change or turn it down">Each kind has its own words. A fact has **Approve**, **Edit** (approved in your words) and **Reject**. A rewrite has **Use this**, **Edit** and **Keep current**. A company to rate has **Target**, **Maybe** and **Not for me**. A pair said twice has **Keep this wording**, **Keep the other** and **Keep both**. Same work has **Connect** and **Keep separate**. A question has **Answer** and **Not now**. A new resume version has **Keep** and **Discard**.</Step>
-<Step title="Say why, if you like">Every no asks **Why?** with a few quick reasons ("Not true", "Overstates it", "Too vague" and others) or your own words. The reason is optional; it is saved with the decision and steers what is proposed next.</Step>
-<Step title="Move on or undo">The next card appears. **Skip for now** in the card's menu leaves one waiting. <Kbd>U</Kbd> or **Undo** in the message reverses the last decision.</Step>
+<Step title="Approve, change or turn it down">Each kind has its own words. A fact has **Approve**, **Edit** (approved in your words) and **Reject**; when deciding it finishes its story's review, the tooltip says it then reads insights and gathers your skills, with about what that costs. A rewrite has **Use this**, **Edit** and **Keep current**. A company to rate has **Target**, **Maybe** and **Not for me**. A pair said twice has **Keep this wording**, **Keep the other** and **Keep both**. Same work has **Connect** and **Keep separate**. A question has **Answer** and **Not now**. A new resume version has **Keep** and **Discard**.</Step>
+<Step title="Say why, if you like">**Reject** (or the card's no) decides at once. **Reject with a note**, in the card's ⋯ menu or with <Kbd>↓</Kbd>, asks **Why?** first, with a few quick reasons ("Not true", "Overstates it", "Too vague" and others) or your own words. The reason is saved with the decision and steers what is proposed next.</Step>
+<Step title="Move on or undo">The next card appears. **Skip** (<Kbd>S</Kbd>, or in the card's menu) moves on and brings the card back at the end of the group. <Kbd>U</Kbd> or **Undo** in the message reverses the last decision.</Step>
 </Steps>
 
 A fact card also offers **Ask for a rewrite**: say what to change or add ("It was a team of three and I led it") and a rewrite comes back under **Rewrites**. Each card can open where the thing lives (**Open in Record**, **Open in Limits**, **Open in Companies** and so on).
@@ -48,14 +48,15 @@ A fact card also offers **Ask for a rewrite**: say what to change or add ("It wa
 
 | Key | Does |
 | --- | --- |
-| <Kbd>A</Kbd> | Approve (or the card's yes: **Target**, **Use this**, **Keep**) |
-| <Kbd>E</Kbd> | Edit, where the card can be edited |
-| <Kbd>R</Kbd> | Reject (or the card's no) |
+| <Kbd>A</Kbd> or <Kbd>→</Kbd> | Approve (or the card's yes: **Target**, **Use this**, **Keep**) |
+| <Kbd>E</Kbd> or <Kbd>↑</Kbd> | Edit, where the card can be edited |
+| <Kbd>R</Kbd> or <Kbd>←</Kbd> | Reject (or the card's no), at once |
+| <Kbd>↓</Kbd> | Reject with a note |
+| <Kbd>S</Kbd> | Skip: move on, and see the card again at the end of the group |
 | <Kbd>J</Kbd> / <Kbd>K</Kbd> | Next / previous card |
-| <Kbd>→</Kbd> or <Kbd>↓</Kbd> / <Kbd>←</Kbd> or <Kbd>↑</Kbd> | Next / previous card in **Cards**; on a row opened from **List**, <Kbd>↓</Kbd> / <Kbd>↑</Kbd> (and they move between rows while the list has focus) |
 | <Kbd>U</Kbd> | Undo the last decision |
 
-Some cards have more letters, shown on their buttons: <Kbd>M</Kbd> for **Maybe**, <Kbd>O</Kbd> for **Keep the other**.
+Some cards have more letters, shown on their buttons: <Kbd>M</Kbd> for **Maybe**, <Kbd>O</Kbd> for **Keep the other**, <Kbd>D</Kbd> for **Fix start date**. The arrow keys leave alone whatever already uses arrows: a text field, a menu, a list of rows, a slider, or an open dialog.
 
 ## Look for more to decide
 
@@ -67,7 +68,7 @@ Some cards have more letters, shown on their buttons: <Kbd>M</Kbd> for **Maybe**
 
 ## On a phone
 
-The groups come first; a group opens full screen. The card swipes: right approves, left rejects. Its actions sit in the bottom bar, and **Why?** opens above the keyboard. See [On a phone](/docs/using/phone).
+The groups come first; a group opens full screen. The card swipes: right approves, left rejects at once. Its actions sit in the bottom bar; **Reject with a note** and **Skip** are in its ⋯ menu, and **Why?** opens above the keyboard. See [On a phone](/docs/using/phone).
 
 ## Related
 

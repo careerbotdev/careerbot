@@ -174,7 +174,7 @@ const base: CompaniesData = {
     { id: solutions, name: "Solutions Consulting", ownSeeds: null, hasTitles: true, targets: ["Loadstar Systems"] },
     { id: startupOps, name: "Startup Operations", ownSeeds: null, hasTitles: false, targets: ["Parcelpoint"] },
   ],
-  needCriteria: [{ id: planning, name: "Supply Planning" }],
+  needCriteria: { filling: null, rows: [{ id: planning, name: "Supply Planning", state: "review" as const }] },
   last: {
     status: "done",
     error: undefined,
@@ -233,6 +233,7 @@ function createStore(initial: CompaniesData, initialParams: { tab: Tab | null; c
     rejudge: done,
     checkRoles: done,
     find: done,
+    fillInDirections: async () => "job-fill" as Id<"jobs">,
     startOutreach: async () => "pur-outreach",
     setNamed: async ({ named }: { named: string[] }) => {
       data = { ...data, named: named.map((s) => s.trim()).filter(Boolean) };
@@ -304,14 +305,14 @@ type Story = StoryObj<typeof meta>;
 
 export const Target: Story = { render: () => <Fixture tab="targets" company="loadstar" /> };
 export const Found: Story = { render: () => <Fixture tab="found" company="orchard" /> };
-// R on a row asks why, under the row.
+// Not for me with a note, from a row's right-click menu, asks why under the row (R alone sets it aside at once).
 export const FoundNotForMe: Story = {
-  name: "Found, Not for me",
+  name: "Found, Not for me with a note",
   render: () => <Fixture tab="found" company="orchard" />,
   play: async ({ canvasElement }) => {
     const row = await within(canvasElement).findByRole("button", { name: /^Tidewell/ });
-    row.focus();
-    await userEvent.keyboard("r");
+    await userEvent.pointer({ keys: "[MouseRight]", target: row });
+    await userEvent.click(await within(document.body).findByRole("menuitem", { name: /^Not for me with a note/ }));
   },
 };
 export const SetAside: Story = { render: () => <Fixture tab="aside" company="hollisleaf" /> };

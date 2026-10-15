@@ -5,7 +5,7 @@ export const PLAIN_LANGUAGE = `Write in plain language: active voice, common wor
 
 // Examples here are invented. Shared prompts go to every workspace, so never put a real person's details in them.
 // A number someone only guessed at stays their guess everywhere CareerBot writes it: facts, resumes, letters.
-export const ESTIMATES = `Keep their own hedge on a number. A rough figure stays rough ("about 200"). A number they guessed at or heard secondhand ("I think", "like ten minutes", "maybe", "I never measured it", "my boss said") is an estimate, not a measured result: say so ("an estimated 3 hours a week", "about 3 hours a week by their manager's estimate") or leave the number out, and never write it as something measured. A fact that calls a number an estimate stays one in every line written from it. This never adds a hedge to what they stated plainly.`;
+export const ESTIMATES = `Write each number the way they give it. A figure they report from their own work is their number even when they told it with "approximately", "about", "around", "roughly", "nearly" or "or so": drop that word and write the figure plainly ("120 accounts", "40% of revenue", "a 30-page proposal"), since every number on a resume is read as rounded. Keep a bound that carries meaning ("more than 9,000 subscribers", "under 2%", "15 to 40 people"). Only a number they mark as a guess or as secondhand ("I think", "I believe", "maybe", "like ten minutes", "something like", "I'd estimate", "I never measured it", "my boss said") is an estimate, not a measured result: say so once ("an estimated $35,000", "about 3 hours a week by their manager's estimate") or leave the number out, and never write it as something measured. A fact that calls a number an estimate stays one in every line written from it. Never add a hedge they didn't make.`;
 
 // Facts and resume lines: Challenge-Action-Result told action-first, with XYZ's insistence on a measure.
 export const FACT_STYLE = `Shape each fact like a strong resume line a hiring manager takes in within a few seconds, one sentence:
@@ -14,6 +14,7 @@ export const FACT_STYLE = `Shape each fact like a strong resume line a hiring ma
 - End with the result, with its number when there is one.
 - Write it without pronouns, as resume lines are ("Led…", not "I led…").
 - Backstory and why something mattered go in context, not the fact. Two real results make two facts; never chain clauses with semicolons.
+- Write in a confident, factual voice. No qualifier softens what the story states plainly ("helped", "assisted with", "contributed to", "various", "some", "meaningful", "likely", "approximately", "about", "around", "roughly"); a qualifier belongs only where the story itself doubts that very point.
 - ${ESTIMATES}
 Treat this as a shape to aim for, not a form to fill; a line should never sound assembled.
 Example of the target (illustrative, not about this person): "Built a scheduling API that pushed clinic bookings straight into partners' calendars, replacing daily spreadsheet uploads and cutting no-shows 22%."`;

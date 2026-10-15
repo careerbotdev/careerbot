@@ -7,8 +7,8 @@ import { toast } from "@/components/Toast";
 import { failed } from "../ui";
 import type { Direction, Part } from "./words";
 
-// What can be decided about a direction, each at once with its toast and Undo: approve, reject (with why), restore,
-// undo an approval, merge into another, a part approved or taken back, and its link copied.
+// What can be decided about a direction, each at once with its toast and Undo: approve, reject (with why, if given),
+// restore, undo an approval, merge into another, a part approved or taken back, and its link copied.
 export function useDirectionActs() {
   const review = useMutation(api.extract.review);
   const merge = useMutation(api.goals.merge);
@@ -24,13 +24,12 @@ export function useDirectionActs() {
         () => toast({ message: `Approved ${d.data.name}`, icon: "approve", action: { label: "Undo", key: "U", run: back(d) } }),
         (e: unknown) => failed(e),
       ),
-    // Rejected at once, with Undo; a reason given after is saved with it.
+    // Rejected with Undo; a reason, when asked first (Reject with a note), is saved with it.
     reject: (d: Direction, reason?: string) =>
       set(d, "rejected", reason).then(
         () => toast({ message: `Rejected ${d.data.name}`, icon: "reject", action: { label: "Undo", key: "U", run: back(d) } }),
         (e: unknown) => failed(e),
       ),
-    because: (d: Direction, reason: string) => void set(d, "rejected", reason).catch((e: unknown) => failed(e)),
     restore: (d: Direction) =>
       void set(d, "proposed").then(
         () => toast({ message: `Restored ${d.data.name}`, icon: "undo" }),
