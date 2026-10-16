@@ -4,6 +4,7 @@ import { query, type QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { change } from "./pursuits";
 import { noteSubject } from "./schema";
+import { liveDirection, recordRedirect } from "./itemShapes";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
 
 // Notes in their own words on anything: a pursuit, a company, a role posting, an item of the record, a story. Dated,
@@ -67,7 +68,10 @@ export const add = mutation({
   handler: async (ctx, { subject, text }) => {
     const { workspaceId } = await requireWorkspace(ctx);
     await requireSubject(ctx, workspaceId, subject);
-    const id = await ctx.db.insert("notes", { workspaceId, subject, text: textOf(text), at: Date.now() });
+    // A note on a direction merged away (from a page still open) goes on the one it went into.
+    const on = subject.kind === "item" ? { kind: "item" as const, id: await liveDirection(ctx, subject.id) } : subject;
+    const id = await ctx.db.insert("notes", { workspaceId, subject: on, text: textOf(text), at: Date.now() });
+    if (on.id !== subject.id) await recordRedirect(ctx, workspaceId, subject.id as Id<"items">, { table: "notes", docId: id, before: null });
     const p = subject.kind === "pursuit" ? await ctx.db.get(subject.id) : null;
     if (p) await change(ctx, p, {}, { event: "notes" });
     return id;

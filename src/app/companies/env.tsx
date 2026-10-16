@@ -5,6 +5,7 @@ import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useMemo } from "react";
 import { api } from "../../../convex/_generated/api";
+import { COMPANY_SORTS, type CompanySort } from "../../../convex/companySets";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { valuesOf, whereText } from "../../../convex/roleDetails";
 import type { Note } from "@/components/NoteBlock";
@@ -20,15 +21,16 @@ export type Balance = FunctionReturnType<typeof api.apolloKey.balance>;
 // A company's best open roles, as its item lists them, and how many it has.
 export type OpenRoles = { top: { id: Id<"postings">; title: string; score: number | null; level: "strong" | "some" | "weak" | "none" | null; place: string | null }[]; count: number; more: boolean };
 
-export const TABS = ["targets", "maybe", "found", "aside"] as const;
+export const TABS = ["targets", "maybe", "found", "aside", "archived"] as const;
 export type Tab = (typeof TABS)[number];
-// settings: Search settings is open (?settings=search).
-export type SetParams = (next: { tab?: Tab | null; company?: string | null; settings?: "search" | null }, replace?: boolean) => void;
-export type CompaniesParams = { tab: Tab | null; company: string | null; settings: boolean; set: SetParams };
+// settings: Search settings is open (?settings=search). sort: the lists' order (?sort=; Best fit when left out).
+export type SetParams = (next: { tab?: Tab | null; company?: string | null; settings?: "search" | null; sort?: CompanySort | null }, replace?: boolean) => void;
+export type CompaniesParams = { tab: Tab | null; company: string | null; settings: boolean; sort: CompanySort; set: SetParams };
 
 // Everything the screen changes, by name. The app runs the Convex mutations; the stories run fixtures.
 export const MUTATIONS = {
   rate: api.enrich.rate,
+  archive: api.enrich.archive,
   keepAnyway: api.enrich.keepAnyway,
   setEmployer: api.screening.setEmployer,
   recheck: api.enrich.recheck,
@@ -51,7 +53,7 @@ export const MUTATIONS = {
 type Mutations = typeof MUTATIONS;
 export type Act = { [K in keyof Mutations]: (args: FunctionArgs<Mutations[K]>) => Promise<FunctionReturnType<Mutations[K]>> };
 
-// Where Companies reads and acts: Convex and the URL (?tab=, ?company=) in the app; fixtures in the screen's stories.
+// Where Companies reads and acts: Convex and the URL (?tab=, ?company=, ?sort=) in the app; fixtures in the screen's stories.
 // Each is a hook, called the same way on every render.
 export type CompaniesEnv = {
   useData: () => CompaniesData | undefined;
@@ -94,7 +96,14 @@ function useUrlParams(): CompaniesParams {
     [params, router, path],
   );
   const tab = params.get("tab");
-  return { tab: (TABS as readonly string[]).includes(tab ?? "") ? (tab as Tab) : null, company: params.get("company"), settings: params.get("settings") === "search", set };
+  const sort = params.get("sort");
+  return {
+    tab: (TABS as readonly string[]).includes(tab ?? "") ? (tab as Tab) : null,
+    company: params.get("company"),
+    settings: params.get("settings") === "search",
+    sort: (COMPANY_SORTS as readonly string[]).includes(sort ?? "") ? (sort as CompanySort) : "best",
+    set,
+  };
 }
 
 function useConvexFindSetup(): FindSetup | undefined {

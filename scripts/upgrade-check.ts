@@ -27,6 +27,7 @@ import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { ConvexHttpClient } from "convex/browser";
 import { makeFunctionReference, type FunctionReference } from "convex/server";
+import { currentRegistries, retryColdStart } from "./upgrade-check-helpers";
 
 const PROJECT = "careerbot-upgrade-check";
 const PERSONA = join("testdata", "personas", "renata-alvarez");
@@ -148,8 +149,12 @@ const ref = <T extends "query" | "mutation" | "action">(type: T, name: string) =
   makeFunctionReference(name) as unknown as FunctionReference<T, "public", Record<string, unknown>, unknown>;
 const signIn = ref("action", "auth:signIn");
 
+// Only a plain sign-in is tried again after a cold-start timeout (it makes nothing but a new session); signing up with the
+// setup code, like any other action, could have done part of its work and isn't repeated.
 async function auth(args: Record<string, unknown>): Promise<Tokens> {
-  const r = (await new ConvexHttpClient(convexUrl).action(signIn, args)) as { tokens?: Tokens | null };
+  const call = () => new ConvexHttpClient(convexUrl).action(signIn, args);
+  const plain = (args.params as { flow?: string } | undefined)?.flow === "signIn";
+  const r = (await (plain ? retryColdStart(call) : call())) as { tokens?: Tokens | null };
   if (!r.tokens) throw new Error("sign-in returned no session");
   return r.tokens;
 }
@@ -158,9 +163,10 @@ const withPassword = (params: Record<string, string>) => auth({ provider: "passw
 function as(tokens: Tokens) {
   const client = new ConvexHttpClient(convexUrl);
   client.setAuth(tokens.token);
+  // A query or mutation that timed out was rolled back, so it's safe to run again; an action isn't.
   return {
-    query: (name: string, args: Record<string, unknown> = {}) => client.query(ref("query", name), args),
-    mutation: (name: string, args: Record<string, unknown> = {}) => client.mutation(ref("mutation", name), args),
+    query: (name: string, args: Record<string, unknown> = {}) => retryColdStart(() => client.query(ref("query", name), args)),
+    mutation: (name: string, args: Record<string, unknown> = {}) => retryColdStart(() => client.mutation(ref("mutation", name), args)),
     action: (name: string, args: Record<string, unknown> = {}) => client.action(ref("action", name), args),
   };
 }
@@ -200,9 +206,7 @@ async function main() {
   mkdirSync(fromDir);
   out("tar", ["-xf", join(work, "from.tar"), "-C", fromDir]);
   const oldFiles = [join(fromDir, "compose.yaml")];
-  // Convex moved its images from ghcr.io/get-convex to ghcr.io/convex (same tags), and the old address now refuses
-  // pulls. A copy that's running has its images already; here they're pulled fresh, from where they are now.
-  const oldCompose = readFileSync(oldFiles[0], "utf8").replaceAll("ghcr.io/get-convex/", "ghcr.io/convex/");
+  const oldCompose = currentRegistries(readFileSync(oldFiles[0], "utf8"));
   writeFileSync(oldFiles[0], oldCompose);
   console.log(`\n== ${from}: starting it`);
   if (!/careerbot-web:\$\{CAREERBOT_VERSION:-/.test(oldCompose)) dc(oldFiles, ["up", "-d", "--build"]);

@@ -74,6 +74,25 @@ test("a task uses its own model, else the workspace default; decision tasks neve
   expect(await t.query(internal.aiSettings.choiceFor, { workspaceId: wa, task: "roleSortJev" })).toEqual({ model: "typesafe/jev-1.13" });
 });
 
+test("Getting started's Choose another model: an alias is listed at its target's price, and the pick saves as the default every task follows, completing the key step", async () => {
+  const { asA, asB } = await setup();
+  const alias = "~vendor/fast-latest";
+  vi.stubGlobal("fetch", async () =>
+    Response.json({
+      data: [
+        { id: "vendor/fast-2", name: "Vendor: Fast 2", context_length: 200_000, pricing: { prompt: "0.000003", completion: "0.000005" }, supported_parameters: ["reasoning", "response_format"] },
+        { id: alias, name: "Vendor: Fast Latest", pricing: { prompt: "-1", completion: "-1" }, alias_target: { slug: "vendor/fast-2" } },
+      ],
+    }),
+  );
+  expect((await asA.action(api.aiSettings.catalog, {})).find((m) => m.id === alias)).toEqual({ id: alias, name: "Vendor: Fast Latest", inPerM: 3, outPerM: 5, contextLength: 200_000, reasoning: true, json: true });
+  await asA.mutation(api.aiSettings.setDefault, { model: alias });
+  expect(await asA.query(api.aiSettings.defaultChoice, {})).toEqual({ model: alias });
+  expect((await asA.query(api.aiSettings.list, {})).find((c) => c.task === "rework")).toMatchObject({ own: false, choice: { model: alias } });
+  expect((await asA.query(api.today.setup, {})).steps.key.done).toBe(true);
+  expect(await asB.query(api.aiSettings.defaultChoice, {})).toBeNull();
+});
+
 test("clearing a task's own model makes it follow the default again", async () => {
   const { asA, sentModels, read } = await setup();
   await asA.mutation(api.aiSettings.setDefault, { model: "vendor/default" });

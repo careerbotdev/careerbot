@@ -11,7 +11,7 @@ import { boolean, listOf, orNull, type ReplySchema, strictObject, string, string
 import { type ItemOf, type ItemStatus, itemsOf, pickDirection, pickLimit, STATUSES } from "./itemShapes";
 import { yearlyUsd } from "./roleDetails";
 import { counted, sourceCheck } from "./recordContext";
-import { fillWhenApproved } from "./directionFill";
+import { fillWhenApproved, refuseWhileMerging } from "./directionFill";
 import { PLAIN_LANGUAGE } from "./writingGuides";
 import { refuseCancelled } from "./cancel";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
@@ -390,7 +390,78 @@ export const addLimit = mutation({
   },
 });
 
-// Merge one direction into another: the other keeps its title and gains this one's title and what it includes.
+// ---- Merging directions ----
+
+type Level = "strong" | "some" | "weak" | "none";
+const LEVEL_RANK: Record<Level, number> = { strong: 3, some: 2, weak: 1, none: 0 };
+const fitsWell = (level: Level | undefined) => level === "strong" || level === "some";
+// The better of two verdicts: the higher level, then the higher score.
+function better<T extends { level: Level; score?: number }>(a: T, b: T) {
+  const by = LEVEL_RANK[b.level] - LEVEL_RANK[a.level] || (b.score ?? -1) - (a.score ?? -1);
+  return by > 0 ? b : a;
+}
+// Both lists in order, each entry once (ignoring case).
+function union(a: string[] = [], b: string[] = []) {
+  const seen = new Set<string>();
+  return [...a, ...b].filter((s) => {
+    const k = s.trim().toLowerCase();
+    if (!k || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+// What a mergeMoves row keeps of each record as it was before the merge: a company's fits and finds, a role's fits, sort
+// and asks to rank again, whole (null: it had none), so Undo can put them back as they were.
+// was: as it was; now: what the merge made of it, so Undo can tell what changed since.
+type CompanyLists = { fit: NonNullable<Doc<"companies">["fit"]> | null; found: Doc<"companies">["found"] };
+type PostingLists = { fit: NonNullable<Doc<"postings">["fit"]> | null; directionIds: Id<"items">[] | null; against: NonNullable<Doc<"postings">["sort"]>["against"] | null; rerank: Id<"items">[] | null };
+type CompanyBefore = { was: CompanyLists; now: CompanyLists };
+type PostingBefore = { was: PostingLists; now: PostingLists };
+type PursuitBefore = { directionId: Id<"items">; direction?: string };
+type LimitBefore = { appliesTo?: string[]; label: string };
+type LengthBefore = NonNullable<Doc<"resumeSettings">["lengths"]>[number];
+type Move = { table: Doc<"mergeMoves">["table"]; docId: string; before: CompanyBefore | PostingBefore | PursuitBefore | LimitBefore | LengthBefore | null };
+
+// A list put back as it was before the merge (was), from what the merge made of it (now) and what it is now (current):
+// exactly as it was when nothing has changed since; else what changed since stays, and only what the merge did is
+// undone: entries it added go, and entries it took away come back, unless one with the same key (a direction) was
+// written since. null: the list wasn't there.
+function undoList<T>(current: T[] | undefined, was: T[] | null, now: T[] | null, key: (x: T) => string | null): T[] | undefined {
+  // Compared by content: the same fields in any order are the same entry.
+  const j = (x: unknown) => JSON.stringify(x, (_k, v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1))) : v));
+  if (j(current ?? null) === j(now)) return was ?? undefined;
+  const before = new Set((was ?? []).map(j));
+  const after = new Set((now ?? []).map(j));
+  const added = new Set((now ?? []).filter((x) => !before.has(j(x))).map(j));
+  const kept = (current ?? []).filter((x) => !added.has(j(x)));
+  const keys = new Set(kept.map(key));
+  const back = (was ?? []).filter((x) => {
+    const k = key(x);
+    return !after.has(j(x)) && (k === null || !keys.has(k));
+  });
+  const out = [...kept, ...back];
+  return out.length || was ? out : undefined;
+}
+
+// The direction's titles: its name, what it covers, its titles to aim at and the titles search looks for.
+const titlesOf = (d: ItemOf<"direction">["data"]) => union([d.name, ...(d.includes ?? []), ...(d.detail?.targetTitles ?? []), ...(d.criteria?.titles ?? [])]);
+
+// A merge or its Undo, as its job's args: the direction merged away (id) and the kept one (into), with their names.
+type MergeArgs = { id: Id<"items">; into: Id<"items">; from: string; to: string };
+// The records a merge goes through, in this order, a page at a time, each page a write of its own (mergePage).
+const MERGE_PHASES = ["companies", "postings", "pursuits", "resumes", "notes", "limits", "settings"] as const;
+const MERGE_PAGE = 100;
+// Records counted per read, for a merge's or Undo's "N of M".
+const COUNT_PAGE = 200;
+
+// Merge one direction into another. At once: the other keeps its name and positioning and gains this one's name and
+// what it covers, its titles to aim at and words to use, and its criteria (seed companies too), each once; it's marked
+// as changed now, so its roles show as ranked before the merge until they rank again; this one is merged away, and Undo
+// is ready. Then a merge job (runMerge) goes through the records a page at a time: each company and role keeps the better
+// of its two verdicts for the kept one, and finds and the sort move to it; pursuits, tailored resumes and notes move to
+// it; limits scoped to this one are scoped to it; its resume length is dropped. This one's own resume stays with it.
+// Everything moved is kept in mergeMoves for Undo (unmerge). No AI call.
 export const merge = mutation({
   args: { id: v.id("items"), into: v.id("items") },
   handler: async (ctx, { id, into }) => {
@@ -398,15 +469,52 @@ export const merge = mutation({
     const from = await getInWorkspace(ctx, workspaceId, id);
     const to = await getInWorkspace(ctx, workspaceId, into);
     if (!from || !to || from.kind !== "direction" || to.kind !== "direction" || id === into) throw new Error("Not found.");
+    await refuseWhileMerging(ctx, workspaceId, [id, into]);
+    if (await ctx.db.query("mergeMoves").withIndex("by_direction", (q) => q.eq("workspaceId", workspaceId).eq("directionId", id)).first())
+      throw new ConvexError(`Undoing the last merge of ${from.data.name} is still under way. Try again when it’s done.`);
+    const at = Date.now();
     const includes = [...new Set([...(to.data.includes ?? []), from.data.name, ...(from.data.includes ?? [])].filter((n) => n && n !== to.data.name))];
-    await ctx.db.patch(into, { data: { ...to.data, includes, edited: true }, status: "approved", sources: [...to.sources, ...from.sources] });
-    const undoMerge = { into, status: from.status, includes: to.data.includes, edited: to.data.edited, intoStatus: to.status, intoSources: to.sources.length };
+    const fd = from.data.detail;
+    const detail = to.data.detail && fd ? { ...to.data.detail, targetTitles: union(to.data.detail.targetTitles, fd.targetTitles), vocabulary: union(to.data.detail.vocabulary, fd.vocabulary) } : to.data.detail;
+    const tc = to.data.criteria;
+    const fc = from.data.criteria;
+    const seeds = union(tc?.seeds, fc?.seeds);
+    const criteria =
+      tc && fc
+        ? { ...(seeds.length ? { seeds } : {}), industries: union(tc.industries, fc.industries), sizes: union(tc.sizes, fc.sizes), stages: union(tc.stages, fc.stages), titles: union(tc.titles, fc.titles), keywords: union(tc.keywords, fc.keywords) }
+        : (tc ?? fc);
+    const criteriaStatus = tc ? to.data.criteriaStatus : from.data.criteriaStatus;
+    await ctx.db.patch(into, {
+      data: { ...to.data, includes, detail, criteria, criteriaStatus, changedAt: at, mergedAt: at, edited: true },
+      status: "approved",
+      sources: [...to.sources, ...from.sources],
+    });
+    const args: MergeArgs = { id, into, from: from.data.name, to: to.data.name };
+    const job = await ctx.db.insert("jobs", { workspaceId, kind: "merge", args, status: "queued", origin: "you" });
+    await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId: job });
+    const undoMerge = {
+      into,
+      status: from.status,
+      includes: to.data.includes,
+      edited: to.data.edited,
+      intoStatus: to.status,
+      intoSources: to.sources.length,
+      targetTitles: to.data.detail?.targetTitles,
+      vocabulary: to.data.detail?.vocabulary,
+      criteria: tc,
+      criteriaStatus: to.data.criteriaStatus,
+      changedAt: to.data.changedAt,
+      mergedAt: to.data.mergedAt,
+      job,
+    };
     await ctx.db.patch(id, { status: "superseded", data: { ...from.data, mergedInto: to.data.name, undoMerge } });
     if (to.status !== "approved") await fillWhenApproved(ctx, to);
   },
 });
 
-// Undo a merge, from the direction merged away: it's back as it was, and the one it went into loses what it gained.
+// Undo a merge, from the direction merged away. At once: it's back as it was, and the one it went into has its own
+// titles, criteria and change times back; a merge job still under way stops. Then an Undo job (runMerge) puts back
+// every record the merge moved or changed, exactly, a page at a time.
 export const unmerge = mutation({
   args: { id: v.id("items") },
   handler: async (ctx, { id }) => {
@@ -414,12 +522,307 @@ export const unmerge = mutation({
     const from = await getInWorkspace(ctx, workspaceId, id);
     if (from?.kind !== "direction" || from.status !== "superseded" || !from.data.undoMerge) throw new Error("Not found.");
     const u = from.data.undoMerge;
-    const data = { ...from.data, undoMerge: undefined, mergedInto: undefined };
-    const to = await getInWorkspace(ctx, workspaceId, u.into);
-    if (to?.kind === "direction") await ctx.db.patch(to._id, { status: u.intoStatus, sources: to.sources.slice(0, u.intoSources), data: { ...to.data, includes: u.includes, edited: u.edited } });
-    await ctx.db.patch(id, { status: u.status, data });
+    const into = u.into;
+    const running = u.job && (await ctx.db.get(u.job));
+    if (running && (running.status === "queued" || running.status === "running" || running.status === "paused"))
+      await ctx.db.patch(running._id, { status: "cancelled", pausedFor: undefined, error: undefined, tallied: true });
+    const to = await getInWorkspace(ctx, workspaceId, into);
+    if (to?.kind === "direction") {
+      const detail = to.data.detail && u.targetTitles && u.vocabulary ? { ...to.data.detail, targetTitles: u.targetTitles, vocabulary: u.vocabulary } : to.data.detail;
+      await ctx.db.patch(to._id, {
+        status: u.intoStatus,
+        sources: to.sources.slice(0, u.intoSources),
+        data: { ...to.data, includes: u.includes, edited: u.edited, detail, criteria: u.criteria, criteriaStatus: u.criteriaStatus, changedAt: u.changedAt, mergedAt: u.mergedAt },
+      });
+    }
+    await ctx.db.patch(id, { status: u.status, data: { ...from.data, undoMerge: undefined, mergedInto: undefined } });
+    if (await ctx.db.query("mergeMoves").withIndex("by_direction", (q) => q.eq("workspaceId", workspaceId).eq("directionId", id)).first()) {
+      const args: MergeArgs = { id, into, from: from.data.name, to: to?.kind === "direction" ? to.data.name : (from.data.mergedInto ?? "") };
+      const job = await ctx.db.insert("jobs", { workspaceId, kind: "unmerge", args, status: "queued", origin: "you" });
+      await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId: job });
+    } else await ctx.scheduler.runAfter(0, internal.roles.refreshRanks, { workspaceId });
   },
 });
+
+// A merge job, or an Undo job: counts what it goes through (for Activity's "N of M"), then works through it a page at a
+// time, each page its own write; a page done is checkpointed with it, so a run cut off and started again goes on from
+// the next page, and a job cancelled (Undo while it runs) stops at its next page. Then the roles' rows are rebuilt.
+export async function runMerge(ctx: ActionCtx, job: Doc<"jobs">) {
+  const a = job.args as MergeArgs;
+  const count = async (table: "companies" | "postings" | "mergeMoves") => {
+    let n = 0;
+    for (let cursor: string | null = null; ; ) {
+      const page: { n: number; cursor: string; isDone: boolean } = await ctx.runQuery(internal.goals.mergeCount, { workspaceId: job.workspaceId, table, directionId: a.id, cursor });
+      n += page.n;
+      if (page.isDone) return n;
+      cursor = page.cursor;
+    }
+  };
+  let progress: { checked: number; total: number; swept?: number } = { checked: (job.result?.checked as number | undefined) ?? 0, total: 0 };
+  if (job.kind === "merge") {
+    const total = (await count("companies")) + (await count("postings"));
+    // Every kind once, then once more (the sweep): whatever was written naming the merged direction after its page was
+    // done (work that started before the merge) is moved too, so nothing is left naming it.
+    for (const sweep of [false, true])
+      for (const phase of MERGE_PHASES) {
+        const saved = (job.done ?? []).find((d) => d.step === (sweep ? `sweep:${phase}` : phase))?.result as { cursor: string | null; isDone: boolean } | undefined;
+        let at = { cursor: saved?.cursor ?? null, isDone: saved?.isDone ?? false };
+        while (!at.isDone) {
+          const page: { cursor: string | null; isDone: boolean; checked: number; total: number; swept: number } = await ctx.runMutation(internal.goals.mergePage, { jobId: job._id, phase, cursor: at.cursor, total, sweep });
+          at = page;
+          progress = page;
+        }
+      }
+  } else {
+    // Rows put back are deleted, so what's left plus what's done is the whole.
+    const total = progress.checked + (await count("mergeMoves"));
+    for (let more = true; more; ) {
+      const page: { more: boolean; checked: number; total: number } = await ctx.runMutation(internal.goals.unmergePage, { jobId: job._id, total });
+      more = page.more;
+      progress = page;
+    }
+  }
+  await ctx.runMutation(internal.roles.refreshRanks, { workspaceId: job.workspaceId });
+  return progress;
+}
+
+// One page of records to count for a merge or its Undo.
+export const mergeCount = internalQuery({
+  args: { workspaceId: v.id("workspaces"), table: v.union(v.literal("companies"), v.literal("postings"), v.literal("mergeMoves")), directionId: v.id("items"), cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, { workspaceId, table, directionId, cursor }) => {
+    const opts = { cursor, numItems: COUNT_PAGE };
+    const page =
+      table === "mergeMoves"
+        ? await ctx.db.query("mergeMoves").withIndex("by_direction", (q) => q.eq("workspaceId", workspaceId).eq("directionId", directionId)).paginate(opts)
+        : table === "companies"
+          ? await ctx.db.query("companies").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).paginate(opts)
+          : await ctx.db.query("postings").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).paginate(opts);
+    return { n: page.page.length, cursor: page.continueCursor, isDone: page.isDone };
+  },
+});
+
+// One page of a merge: the records of one kind it reaches, moved or changed for the kept direction, each with a
+// mergeMoves row of what it was; the job's progress (companies and roles checked of all of them) and where it got to
+// (its checkpoint for this kind) are saved with it. Nothing for a cancelled job.
+export const mergePage = internalMutation({
+  args: { jobId: v.id("jobs"), phase: v.union(...MERGE_PHASES.map((p) => v.literal(p))), cursor: v.union(v.string(), v.null()), total: v.number(), sweep: v.optional(v.boolean()) },
+  handler: async (ctx, { jobId, phase, cursor, total, sweep }) => {
+    await refuseCancelled(ctx, jobId);
+    const job = await ctx.db.get(jobId);
+    if (!job) throw new Error("Not found.");
+    const { workspaceId } = job;
+    const { id, into, from, to } = job.args as MergeArgs;
+    const opts = { cursor, numItems: MERGE_PAGE };
+    const moves: Move[] = [];
+    let next: { cursor: string | null; isDone: boolean } = { cursor: null, isDone: true };
+    let checked = 0;
+
+    if (phase === "companies") {
+      // The better fit for the kept one, and finds for this one counted for it; nothing left naming this one.
+      const page = await ctx.db.query("companies").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).paginate(opts);
+      for (const c of page.page) {
+        const mine = c.fit?.find((f) => f.directionId === id);
+        const theirs = c.fit?.find((f) => f.directionId === into);
+        if (!mine && !c.found.some((f) => f.directionId === id)) continue;
+        const kept = mine ? (theirs ? better(theirs, { ...mine, directionId: into }) : { ...mine, directionId: into }) : theirs;
+        const now: CompanyLists = {
+          fit: c.fit ? [...c.fit.filter((f) => f.directionId !== id && f.directionId !== into), ...(kept ? [kept] : [])] : null,
+          found: c.found.map((f) => (f.directionId === id ? { ...f, directionId: into } : f)),
+        };
+        await ctx.db.patch(c._id, { fit: now.fit ?? undefined, found: now.found });
+        moves.push({ table: "companies", docId: c._id, before: { was: { fit: c.fit ?? null, found: c.found }, now } satisfies CompanyBefore });
+      }
+      next = { cursor: page.continueCursor, isDone: page.isDone };
+      checked = page.page.length;
+    } else if (phase === "postings") {
+      // The better verdict for the kept one, and the sort and asks to rank again carried over to it; nothing left naming
+      // this one.
+      const page = await ctx.db.query("postings").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).paginate(opts);
+      const swap = (ids: Id<"items">[]) => [...new Set(ids.map((d) => (d === id ? into : d)))];
+      for (const p of page.page) {
+        const mine = p.fit?.find((f) => f.directionId === id);
+        const theirs = p.fit?.find((f) => f.directionId === into);
+        const sortedAs = p.sort?.against.find((a) => a.directionId === id);
+        if (!mine && !sortedAs && !p.sort?.directionIds.includes(id) && !p.rerank?.includes(id)) continue;
+        const kept = mine ? (theirs ? better(theirs, { ...mine, directionId: into }) : { ...mine, directionId: into }) : theirs;
+        const theirSort = p.sort?.against.find((a) => a.directionId === into) ?? (sortedAs && { ...sortedAs, directionId: into });
+        const now: PostingLists = {
+          fit: p.fit ? [...p.fit.filter((f) => f.directionId !== id && f.directionId !== into), ...(kept ? [kept] : [])] : null,
+          directionIds: p.sort ? swap(p.sort.directionIds) : null,
+          against: p.sort ? [...p.sort.against.filter((a) => a.directionId !== id && a.directionId !== into), ...(theirSort ? [theirSort] : [])] : null,
+          rerank: p.rerank ? swap(p.rerank) : null,
+        };
+        await ctx.db.patch(p._id, {
+          fit: now.fit ?? undefined,
+          sort: p.sort && { ...p.sort, directionIds: now.directionIds!, against: now.against! },
+          rerank: now.rerank ?? undefined,
+        });
+        const was: PostingLists = { fit: p.fit ?? null, directionIds: p.sort?.directionIds ?? null, against: p.sort?.against ?? null, rerank: p.rerank ?? null };
+        moves.push({ table: "postings", docId: p._id, before: { was, now } satisfies PostingBefore });
+      }
+      next = { cursor: page.continueCursor, isDone: page.isDone };
+      checked = page.page.length;
+    } else if (phase === "pursuits") {
+      // Pursuits keep the score and level they were scored with.
+      const page = await ctx.db.query("pursuits").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).paginate(opts);
+      for (const p of page.page) {
+        if (p.directionId !== id) continue;
+        await ctx.db.patch(p._id, { directionId: into, direction: to });
+        moves.push({ table: "pursuits", docId: p._id, before: { directionId: id, direction: p.direction } satisfies PursuitBefore });
+      }
+      next = { cursor: page.continueCursor, isDone: page.isDone };
+    } else if (phase === "resumes") {
+      // Tailored resumes move; its own resume's versions stay with it.
+      const page = await ctx.db.query("resumes").withIndex("by_direction", (q) => q.eq("workspaceId", workspaceId).eq("directionId", id)).paginate(opts);
+      for (const r of page.page) {
+        if (r.posting === undefined && r.postingId === undefined) continue;
+        await ctx.db.patch(r._id, { directionId: into });
+        moves.push({ table: "resumes", docId: r._id, before: null });
+      }
+      next = { cursor: page.continueCursor, isDone: page.isDone };
+    } else if (phase === "notes") {
+      const page = await ctx.db.query("notes").withIndex("by_subject", (q) => q.eq("workspaceId", workspaceId).eq("subject.kind", "item").eq("subject.id", id)).paginate(opts);
+      for (const n of page.page) {
+        await ctx.db.patch(n._id, { subject: { kind: "item", id: into } });
+        moves.push({ table: "notes", docId: n._id, before: null });
+      }
+      next = { cursor: page.continueCursor, isDone: page.isDone };
+    } else if (phase === "limits") {
+      // Limits scoped to it hold for the kept one.
+      const page = await ctx.db.query("items").withIndex("by_workspace_kind_status", (q) => q.eq("workspaceId", workspaceId).eq("kind", "limit")).paginate(opts);
+      for (const l of page.page) {
+        if (l.kind !== "limit" || !l.data.appliesTo?.includes(from)) continue;
+        const appliesTo = [...new Set(l.data.appliesTo.map((x) => (x === from ? to : x)))];
+        await ctx.db.patch(l._id, { data: { ...l.data, appliesTo, label: limitLabel(l.data.kind, appliesTo, l.data.when ?? null) } });
+        moves.push({ table: "items", docId: l._id, before: { appliesTo: l.data.appliesTo, label: l.data.label } satisfies LimitBefore });
+      }
+      if (moves.length) await syncClashes(ctx, workspaceId);
+      next = { cursor: page.continueCursor, isDone: page.isDone };
+    } else {
+      const settings = await ctx.db.query("resumeSettings").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).first();
+      const length = settings?.lengths?.find((l) => l.directionId === id);
+      if (settings && length) {
+        await ctx.db.patch(settings._id, { lengths: settings.lengths!.filter((l) => l !== length) });
+        moves.push({ table: "resumeSettings", docId: settings._id, before: length });
+      }
+    }
+
+    for (const m of moves) await ctx.db.insert("mergeMoves", { workspaceId, directionId: id, ...m });
+    // The sweep's pages count what they still found (swept), not what they read.
+    const was = (job.result ?? {}) as { checked?: number; swept?: number };
+    const progress = { checked: (was.checked ?? 0) + (sweep ? 0 : checked), total, swept: (was.swept ?? 0) + (sweep ? moves.length : 0) };
+    const step = sweep ? `sweep:${phase}` : phase;
+    const done = [...(job.done ?? []).filter((d) => d.step !== step), { step, result: next }];
+    await ctx.db.patch(jobId, { result: progress, done });
+    return { ...next, ...progress };
+  },
+});
+
+// One page of an Undo: the merge's mergeMoves rows, oldest first, each record put back as it was and the row deleted,
+// so a run started again goes on with what's left. Nothing for a cancelled job. more: there may be more rows.
+export const unmergePage = internalMutation({
+  args: { jobId: v.id("jobs"), total: v.number() },
+  handler: async (ctx, { jobId, total }) => {
+    await refuseCancelled(ctx, jobId);
+    const job = await ctx.db.get(jobId);
+    if (!job) throw new Error("Not found.");
+    const { workspaceId } = job;
+    const { id, into } = job.args as MergeArgs;
+    // Newest first: a record moved again by the final sweep is put back through each of its moves in turn.
+    const rows = await ctx.db.query("mergeMoves").withIndex("by_direction", (q) => q.eq("workspaceId", workspaceId).eq("directionId", id)).order("desc").take(MERGE_PAGE);
+    let scoped = false;
+    for (const m of rows) {
+      await ctx.db.delete(m._id);
+      if (m.table === "companies") {
+        const c = await ctx.db.get(m.docId as Id<"companies">);
+        if (!c) continue;
+        const { was, now } = m.before as CompanyBefore;
+        await ctx.db.patch(c._id, { fit: undoList(c.fit, was.fit, now.fit, (f) => f.directionId), found: undoList(c.found, was.found, now.found, () => null) ?? [] });
+      } else if (m.table === "postings") {
+        const p = await ctx.db.get(m.docId as Id<"postings">);
+        if (!p) continue;
+        const { was, now } = m.before as PostingBefore;
+        await ctx.db.patch(p._id, {
+          fit: undoList(p.fit, was.fit, now.fit, (f) => f.directionId),
+          sort: p.sort && {
+            ...p.sort,
+            directionIds: undoList(p.sort.directionIds, was.directionIds, now.directionIds, (d) => d) ?? [],
+            against: undoList(p.sort.against, was.against, now.against, (a) => a.directionId) ?? [],
+          },
+          rerank: undoList(p.rerank, was.rerank, now.rerank, (d) => d),
+        });
+      } else if (m.table === "pursuits") {
+        const b = m.before as PursuitBefore;
+        if (await ctx.db.get(m.docId as Id<"pursuits">)) await ctx.db.patch(m.docId as Id<"pursuits">, { directionId: b.directionId, direction: b.direction });
+      } else if (m.table === "resumes") {
+        if (await ctx.db.get(m.docId as Id<"resumes">)) await ctx.db.patch(m.docId as Id<"resumes">, { directionId: id });
+      } else if (m.table === "notes") {
+        if (await ctx.db.get(m.docId as Id<"notes">)) await ctx.db.patch(m.docId as Id<"notes">, { subject: { kind: "item", id } });
+      } else if (m.table === "items") {
+        const l = await ctx.db.get(m.docId as Id<"items">);
+        if (l?.kind !== "limit") continue;
+        const b = m.before as LimitBefore;
+        await ctx.db.patch(l._id, { data: { ...l.data, appliesTo: b.appliesTo, label: b.label } });
+        scoped = true;
+      } else {
+        const st = await ctx.db.get(m.docId as Id<"resumeSettings">);
+        if (st) await ctx.db.patch(st._id, { lengths: [...(st.lengths ?? []), m.before as LengthBefore] });
+      }
+    }
+    if (scoped) await syncClashes(ctx, workspaceId);
+    const progress = { checked: ((job.result?.checked as number | undefined) ?? 0) + rows.length, total };
+    await ctx.db.patch(jobId, { result: progress });
+    return { more: rows.length === MERGE_PAGE, ...progress };
+  },
+});
+
+// Merge into…: for each other approved direction, what merging this one into it would give it (titles it doesn't
+// have, roles that fit this one and not it, companies that fit this one well and it weakly or not at all), and this
+// one's pursuits and notes that would move with it.
+export const mergeGains = query({
+  args: { id: v.id("items") },
+  handler: async (ctx, { id }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const from = await getInWorkspace(ctx, workspaceId, id);
+    if (from?.kind !== "direction") throw new Error("Not found.");
+    const fitting = async (directionId: Id<"items">) =>
+      new Set(
+        (
+          await ctx.db
+            .query("roleRanks")
+            .withIndex("by_score", (q) => q.eq("workspaceId", workspaceId).eq("directionId", directionId).eq("state", "judged"))
+            .filter((q) => q.or(q.eq(q.field("level"), "strong"), q.eq(q.field("level"), "some")))
+            .take(GAIN_CAP)
+        ).map((r) => String(r.postingId)),
+      );
+    const roles = await fitting(id);
+    const companies = await ctx.db.query("companies").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect();
+    const levelFor = (c: Doc<"companies">, d: Id<"items">) => c.fit?.find((f) => f.directionId === d)?.level;
+    const strongHere = companies.filter((c) => fitsWell(levelFor(c, id)));
+    const titles = titlesOf(from.data);
+    const others = (await itemsOf(ctx, workspaceId, "direction", "approved")).filter((d) => d._id !== id);
+    const pursuits = (await ctx.db.query("pursuits").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect()).filter((p) => p.directionId && p.directionId === id).length;
+    const notes = (await ctx.db.query("notes").withIndex("by_subject", (q) => q.eq("workspaceId", workspaceId).eq("subject.kind", "item").eq("subject.id", id)).collect()).length;
+    return {
+      pursuits,
+      notes,
+      into: await Promise.all(
+        others.map(async (o) => {
+          const has = new Set(titlesOf(o.data).map((t) => t.toLowerCase()));
+          const theirs = await fitting(o._id);
+          return {
+            id: o._id,
+            titles: titles.filter((t) => !has.has(t.toLowerCase())).length,
+            roles: [...roles].filter((r) => !theirs.has(r)).length,
+            companies: strongHere.filter((c) => !fitsWell(levelFor(c, o._id))).length,
+          };
+        }),
+      ),
+    };
+  },
+});
+// Roles read per direction for mergeGains.
+const GAIN_CAP = 2000;
 
 // Change a limit: wording, how firm, filters, scope and condition in one save, approved as given.
 // Filters typed by hand must be valid as given (nothing silently dropped). If only the wording changed, the filters stay

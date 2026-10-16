@@ -201,7 +201,7 @@ export function Directions() {
           key={d.id}
           title={d.data.name}
           line={lineOf(d)}
-          tag={d.fill === "filling" ? <StatusTag tone="info">Filling in</StatusTag> : toReview ? <StatusTag tone="info">{toReview} to review</StatusTag> : undefined}
+          tag={d.merge ? <StatusTag tone="info">{d.merge === "undoing" ? "Undoing the merge…" : "Merging…"}</StatusTag> : d.fill === "filling" ? <StatusTag tone="info">Filling in</StatusTag> : toReview ? <StatusTag tone="info">{toReview} to review</StatusTag> : undefined}
           meta={f ? rolesWord(f.count) : undefined}
           selected={selected}
           onOpen={onOpen}
@@ -341,6 +341,7 @@ export function Directions() {
         const after = next(open);
         set({ direction: after?.id ?? null, tab: null, pane: null }, false);
       }}
+      onMerged={(into) => set({ direction: size === "small" ? null : into, tab: null, pane: null }, false)}
     />
   ) : (
     <ProposedItem key={open.id} d={open} approved={approved.filter((d) => d.id !== open.id)} size={size} position={position} back={back} onDecided={() => decided(open)} />

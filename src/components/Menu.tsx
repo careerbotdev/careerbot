@@ -27,9 +27,14 @@ import { useSmall } from "./useSmall";
 // `count` are muted words or a number at the right ("Free", "Tue", 41). `checked` makes it one of a set of choices,
 // with a tick beside the current one. `tone: "danger"` is for removing things. A `disabled` item stays reachable and
 // says why in `reason`. `items` makes it a submenu. `detail` and `note` are an action's explainer (what it does; what
-// it costs and whether it can be undone), in a tooltip beside the row, or a long press on a phone.
+// it costs and whether it can be undone), in a tooltip beside the row, or a long press on a phone. `line` is muted words
+// under the label (what a choice would bring). A submenu may have a `title` over its rows (the sheet's title on a
+// phone) and `foot`, muted words under them.
 export type MenuItem = {
   label: string;
+  line?: string;
+  title?: string;
+  foot?: ReactNode;
   icon?: IconName;
   keys?: string;
   hint?: string;
@@ -61,6 +66,10 @@ const row =
   "data-highlighted:bg-subtle dark:data-highlighted:bg-hover data-[state=open]:bg-subtle dark:data-[state=open]:bg-hover aria-disabled:opacity-50";
 const rule = "-mx-1 my-1 h-px shrink-0 bg-border";
 const groupLabel = "px-2 pt-2 pb-1 text-label-caps leading-label-caps font-medium tracking-label-caps text-muted uppercase";
+// A two-line row (with `line`), and a submenu's title and foot.
+const tallRow = "h-auto py-1.5";
+const titleRow = "px-2 pt-1.5 pb-2 text-body-sm leading-body-sm font-medium text-text";
+const footRow = "px-2 pt-1 pb-1.5 text-body-sm leading-body-sm text-muted";
 // Danger is red in light; in dark, where red is never text, it keeps the text colour.
 const tone = (item: MenuItem) => (item.tone === "danger" ? "text-red dark:text-text" : "text-text");
 const iconTone = (item: MenuItem) => (item.tone === "danger" ? "text-red dark:text-text" : "text-muted");
@@ -92,9 +101,17 @@ function Entries({ entries, P, container }: { entries: MenuEntry[]; P: Parts; co
       <>
         {checks && <span className="flex w-4 shrink-0">{item.checked && <Icons.approve aria-hidden="true" />}</span>}
         {item.icon && <Icon name={item.icon} className={iconTone(item)} />}
-        <span className={`min-w-0 flex-1 truncate ${tone(item)}`}>{item.label}</span>
+        {item.line ? (
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className={`truncate ${tone(item)}`}>{item.label}</span>
+            <span className="truncate text-muted">{item.line}</span>
+          </span>
+        ) : (
+          <span className={`min-w-0 flex-1 truncate ${tone(item)}`}>{item.label}</span>
+        )}
       </>
     );
+    const rowClass = item.line ? `${row} ${tallRow}` : row;
     if (item.items) {
       return (
         <P.Sub key={i}>
@@ -109,7 +126,14 @@ function Entries({ entries, P, container }: { entries: MenuEntry[]; P: Parts; co
           )}
           <P.Portal container={container}>
             <P.SubContent sideOffset={8} alignOffset={-5} collisionPadding={8} className={`${panel} min-w-44`}>
+              {item.title && <P.Label className={titleRow}>{item.title}</P.Label>}
               <Entries entries={item.items} P={P} container={container} />
+              {item.foot && (
+                <>
+                  <P.Separator className={rule} />
+                  <div className={footRow}>{item.foot}</div>
+                </>
+              )}
             </P.SubContent>
           </P.Portal>
         </P.Sub>
@@ -123,7 +147,7 @@ function Entries({ entries, P, container }: { entries: MenuEntry[]; P: Parts; co
     if (item.checked !== undefined) {
       return explain(
         item,
-        <P.CheckboxItem key={i} className={row} textValue={item.label} checked={item.checked} aria-disabled={item.disabled || undefined} onSelect={select}>
+        <P.CheckboxItem key={i} className={rowClass} textValue={item.label} checked={item.checked} aria-disabled={item.disabled || undefined} onSelect={select}>
           {lead}
           <Trailing item={item} />
         </P.CheckboxItem>,
@@ -132,7 +156,7 @@ function Entries({ entries, P, container }: { entries: MenuEntry[]; P: Parts; co
     }
     return explain(
       item,
-      <P.Item key={i} className={row} textValue={item.label} aria-disabled={item.disabled || undefined} onSelect={select}>
+      <P.Item key={i} className={rowClass} textValue={item.label} aria-disabled={item.disabled || undefined} onSelect={select}>
         {lead}
         <Trailing item={item} />
       </P.Item>,
@@ -183,9 +207,10 @@ export function MenuSheet({
     "flex h-11 w-full shrink-0 items-center gap-2.5 rounded-sm px-2 text-left text-body-md leading-body-md outline-none select-none " +
     "active:bg-subtle dark:active:bg-hover aria-disabled:opacity-50";
   return (
-    <Sheet open={open} onOpenChange={close} title={current?.label ?? title} description={current ? undefined : description}>
+    <Sheet open={open} onOpenChange={close} title={current?.title ?? current?.label ?? title} description={current ? undefined : description}>
       <div className="flex flex-col">
-        {current && (
+        {/* A submenu with its own title stands alone, as the one choice it asks for. */}
+        {current && !current.title && (
           <button type="button" className={sheetRow} onClick={() => setTrail(trail.slice(0, -1))}>
             <Icon name="back" size={20} className="text-muted" />
             <span className="flex-1 text-muted">{trail.at(-2)?.label ?? title}</span>
@@ -200,7 +225,7 @@ export function MenuSheet({
             <button
               key={i}
               type="button"
-              className={sheetRow}
+              className={item.line ? `${sheetRow} h-auto py-2` : sheetRow}
               aria-disabled={item.disabled || undefined}
               aria-checked={item.checked}
               role={item.checked === undefined ? undefined : "menuitemcheckbox"}
@@ -213,7 +238,14 @@ export function MenuSheet({
             >
               {checks && <span className="flex w-5 shrink-0 justify-center">{item.checked && <Icons.approve aria-hidden="true" />}</span>}
               {item.icon && <Icon name={item.icon} size={20} className={iconTone(item)} />}
-              <span className={`min-w-0 flex-1 truncate ${tone(item)}`}>{item.label}</span>
+              {item.line ? (
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className={`truncate ${tone(item)}`}>{item.label}</span>
+                  <span className="truncate text-body-sm leading-body-sm text-muted">{item.line}</span>
+                </span>
+              ) : (
+                <span className={`min-w-0 flex-1 truncate ${tone(item)}`}>{item.label}</span>
+              )}
               <Trailing item={item} phone />
               {item.items && <Icons.goIn aria-hidden="true" className="shrink-0 text-muted" />}
             </button>,
@@ -221,6 +253,12 @@ export function MenuSheet({
             "bottom",
           );
         })}
+        {current?.foot && (
+          <>
+            <div role="separator" className={rule} />
+            <div className={footRow}>{current.foot}</div>
+          </>
+        )}
       </div>
     </Sheet>
   );

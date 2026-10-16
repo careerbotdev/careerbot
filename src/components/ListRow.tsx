@@ -138,9 +138,10 @@ type ListRowProps = {
   selected?: boolean;
   unread?: boolean;
   /** With onCheck, the row can be checked: X or Space, Shift- or ⌘-click, Select in its menu, a long press on a phone,
-   * or, while selecting, a click or its box. Checking a row starts selecting (useSelection). */
+   * or, while selecting, a click or its box. Checking a row starts selecting (useSelection). `range`: Shift was held
+   * (useSelection's pick checks every row from the last one checked to this one). */
   checked?: boolean;
-  onCheck?: (checked: boolean) => void;
+  onCheck?: (checked: boolean, range?: boolean) => void;
   /** The list is selecting: the box shows on every row that can be checked (a row that can't keeps its place, so the
    * rows stay lined up), and a click checks instead of opening. Otherwise no box shows, hovered or not, so nothing in
    * the row moves. */
@@ -161,6 +162,8 @@ type ListRowProps = {
 
 export function ListRow({ title, line, lead, tag, meta, actions = [], menu, selected, unread, checked = false, onCheck, selecting, href, onOpen, compact, muted, below, trail, wrap = false }: ListRowProps) {
   const checkable = !!onCheck;
+  // Whether Shift was held on the box's click, which its onChange doesn't carry.
+  const shiftOnBox = useRef(false);
   // While selecting, a row's own actions give way to the bulk bar's.
   const hasActions = !(checkable && selecting) && (actions.length > 0 || !!menu);
   const rowMenu: MenuEntry[] | undefined = checkable
@@ -184,7 +187,7 @@ export function ListRow({ title, line, lead, tag, meta, actions = [], menu, sele
   const onClick = (e: MouseEvent<HTMLElement>) => {
     if (checkable && (selecting || e.shiftKey || e.metaKey || e.ctrlKey)) {
       e.preventDefault();
-      onCheck(!checked);
+      onCheck(!checked, e.shiftKey);
       return;
     }
     onOpen?.();
@@ -266,8 +269,8 @@ export function ListRow({ title, line, lead, tag, meta, actions = [], menu, sele
   const inner = (
     <>
       {selecting && (
-        <span className="flex w-7 shrink-0 justify-end pr-px">
-          {checkable && <Checkbox label={`Select ${title}`} hideLabel checked={checked} onChange={onCheck} />}
+        <span className="flex w-7 shrink-0 justify-end pr-px" onClickCapture={(e) => (shiftOnBox.current = e.shiftKey)}>
+          {checkable && <Checkbox label={`Select ${title}`} hideLabel checked={checked} onChange={(on) => onCheck(on, shiftOnBox.current)} />}
         </span>
       )}
       {cutTag && !small ? <Tooltip content={cutTag}>{main}</Tooltip> : main}

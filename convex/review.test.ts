@@ -243,7 +243,7 @@ test("the shared company sets are the Companies page's sets", () => {
     for (const rating of [null, "excited", "maybe", "no"] as const)
       for (const goals of [null, { level: "fits" as const }, { level: "doesnt" as const }, { level: "doesnt" as const, keep: true }, { level: "partly" as const }])
         for (const named of [false, true])
-          for (const fit of [[], [{ level: "weak" as const }], [{ level: "strong" as const }, { level: "none" as const }]]) companies.push({ id: id++, screened, rating, goals, named, fit });
+          for (const fit of [[], [{ level: "weak" as const }], [{ level: "strong" as const }, { level: "none" as const }]]) companies.push({ id: id++, screened, rating, goals, named, fit, archived: null });
   for (const judge of ["off", "rank", "hide"] as const) {
     const ids = (xs: { id: number }[]) => xs.map((c) => c.id);
     const now = openCompanies(companies, judge);

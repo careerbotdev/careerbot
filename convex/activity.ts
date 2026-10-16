@@ -41,6 +41,8 @@ const LABELS: Record<Job["kind"], (what: string | null) => [string, string, stri
   driveSync: () => ["Syncing Google Drive", "Synced Google Drive", "Couldn’t sync Google Drive"],
   lineCheck: (w) => [`Checking ${w ?? "a line"} against its facts`, `Checked ${w ?? "a line"} against its facts`, `Couldn’t check ${w ?? "a line"} against its facts`],
   lineUpdate: (w) => [`Updating lines of ${w ?? "a document"}`, `Updated lines of ${w ?? "a document"}`, `Couldn’t update lines of ${w ?? "a document"}`],
+  merge: (w) => [`Merging ${w ?? "a direction"}`, `Merged ${w ?? "a direction"}`, `Couldn’t merge ${w ?? "a direction"}`],
+  unmerge: (w) => [`Undoing the merge of ${w ?? "a direction"}`, `Undid the merge of ${w ?? "a direction"}`, `Couldn’t undo the merge of ${w ?? "a direction"}`],
 };
 
 // The thing a job is about, by name, where it names one. Every lookup is scoped to the job's workspace, so an id from
@@ -90,6 +92,10 @@ async function subjectOf(ctx: QueryCtx, j: Job): Promise<string | null> {
       const t = a.target as { kind: "resume" | "letter" | "answers"; id: string } | undefined;
       return t?.kind === "resume" ? "a resume" : t?.kind === "letter" ? "a cover letter" : t ? "your answers" : null;
     }
+    case "merge":
+    case "unmerge":
+      // The two directions, as named when it started ("Startup Operations into Chief of Staff").
+      return typeof a.from === "string" && typeof a.to === "string" ? `${a.from} into ${a.to}` : null;
     default:
       return null;
   }
@@ -199,7 +205,10 @@ export const list = query({
                     : // A pass filling in several directions: how many it has done.
                       j.kind === "directions" && (j.args.ids?.length ?? 0) > 1
                       ? `${steps} of ${j.args.ids.length}`
-                    : null;
+                      : // A merge or its Undo: companies and roles checked (Undo: records put back) of all of them.
+                        (j.kind === "merge" || j.kind === "unmerge") && j.result?.total
+                        ? `${j.result.checked} of ${j.result.total}`
+                        : null;
         return {
           id: j._id,
           kind: j.kind,

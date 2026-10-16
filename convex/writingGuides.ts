@@ -27,3 +27,6 @@ export const INSIGHT_STYLE = `Lead with the claim, then the evidence (pyramid pr
 
 // Cover letters and outreach.
 export const OUTREACH_STYLE = `Keep outreach plain and specific: one real reason this person and this company fit, grounded in their record, and one clear ask. No flattery, no filler. ${ESTIMATES}`;
+
+// Skills and tools: one thing per item, skills in Title Case (skillNames.titleCaseSkill applies the casing on save).
+export const SKILL_NAMES = `One thing per item: never join two skills or tools with "and", "&", "/" or a comma ("radio advertising and media buying" is two items, Radio Advertising and Media Buying; "Salesforce/HubSpot" is two), unless the joined phrase is itself the standard name of one thing (Mergers and Acquisitions, Research and Development, Profit and Loss or P&L, Sales and Operations Planning, A/B Testing). Write a skill in Title Case (Radio Advertising, Customer Onboarding, Contract Negotiation, Go-to-Market Strategy, Cross-Functional Leadership), with and, of, for, to, in, on, the, a, an and with lowercase inside a name; acronyms and brands keep their own casing (SEO, CRM, B2B, SaaS, iOS, JavaScript, HubSpot, Google Ads). Tools and certifications keep their official names.`;

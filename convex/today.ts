@@ -154,7 +154,7 @@ export const setup = query({
       .withIndex("by_direction", (q) => q.eq("workspaceId", workspaceId).eq("directionId", undefined))
       .filter((q) => q.and(q.eq(q.field("posting"), undefined), q.neq(q.field("toReview"), true)))
       .first();
-    const targets = (await ctx.db.query("companies").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect()).filter((c) => c.rating?.value === "excited").length;
+    const targets = (await ctx.db.query("companies").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect()).filter((c) => c.rating?.value === "excited" && !c.archived).length;
     const ranked = await ctx.db.query("roleRanks").withIndex("by_newest", (q) => q.eq("workspaceId", workspaceId).eq("directionId", undefined).eq("state", "judged")).first();
 
     // Reading so far: what each story read cost, over the words it held.

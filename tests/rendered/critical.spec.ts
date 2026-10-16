@@ -138,6 +138,28 @@ for (const size of WIDTHS) {
         expect(errors).toEqual([]);
       });
 
+      test("Getting started: a model chosen from all of OpenRouter's (an alias too) shows as its own row and saves with the key step", async ({ page }) => {
+        const errors = await openStory(page, `screens-getting-started--key-and-budget${phone ? "-phone" : ""}`, size, theme);
+        await page.getByLabel("OpenRouter key").fill("sk-or-v1-test");
+        await page.getByRole("button", { name: "Choose another model" }).click();
+        await page.getByPlaceholder("Search models…").fill("haiku");
+        const listed = page.getByRole("option", { name: /Claude Haiku Latest.*\$1\.00 in · \$5\.00 out per million tokens · reasoning/ });
+        await expect(listed).toBeVisible();
+        // Its whole price line shows, reasoning and all, not cut off (the narrowest phone has no room for it).
+        const priceLine = listed.getByText("$1.00 in · $5.00 out per million tokens · reasoning");
+        if (size.width >= 390) expect(await priceLine.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
+        await expectNothingPastTheEdge(page);
+        await page.getByRole("option", { name: /Claude Haiku Latest/ }).click();
+        const chosen = page.getByRole("radio", { name: /Claude Haiku Latest/ });
+        await expect(chosen).toBeChecked();
+        await expect(page.getByText("Chosen from all OpenRouter models.")).toBeVisible();
+        await expect(page.getByText("$1 / $5 per M")).toBeVisible();
+        await expectNothingPastTheEdge(page);
+        await page.getByRole("button", { name: "Save and continue" }).last().click();
+        await expect(page.getByRole("heading", { name: "Write your first story" })).toBeVisible();
+        expect(errors).toEqual([]);
+      });
+
       test("Review, cards: a group opens its first card", async ({ page }) => {
         const errors = await openStory(page, "screens-review--waiting", size, theme);
         await page.locator("[data-tour='review.groups'] [data-row]").first().click();

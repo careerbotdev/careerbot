@@ -288,7 +288,7 @@ export default defineSchema({
   // from Activity (jobs.cancel); a running one stops at its next step, and what it already finished stays.
   jobs: defineTable({
     workspaceId: v.id("workspaces"),
-    kind: v.union(v.literal("firstCall"), v.literal("extract"), v.literal("rework"), v.literal("compare"), v.literal("goals"), v.literal("check"), v.literal("limitRule"), v.literal("insights"), v.literal("followups"), v.literal("resume"), v.literal("directions"), v.literal("duplicates"), v.literal("discover"), v.literal("enrich"), v.literal("roles"), v.literal("project"), v.literal("skills"), v.literal("sameWork"), v.literal("letter"), v.literal("ask"), v.literal("outreach"), v.literal("followUp"), v.literal("driveSync"), v.literal("lineCheck"), v.literal("lineUpdate")),
+    kind: v.union(v.literal("firstCall"), v.literal("extract"), v.literal("rework"), v.literal("compare"), v.literal("goals"), v.literal("check"), v.literal("limitRule"), v.literal("insights"), v.literal("followups"), v.literal("resume"), v.literal("directions"), v.literal("duplicates"), v.literal("discover"), v.literal("enrich"), v.literal("roles"), v.literal("project"), v.literal("skills"), v.literal("sameWork"), v.literal("letter"), v.literal("ask"), v.literal("outreach"), v.literal("followUp"), v.literal("driveSync"), v.literal("lineCheck"), v.literal("lineUpdate"), v.literal("merge"), v.literal("unmerge")),
     args: v.any(),
     status: v.union(v.literal("queued"), v.literal("running"), v.literal("paused"), v.literal("done"), v.literal("failed"), v.literal("cancelled")),
     pausedFor: v.optional(v.union(v.literal("openrouter"), v.literal("apollo"))),
@@ -433,6 +433,9 @@ export default defineSchema({
     rating: v.optional(v.object({ value: v.union(v.literal("excited"), v.literal("maybe"), v.literal("no")), reason: v.optional(v.string()), at: v.number() })),
     // Not a place to work (a recruiter, job board, association…). Kept and shown, so it can be restored.
     screened: v.optional(v.object({ employer: v.boolean(), kind: v.string(), by: v.union(v.literal("rule"), v.literal("ai"), v.literal("you")), at: v.number() })),
+    // Archived: out of every list until restored, its rating kept as it was; its roles aren't read while it is. Says
+    // nothing about the company (unlike Not for me, which steers the search).
+    archived: v.optional(v.object({ at: v.number() })),
     // Every way it was found: which direction, by its criteria or as a lookalike of seed companies (Apollo), or by the
     // web search (findCompanies.ts): "relevant" fits the direction, hiring or not; "hiringNow" has an open role for it.
     // A web find says where it came from (source: a web search, or a job-board search) and the page it was seen on.
@@ -1062,6 +1065,18 @@ export default defineSchema({
     at: v.number(),
     editedAt: v.optional(v.number()),
   }).index("by_subject", ["workspaceId", "subject.kind", "subject.id", "at"]),
+
+  // What merging a direction into another moved or changed, one row per record (goals.merge), so Undo puts each back
+  // exactly (goals.unmerge, which then deletes them). directionId: the direction merged away. before: that record's
+  // part as it was (goals.ts MoveBefore): a company's or role's verdict for the kept direction and the finds or sort
+  // entries moved to it, a pursuit's direction, a limit's scope and label, a resume length.
+  mergeMoves: defineTable({
+    workspaceId: v.id("workspaces"),
+    directionId: v.id("items"),
+    table: v.union(v.literal("companies"), v.literal("postings"), v.literal("pursuits"), v.literal("resumes"), v.literal("notes"), v.literal("items"), v.literal("resumeSettings")),
+    docId: v.string(),
+    before: v.any(),
+  }).index("by_direction", ["workspaceId", "directionId"]),
 
   // Settings, Your data (yourData.ts): a whole-workspace export, made in the background (yourDataRun.ts) as one ZIP in
   // file storage (fileId) and deleted an hour after it's made (expiresAt). One per workspace; a new export replaces it.

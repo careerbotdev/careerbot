@@ -108,6 +108,13 @@ export function gettingStartedFixtures(stage: Stage, now = Date.now(), { platfor
 
   return {
     ...settings,
+    // Saving the key and budget at the key stage completes that step.
+    ...answer(api.openrouterKey.save, (args) => {
+      const save = settings[getFunctionName(api.openrouterKey.save)] as (a: typeof args) => { ok: true } | { ok: false; message: string };
+      const saved = save(args);
+      if (saved.ok && current === "key") current = "story";
+      return saved;
+    }),
     ...pursuits,
     ...(stage === "apollo" ? answer(api.apolloKey.status, () => ({ set: false as const })) : {}),
     // Nothing in the workspace yet: Getting started offers to bring it from another copy.

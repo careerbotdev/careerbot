@@ -19,7 +19,13 @@ test("the database refuses item data that doesn't match its kind", async () => {
 });
 
 test("model output is reduced to a kind's fields before it's written", () => {
-  expect(pickRole({ key: "acme", title: " Head of CS ", team: "CS", surprise: true, skills: ["SQL", 3, ""] })).toEqual({ key: "acme", title: "Head of CS", team: ["CS"], skills: ["SQL"] });
+  expect(pickRole({ key: "acme", title: " Head of CS ", team: "CS", surprise: true, skills: ["SQL", 3, "", "radio advertising"], tools: ["salesforce"] })).toEqual({
+    key: "acme",
+    title: "Head of CS",
+    team: ["CS"],
+    skills: ["SQL", "Radio Advertising"],
+    tools: ["salesforce"],
+  });
   expect(pickDirection({ name: "Supply Chain Product", path: "sideways", vibe: "x" })).toEqual({ name: "Supply Chain Product" });
 });
 

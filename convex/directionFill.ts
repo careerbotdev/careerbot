@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -16,6 +17,20 @@ const isFillPass = (j: Doc<"jobs">) => j.kind === "directions" && j.args.mode ==
 // The directions a pass is asked to fill, and those it has filled (or passed over) so far: its steps.
 export const passIds = (j: Doc<"jobs">): Id<"items">[] => j.args.ids ?? [];
 export const passDone = (j: Doc<"jobs">) => new Set((j.done ?? []).map((s) => s.step));
+
+// A merge (goals.merge) or its Undo (goals.unmerge) still moving records, between the directions named (either one;
+// none named: any): its two directions' names and whether it's the Undo, else null.
+export async function mergeUnderway(ctx: QueryCtx, workspaceId: Id<"workspaces">, ids?: Id<"items">[]) {
+  const job = (await recentJobs(ctx, workspaceId)).find((j) => (j.kind === "merge" || j.kind === "unmerge") && underway(j) && (!ids || ids.includes(j.args.id) || ids.includes(j.args.into)));
+  return job ? { from: job.args.from as string, to: job.args.to as string, undoing: job.kind === "unmerge" } : null;
+}
+
+// Refuses what would clash with a merge or its Undo still moving records (merging, ranking, filling in or setting aside
+// either direction), with why.
+export async function refuseWhileMerging(ctx: QueryCtx, workspaceId: Id<"workspaces">, ids?: Id<"items">[]) {
+  const m = await mergeUnderway(ctx, workspaceId, ids);
+  if (m) throw new ConvexError(m.undoing ? `The merge of ${m.from} into ${m.to} is still being undone. Try again when it’s done.` : `${m.from} is still being merged into ${m.to}. Try again when it’s done.`);
+}
 
 // Ask for directions to be filled in, by them or on its own (origin). Returns the pass, or null with nothing to fill.
 export async function fillIn(ctx: MutationCtx, workspaceId: Id<"workspaces">, ids: Id<"items">[], origin: "you" | "automatic") {

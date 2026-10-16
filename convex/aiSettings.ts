@@ -146,20 +146,26 @@ export type CatalogModel = {
   json: boolean;
 };
 
+// An alias ("~anthropic/claude-haiku-latest") is listed with its target's price and abilities, as calls are priced and
+// sent (modelPrices.ts), so it can be chosen like any model.
 async function fetchCatalog(): Promise<CatalogModel[]> {
   const res = await fetch("https://openrouter.ai/api/v1/models", { headers: openrouterHeaders() });
   if (!res.ok) throw new Error("Couldn't load the model list from OpenRouter.");
-  const body: { data: { id: string; name: string; context_length?: number; pricing?: { prompt?: string; completion?: string }; supported_parameters?: string[] }[] } =
-    await res.json();
-  return body.data.map((m) => ({
-    id: m.id,
-    name: m.name,
-    inPerM: Number(m.pricing?.prompt ?? 0) * 1e6,
-    outPerM: Number(m.pricing?.completion ?? 0) * 1e6,
-    contextLength: m.context_length ?? 0,
-    reasoning: (m.supported_parameters ?? []).includes("reasoning"),
-    json: (m.supported_parameters ?? []).includes("response_format"),
-  }));
+  type Listed = { id: string; name: string; context_length?: number; pricing?: { prompt?: string; completion?: string }; supported_parameters?: string[]; alias_target?: { slug?: string } | null };
+  const body: { data: Listed[] } = await res.json();
+  const byId = new Map(body.data.map((m) => [m.id, m]));
+  return body.data.map((m) => {
+    const target = (m.alias_target?.slug && byId.get(m.alias_target.slug)) || m;
+    return {
+      id: m.id,
+      name: m.name,
+      inPerM: Number(target.pricing?.prompt ?? 0) * 1e6,
+      outPerM: Number(target.pricing?.completion ?? 0) * 1e6,
+      contextLength: target.context_length ?? 0,
+      reasoning: (target.supported_parameters ?? []).includes("reasoning"),
+      json: (target.supported_parameters ?? []).includes("response_format"),
+    };
+  });
 }
 
 // Every model OpenRouter offers right now, so choices never depend on what existed when the code was written. For

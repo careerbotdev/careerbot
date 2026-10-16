@@ -49,6 +49,30 @@ const phone = { viewport: { value: "mobile2" } };
 
 export const KeyAndBudget: Story = { name: "Setup, key and budget", render: () => <Screen stage="key" /> };
 export const KeyAndBudgetPhone: Story = { name: "Setup, key and budget, phone", globals: phone, render: () => <Screen stage="key" step="key" /> };
+// Choose another model: the same list Settings > AI uses, searched; then the pick as its own row on top.
+const firstPane = (canvas: HTMLElement) => canvas.querySelector<HTMLElement>("[data-theme]") ?? canvas;
+const searchModels = async (canvas: HTMLElement) => {
+  await userEvent.click(await within(firstPane(canvas)).findByRole("button", { name: "Choose another model" }));
+  await userEvent.type(await within(document.body).findByPlaceholderText("Search models…"), "qwen3.8");
+};
+const pickQwen = async (canvas: HTMLElement) => {
+  await searchModels(canvas);
+  await userEvent.click(await within(document.body).findByRole("option", { name: /Qwen3\.8 Flash/ }));
+};
+export const KeyChooseAnother: Story = { name: "Setup, key and budget, choose another model", render: () => <Screen stage="key" />, play: ({ canvasElement }) => searchModels(canvasElement) };
+export const KeyChooseAnotherPhone: Story = {
+  name: "Setup, key and budget, choose another model, phone",
+  globals: phone,
+  render: () => <Screen stage="key" step="key" />,
+  play: ({ canvasElement }) => searchModels(canvasElement),
+};
+export const KeyAnotherChosen: Story = { name: "Setup, key and budget, another model chosen", render: () => <Screen stage="key" />, play: ({ canvasElement }) => pickQwen(canvasElement) };
+export const KeyAnotherChosenPhone: Story = {
+  name: "Setup, key and budget, another model chosen, phone",
+  globals: phone,
+  render: () => <Screen stage="key" step="key" />,
+  play: ({ canvasElement }) => pickQwen(canvasElement),
+};
 export const FirstStory: Story = { name: "Setup, first story", render: () => <Screen stage="story" /> };
 export const FirstStoryPhone: Story = { name: "Setup, first story, phone", globals: phone, render: () => <Screen stage="story" step="story" /> };
 export const PlatformFirstStory: Story = { name: "Setup on careerbot.dev, first story", render: () => <Screen stage="story" platform /> };

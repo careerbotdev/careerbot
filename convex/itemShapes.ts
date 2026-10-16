@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import type { QueryCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { titleCaseSkill } from "./skillNames";
 
 // The shape of `data` for each kind of item. The items table is a union of these, so the database refuses a row whose
 // data doesn't match its kind. Model replies are reduced to these fields (`pick*` below) before anything is written.
@@ -167,10 +168,31 @@ export const directionData = v.object({
   // When what ranking roles reads (name, summary, approved detail and criteria) last changed; unset: not since it was
   // made. Role verdicts from before it are marked as ranked before the change.
   changedAt: opt(v.number()),
+  // When another direction was last merged into it (goals.merge): while that is its last change (changedAt), role
+  // verdicts from before it show as ranked before the merge.
+  mergedAt: opt(v.number()),
   rejectedBecause: opt(strOrNull),
-  // On an addition merged into a direction (goals.merge): what the merge changed, so Undo can take it back
-  // (goals.unmerge).
-  undoMerge: opt(v.object({ into: v.id("items"), status: itemStatus, includes: opt(strs), edited: opt(v.boolean()), intoStatus: itemStatus, intoSources: v.number() })),
+  // On a direction merged into another (goals.merge): what the merge changed on the kept one, so Undo can take it back
+  // (goals.unmerge). What moved elsewhere (companies, roles, pursuits, resumes, notes, limits) is in mergeMoves.
+  undoMerge: opt(
+    v.object({
+      into: v.id("items"),
+      status: itemStatus,
+      includes: opt(strs),
+      edited: opt(v.boolean()),
+      intoStatus: itemStatus,
+      intoSources: v.number(),
+      // The kept one's titles and words to use, criteria, and change times as they were.
+      targetTitles: opt(strs),
+      vocabulary: opt(strs),
+      criteria: opt(directionCriteria),
+      criteriaStatus: opt(v.union(v.literal("proposed"), v.literal("approved"))),
+      changedAt: opt(v.number()),
+      mergedAt: opt(v.number()),
+      // The merge job moving its records (goals.runMerge); Undo stops it if it's still under way.
+      job: opt(v.id("jobs")),
+    }),
+  ),
 });
 
 export const limitData = v.object({
@@ -237,6 +259,8 @@ export const skillData = v.object({
   apartBecause,
   // On one merged away (skills.merge): what the merge changed, so Undo can take it back (skills.unmerge).
   undoMerge: opt(v.object({ status: itemStatus, flagged: v.union(v.literal("kept"), v.literal("removed")), keptStatus: itemStatus, keptFrom: v.object({ roles: strs, projects: strs, facts: strs }), keptApart: opt(strs) })),
+  // The name the model wrote before skills.titleCase re-cased it, so skills.titleCaseUndo can put it back.
+  titledFrom: opt(str),
 });
 
 // A question about the record, or about two jobs whose dates overlap (`overlap`, conflicts.overlaps): then `ends` is
@@ -280,10 +304,10 @@ const list = (x: unknown) => (Array.isArray(x) ? x.map(s).filter((i): i is strin
 const drop = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, x]) => x !== undefined)) as T;
 
 // A career break read from a story has no employer or title of its own, only its dates, reason and what they did in
-// it, like one they add themselves (breaks.ts).
+// it, like one they add themselves (breaks.ts). Skills read are in Title Case (skillNames).
 export function pickRole(r: Record<string, unknown>) {
   if (r.break === true)
-    return drop({ key: s(r.key), title: "Career break", break: true as const, reason: s(r.reason), start: s(r.start), end: s(r.end), projects: list(r.projects), skills: list(r.skills), tools: list(r.tools) });
+    return drop({ key: s(r.key), title: "Career break", break: true as const, reason: s(r.reason), start: s(r.start), end: s(r.end), projects: list(r.projects), skills: list(r.skills)?.map(titleCaseSkill), tools: list(r.tools) });
   return drop({
     key: s(r.key),
     employer: s(r.employer),
@@ -295,7 +319,7 @@ export function pickRole(r: Record<string, unknown>) {
     end: s(r.end),
     team: list(r.team) ?? (s(r.team) ? [s(r.team)!] : undefined),
     projects: list(r.projects),
-    skills: list(r.skills),
+    skills: list(r.skills)?.map(titleCaseSkill),
     tools: list(r.tools),
   });
 }
@@ -354,6 +378,25 @@ export type ItemOf<K extends ItemKind> = Extract<Doc<"items">, { kind: K }>;
 export type ItemStatus = Doc<"items">["status"];
 
 // Items of one kind and status, typed as that kind.
+// The direction a new record for this one belongs with: itself, or, once it was merged away (goals.merge), the one it
+// went into (and on, if that was merged too). So work that started before a merge never writes to the direction gone.
+export async function liveDirection(ctx: QueryCtx, id: Id<"items">): Promise<Id<"items">> {
+  let at = id;
+  for (let hops = 0; hops < 10; hops++) {
+    const d = await ctx.db.get(at);
+    if (d?.kind !== "direction" || d.status !== "superseded" || !d.data.undoMerge) return at;
+    at = d.data.undoMerge.into;
+  }
+  return at;
+}
+
+// A record written for a merged-away direction (from) and put with the one it went into instead (liveDirection) is
+// one of the merge's moves, so Undo of the merge puts it back with `from` (goals.unmergePage reads `before` as the
+// table's kind expects).
+export async function recordRedirect(ctx: MutationCtx, workspaceId: Id<"workspaces">, from: Id<"items">, move: { table: Doc<"mergeMoves">["table"]; docId: string; before: unknown }) {
+  await ctx.db.insert("mergeMoves", { workspaceId, directionId: from, ...move });
+}
+
 export async function itemsOf<K extends ItemKind>(ctx: QueryCtx, workspaceId: Id<"workspaces">, kind: K, status: ItemStatus): Promise<ItemOf<K>[]> {
   const rows = await ctx.db.query("items").withIndex("by_workspace_kind_status", (q) => q.eq("workspaceId", workspaceId).eq("kind", kind).eq("status", status)).collect();
   return rows as ItemOf<K>[];

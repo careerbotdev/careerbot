@@ -4,13 +4,15 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { type ActionCtx, internalMutation, internalQuery, type MutationCtx, query, type QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { modelFor } from "./aiSettings";
-import { isSkill, type ItemOf, itemsOf, SKILL_KINDS, type SkillItem, type SkillKind, skillsOf } from "./itemShapes";
+import { isSkill, type ItemOf, itemsOf, SKILL_KINDS, type SkillItem, type SkillKind, skillsOf, STATUSES } from "./itemShapes";
 import { chatJson, LONG_REPLY_TOKENS } from "./metering";
 import { replyOf, strictObject, string, strings } from "./replyJson";
 import { counted, sourceCheck } from "./recordContext";
 import { postingName, updatesOf } from "./resume";
 import { skillKey } from "./resumeDoc";
 import { refuseCancelled } from "./cancel";
+import { titleCaseSkill } from "./skillNames";
+import { SKILL_NAMES } from "./writingGuides";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
 
 // Skills, tools and certifications as reviewed items. "Gather skills" reads the approved record (roles' skills and tools,
@@ -22,8 +24,8 @@ import { getInWorkspace, requireWorkspace } from "./workspaces";
 const SYSTEM = `You gather the skills, tools and certifications someone's approved career record shows, for their resume.
 
 Read their approved roles (the skills and tools each one lists), their approved projects (each one's stack) and their approved facts (what they did). List each skill, tool or certification the record shows, once:
-- "kind": "skill" (an ability or practice, such as customer onboarding, contract negotiation or data modeling), "tool" (a named product, platform, language, framework or service, such as Salesforce, Python or Figma) or "certification" (a credential someone holds, such as PMP).
-- "name": the way resumes and job postings usually write it (Salesforce, not SFDC or salesforce crm; JavaScript; Google Analytics). Variants, abbreviations and spellings of one thing are one item.
+- "kind": "skill" (an ability or practice, such as Customer Onboarding, Contract Negotiation or Data Modeling), "tool" (a named product, platform, language, framework or service, such as Salesforce, Python or Figma) or "certification" (a credential someone holds, such as PMP).
+- "name": the way resumes and job postings usually write it (Salesforce, not SFDC or salesforce crm; JavaScript; Google Analytics). Variants, abbreviations and spellings of one thing are one item. ${SKILL_NAMES}
 - "group": a short, plain group it belongs to (CRM, Analytics, Languages, Cloud, Design, Customer success, and so on), shared across items so the list reads in a few groups.
 - "from": where the record shows it: "roles" (role keys), "projects" (project keys), "facts" (fact ids). Only what the record shows; never add something it doesn't.
 - "lowValue": when it's too vague or generic to stand out on a resume (Dashboards, APIs, Communication, Microsoft Office), a short reason; otherwise leave it out.
@@ -31,7 +33,7 @@ Read their approved roles (the skills and tools each one lists), their approved 
 
 Items they already have:
 - Approved ones are settled. When the record shows one again, give its "id" (with the "from" you found) and keep its name.
-- Ones awaiting their review: give its "id" when you list it again; you may improve its name, group and kind.
+- Ones awaiting their review: give its "id" when you list it again; you may improve its name, group and kind. When one combines two or more things ("Radio advertising and media buying"), split it: give its "id" with the name of one part (Radio Advertising), and list each other part as a new item without an id (Media Buying), with the same "from".
 - Rejected ones: never list them again, in any spelling or wording. Learn from the reasons they gave.
 - When two items are the same thing in different words (existing or new), list the one to merge away with "sameAs": the id, or the name, of the one it's the same as, and "sameWhy": one plain sentence on why they're the same. Never for a pair they said is different.
 
@@ -117,10 +119,12 @@ export const inputs = internalQuery({
 });
 
 // Save what a run gathered. An item it names by id, or by a name they already have, is that item: an approved one only
-// gains where it was found; one awaiting review also takes the new name, group, kind and flag. Anything rejected, by id
-// or in any spelling of its name, is skipped. Sources are kept only where they're an approved role, project or fact
-// that counts, and an item the record doesn't show anywhere is dropped. Then merges: an item awaiting review is
-// flagged as the same as another (an approved one never is), unless they kept the two apart. A run saves once.
+// gains where it was found; one awaiting review also takes the new name (unless they edited it), group, kind and flag,
+// so a combined one split in two keeps its id under one part's name and the other part comes as a new item. A skill's
+// name the model wrote is put in Title Case (skillNames). Anything rejected, by id or in any spelling of its name, is
+// skipped. Sources are kept only where they're an approved role, project or fact that counts, and an item the record
+// doesn't show anywhere is dropped. Then merges: an item awaiting review is flagged as the same as another (an approved
+// one never is), unless they kept the two apart. A run saves once.
 export const save = internalMutation({
   args: { workspaceId: v.id("workspaces"), jobId: v.id("jobs"), out: v.any() },
   handler: async (ctx, { workspaceId, jobId, out }) => {
@@ -145,21 +149,24 @@ export const save = internalMutation({
     // Each listed item as saved, for resolving merges by id or name afterwards.
     const saved: { raw: OutItem; id: Id<"items"> }[] = [];
     for (const raw of ((out as { items?: OutItem[] })?.items ?? []).filter((x) => x && typeof x === "object")) {
-      const name = str(raw.name);
+      const given = str(raw.name);
       const said = str(raw.kind).toLowerCase().replace(/s$/, "");
       const from: From = {
         roles: strs(raw.from?.roles).filter((k) => roles.has(k)),
         projects: strs(raw.from?.projects).filter((k) => projects.has(k)),
         facts: strs(raw.from?.facts).filter((id) => facts.has(id)),
       };
-      if (!name || rejected.has(skillKey(name))) continue;
+      if (!given || rejected.has(skillKey(given))) continue;
       const named = byId.get(str(raw.id));
       if (named?.status === "rejected") continue;
-      const target = named ?? byName.get(skillKey(name));
+      const target = named ?? byName.get(skillKey(given));
       if (!target && !from.roles.length && !from.projects.length && !from.facts.length) continue;
       // A reply that leaves the kind out takes how the record lists it (a role's tools, a project's stack), else the
       // item's own.
-      const kind: SkillKind = SKILL_KINDS.includes(said as SkillKind) ? (said as SkillKind) : listedTools.has(skillKey(name)) ? "tool" : (target?.kind ?? "skill");
+      const kind: SkillKind = SKILL_KINDS.includes(said as SkillKind) ? (said as SkillKind) : listedTools.has(skillKey(given)) ? "tool" : (target?.kind ?? "skill");
+      // A name they edited stays as they wrote it. A skill's name the model wrote goes in Title Case, which changes only
+      // its case, so it matches (skillKey) as before.
+      const name = target?.data.edited ? target.data.name : kind === "skill" ? titleCaseSkill(given) : given;
       const group = str(raw.group) || undefined;
       const lowValue = str(raw.lowValue) || undefined;
       // Who issued a certification and when it was earned, when the reply says.
@@ -534,5 +541,60 @@ export const migrate = internalMutation({
       }
     }
     return { added };
+  },
+});
+
+// Operator, once: the skill names the model wrote, approved or awaiting review, in Title Case (skillNames), in every
+// workspace. One they edited is theirs and stays as they wrote it; tools and certifications keep their official names.
+// The name before is kept (titledFrom) so titleCaseUndo can put it back. Approved ones that read as two joined
+// ("Radio Advertising and Media Buying") aren't split, since what they approved is settled; `joined` counts approved
+// names with "and", "&", "/" or a comma, some of which are one thing (Mergers and Acquisitions). Running it again
+// changes nothing.
+export const titleCase = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let changed = 0;
+    let edited = 0;
+    let unchanged = 0;
+    let joined = 0;
+    for (const w of await ctx.db.query("workspaces").collect())
+      for (const status of ["approved", "proposed"] as const)
+        for (const i of await itemsOf(ctx, w._id, "skill", status)) {
+          if (status === "approved" && /\s(and|&)\s|[,/]/i.test(i.data.name)) joined++;
+          if (i.data.edited) {
+            edited++;
+            continue;
+          }
+          const name = titleCaseSkill(i.data.name);
+          if (name === i.data.name) {
+            unchanged++;
+            continue;
+          }
+          await ctx.db.patch(i._id, { data: { ...i.data, name, titledFrom: i.data.titledFrom ?? i.data.name } });
+          changed++;
+        }
+    return { changed, skipped: { edited, unchanged }, joined };
+  },
+});
+
+// Operator: undo titleCase. A skill it re-cased goes back to the name the model wrote, in any status, unless it was
+// renamed since (they edited it, or a later gathering renamed it), when it keeps the name it has. Either way the old
+// name is then forgotten, so running it again changes nothing.
+export const titleCaseUndo = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let restored = 0;
+    let kept = 0;
+    for (const w of await ctx.db.query("workspaces").collect())
+      for (const status of STATUSES)
+        for (const i of await skillsOf(ctx, w._id, status)) {
+          const was = i.data.titledFrom;
+          if (was === undefined) continue;
+          const back = !i.data.edited && i.data.name === titleCaseSkill(was);
+          await ctx.db.patch(i._id, { data: { ...i.data, name: back ? was : i.data.name, titledFrom: undefined } });
+          if (back) restored++;
+          else kept++;
+        }
+    return { restored, kept };
   },
 });

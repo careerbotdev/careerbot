@@ -1,4 +1,4 @@
-import { companyScore, openCompanies } from "../../../convex/companySets";
+import { type CompanySort, openCompanies, sortCompanies } from "../../../convex/companySets";
 import type { Lens } from "../../../convex/lens";
 import type { Company, Tab } from "./env";
 
@@ -11,32 +11,37 @@ export const ASIDE: Record<AsideKind, { label: string; note: string }> = {
   out: { label: "Not a place to work", note: "Staffing agencies, job boards and others that don’t hire for themselves." },
 };
 
-export type Sets = { targets: Company[]; maybe: Company[]; found: Company[]; aside: Record<AsideKind, Company[]> };
+export type Sets = { targets: Company[]; maybe: Company[]; found: Company[]; aside: Record<AsideKind, Company[]>; archived: Company[] };
 
-// The four tabs, from the shared grouping Review uses: Targets and Maybe are theirs (best fit first); Found is the open
-// employers they haven't rated, best first; Set aside holds goals misfits they haven't rated, the ones they passed on,
-// and the ones that aren't places to work (whatever the rating).
-export function companySets(companies: Company[], judge: Lens["judge"]): Sets {
+// The tabs, from the shared grouping Review uses: Targets and Maybe are theirs; Found is the open employers they haven't
+// rated; Set aside holds goals misfits they haven't rated, the ones they passed on, and the ones that aren't places to
+// work (whatever the rating); Archived holds what they archived, out of every other tab. Targets, Maybe, Found and
+// Archived are each sorted whole by `sort`.
+export function companySets(companies: Company[], judge: Lens["judge"], sort: CompanySort = "best"): Sets {
   const employer = (c: Company) => c.screened?.employer !== false;
-  const best = (list: Company[]) => [...list].sort((a, b) => companyScore(b, judge) - companyScore(a, judge));
-  const { employers, misfits } = openCompanies(companies, judge);
+  const shown = companies.filter((c) => !c.archived);
+  const { employers, misfits } = openCompanies(shown, judge);
   return {
-    targets: best(companies.filter((c) => employer(c) && c.rating === "excited")),
-    maybe: best(companies.filter((c) => employer(c) && c.rating === "maybe")),
-    found: employers.filter((c) => c.rating === null),
+    targets: sortCompanies(shown.filter((c) => employer(c) && c.rating === "excited"), sort, judge),
+    maybe: sortCompanies(shown.filter((c) => employer(c) && c.rating === "maybe"), sort, judge),
+    found: sortCompanies(employers.filter((c) => c.rating === null), sort, judge),
     aside: {
       goals: misfits.filter((c) => c.rating === null),
-      no: companies.filter((c) => employer(c) && c.rating === "no"),
-      out: companies.filter((c) => !employer(c)),
+      no: shown.filter((c) => employer(c) && c.rating === "no"),
+      out: shown.filter((c) => !employer(c)),
     },
+    archived: sortCompanies(companies.filter((c) => c.archived), sort, judge),
   };
 }
 
 // Where a company is listed.
 export function tabOf(sets: Sets, id: string): Tab | null {
-  for (const tab of ["targets", "maybe", "found"] as const) if (sets[tab].some((c) => c.id === id)) return tab;
+  for (const tab of ["targets", "maybe", "found", "archived"] as const) if (sets[tab].some((c) => c.id === id)) return tab;
   return Object.values(sets.aside).some((list) => list.some((c) => c.id === id)) ? "aside" : null;
 }
+
+// Where an archived company was, and goes back to when restored: its tab as if it weren't archived.
+export const archivedFrom = (c: Company, judge: Lens["judge"]) => tabOf(companySets([{ ...c, archived: null }], judge), c.id);
 
 export function asideKind(sets: Sets, id: string): AsideKind | null {
   return (Object.keys(ASIDE) as AsideKind[]).find((k) => sets.aside[k].some((c) => c.id === id)) ?? null;

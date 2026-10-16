@@ -40,10 +40,27 @@ export function useDirectionActs() {
         () => toast({ message: `${d.data.name} is back in review`, icon: "undo", action: { label: "Undo", key: "U", run: () => void set(d, "approved").catch((e: unknown) => failed(e)) } }),
         (e: unknown) => failed(e),
       ),
+    // Resolves true once merged, so the screen can open the kept direction.
     merge: (d: Direction, into: { id: Id<"items">; name: string }) =>
       merge({ id: d.id, into: into.id }).then(
-        () => toast({ message: `Merged ${d.data.name} into ${into.name}`, icon: "approve", action: { label: "Undo", key: "U", run: () => void unmerge({ id: d.id }).catch((e: unknown) => failed(e)) } }),
-        (e: unknown) => failed(e),
+        () => {
+          toast({
+            message: `Merged ${d.data.name} into ${into.name}`,
+            icon: "approve",
+            action: {
+              label: "Undo",
+              key: "U",
+              detail: `Puts ${d.data.name} back as it was, with its titles, companies, roles, pursuits and notes, and takes from ${into.name} what the merge gave it.`,
+              note: "Free",
+              run: () => void unmerge({ id: d.id }).catch((e: unknown) => failed(e)),
+            },
+          });
+          return true;
+        },
+        (e: unknown) => {
+          failed(e);
+          return false;
+        },
       ),
     approvePart: (d: Direction, part: Part) =>
       void approvePart({ id: d.id, part }).then(

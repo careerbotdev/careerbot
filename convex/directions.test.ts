@@ -53,7 +53,7 @@ test("fit counts each approved direction's listed, judged roles that fit strongl
     await rank(undefined, "judged", "strong");
   });
   expect(await as.query(api.directions.fit, {})).toEqual([
-    { directionId: sales, count: 3, strong: 2, some: 1, more: false },
-    { directionId: partners, count: 0, strong: 0, some: 0, more: false },
+    { directionId: sales, count: 3, strong: 2, some: 1, more: false, stale: false },
+    { directionId: partners, count: 0, strong: 0, some: 0, more: false, stale: false },
   ]);
 });

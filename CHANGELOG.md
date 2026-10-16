@@ -2,6 +2,30 @@
 
 What changed in each version of CareerBot, newest first. The same notes are at https://careerbot.dev/changelog.
 
+## 0.13.0 · 2026-10-16
+
+Companies can be sorted and archived, directions can be merged with Undo, and Getting started can use any model. Skills are one per item in Title Case.
+
+### New
+
+- Companies can be sorted, shows how far ranking has got, checks a range with Shift-click, and can archive companies out of every list until restored.
+
+### Better
+
+- Getting started can use any OpenRouter model, aliases included, not just the four recommended ones, each shown with its price per million tokens.
+- Merging a direction carries over its titles, criteria, companies, roles, pursuits, resumes and notes at their better fit, and Undo puts it all back.
+- Skills come one per item in Title Case (Radio Advertising, Media Buying), a combined one awaiting review is split, and a name you edited stays as written.
+
+### If you host your own copy
+
+**Read before updating.**
+
+- Optional, once: run `npx convex run skills:titleCase` to put the skill names CareerBot already proposed in Title Case (names you edited are left alone); `npx convex run skills:titleCaseUndo` puts them back.
+
+How to update: https://careerbot.dev/docs/self-hosting/updates#updating
+
+All releases: https://careerbot.dev/changelog#v0.13.0
+
 ## 0.12.2 · 2026-10-16
 
 Find companies without Apollo using AI web search and job boards, or alongside it. Settings is now about your account, with search settings on Companies, plus Reset account, cancel and clear in Activity, and deleting a story with what came only from it.

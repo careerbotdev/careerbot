@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
+import type { CompanySort } from "../../../convex/companySets";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { BottomBar } from "@/components/BottomBar";
 import type { Note } from "@/components/NoteBlock";
@@ -42,6 +43,8 @@ function company(key: string, s: Seed): Company {
     checking: false,
     found: ["Supply Chain Product (criteria)"],
     foundAt: now - 25 * DAY,
+    ranked: !!s.details,
+    archived: null,
     ...s,
   };
 }
@@ -209,7 +212,20 @@ const base: CompaniesData = {
   companies,
 };
 
-function createStore(initial: CompaniesData, initialParams: { tab: Tab | null; company: string | null; settings: boolean }) {
+// Fit being judged: three found companies wait in Not ranked yet while a pass runs.
+const rankingData: CompaniesData = {
+  ...base,
+  enriching: { status: "running", error: undefined, remaining: 3 },
+  companies: companies.map((c) => (["ashgrove", "bramblewood", "tidewell"].includes(c.id) ? { ...c, ranked: false, fit: [] } : c)),
+};
+// Four found companies archived on the same day.
+const archivedData: CompaniesData = {
+  ...base,
+  companies: companies.map((c) => (["copperline", "tidewell", "ashgrove", "bramblewood"].includes(c.id) ? { ...c, archived: { at: now - DAY } } : c)),
+};
+
+type Params = { tab: Tab | null; company: string | null; settings: boolean; sort: CompanySort };
+function createStore(initial: CompaniesData, initialParams: Params) {
   let data = initial;
   let params = initialParams;
   let notes: Record<string, Note[]> = { loadstar: [{ id: "n1", text: "Rafael built a carrier app before joining. Ask how shipper requests make it onto the roadmap.", at: now - DAY }] };
@@ -222,6 +238,10 @@ function createStore(initial: CompaniesData, initialParams: { tab: Tab | null; c
   const done = async () => null;
   const act = {
     rate: async ({ id, value, reason }: { id: string; value: Company["rating"]; reason?: string }) => patch(id, (c) => ({ ...c, rating: value, ratingReason: value === "no" ? (reason ?? null) : null })) ?? null,
+    archive: async ({ ids, archived }: { ids: string[]; archived: boolean }) => {
+      for (const id of ids) patch(id, (c) => ({ ...c, archived: archived ? { at: Date.now() } : null }));
+      return null;
+    },
     keepAnyway: async ({ id, keep }: { id: string; keep: boolean }) => patch(id, (c) => ({ ...c, goals: c.goals && { ...c.goals, keep } })) ?? null,
     setEmployer: async ({ id, employer }: { id: string; employer: boolean }) => patch(id, (c) => ({ ...c, screened: { employer, kind: employer ? "employer" : "other non-employer", by: "you", at: Date.now() } })) ?? null,
     recheck: async ({ ids }: { ids: string[] }) => ({ skipped: ids.filter((id) => !data.companies.find((c) => c.id === id)?.domain).length }),
@@ -277,8 +297,13 @@ function createStore(initial: CompaniesData, initialParams: { tab: Tab | null; c
     data: () => data,
     notes: () => notes,
     params: () => params,
-    setParams: (next: { tab?: Tab | null; company?: string | null; settings?: "search" | null }) => {
-      params = { tab: next.tab === undefined ? params.tab : next.tab, company: next.company === undefined ? params.company : next.company, settings: next.settings === undefined ? params.settings : next.settings === "search" };
+    setParams: (next: { tab?: Tab | null; company?: string | null; settings?: "search" | null; sort?: CompanySort | null }) => {
+      params = {
+        tab: next.tab === undefined ? params.tab : next.tab,
+        company: next.company === undefined ? params.company : next.company,
+        settings: next.settings === undefined ? params.settings : next.settings === "search",
+        sort: next.sort === undefined ? params.sort : (next.sort ?? "best"),
+      };
       emit();
     },
     act,
@@ -305,8 +330,8 @@ const webLast: CompaniesData["last"] = {
   result: { finding: "web", report: [], named: { found: 1, added: 1, missing: ["harborline.example.com"] }, web: { report: webReport, named: { found: 1, added: 1, missing: ["harborline.example.com"] }, notes: [braveNote], boardQueries: 4, costUsd: 0.09 } },
 };
 
-function Fixture({ data = base, tab = null, company = null, settings = false, setup = apolloSetup }: { data?: CompaniesData; tab?: Tab | null; company?: string | null; settings?: boolean; setup?: FindSetup }) {
-  const [store] = useState(() => createStore(data, { tab, company, settings }));
+function Fixture({ data = base, tab = null, company = null, settings = false, sort = "best", setup = apolloSetup }: { data?: CompaniesData; tab?: Tab | null; company?: string | null; settings?: boolean; sort?: CompanySort; setup?: FindSetup }) {
+  const [store] = useState(() => createStore(data, { tab, company, settings, sort }));
   const env = useMemo((): CompaniesEnv => {
     const useData = () => useSyncExternalStore(store.subscribe, store.data, store.data);
     return {
@@ -416,3 +441,89 @@ export const SearchSettingsPhone: Story = {
 export const Empty: Story = { render: () => <Fixture data={{ ...base, companies: [], last: null }} /> };
 // Nothing chosen: on a phone, the list; beside it, the first company opens.
 export const FoundList: Story = { name: "Found, list", render: () => <Fixture tab="found" /> };
+
+const rowIn = (canvas: HTMLElement, name: string) => within(firstPane(canvas)).findByRole("button", { name: new RegExp(`^${name}`) });
+
+// The list's ⋯, Sort by: one order for Targets, Maybe, Found and Archived (?sort=).
+export const SortBy: Story = {
+  name: "Sort by",
+  render: () => <Fixture tab="found" company="orchard" />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(firstPane(canvasElement)).findByRole("button", { name: "More for Companies" }));
+    await userEvent.click(await within(document.body).findByRole("menuitem", { name: /Sort by/ }));
+  },
+};
+export const SortByPhone: Story = {
+  name: "Sort by, phone",
+  globals: { viewport: { value: "mobile2" } },
+  render: () => <Fixture tab="found" />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(firstPane(canvasElement)).findByRole("button", { name: "More for Companies" }));
+    await userEvent.click(await within(document.body).findByRole("button", { name: /^Sort by/ }));
+  },
+};
+// Has a job board first: the ones with a board, best fit within each.
+export const SortedByJobBoard: Story = { name: "Found, sorted by job board", render: () => <Fixture tab="found" sort="board" /> };
+// Fit being judged: the unranked wait in Not ranked yet, muted, and the filter bar counts them in.
+export const Ranking: Story = { render: () => <Fixture data={rankingData} tab="found" company="orchard" /> };
+export const RankingPhone: Story = { name: "Ranking, phone", globals: { viewport: { value: "mobile2" } }, render: () => <Fixture data={rankingData} tab="found" /> };
+// Select, check Copperline, then Shift-click Tidewell: every row between them (Ashgrove too) is checked.
+export const RangeSelected: Story = {
+  name: "Range selected",
+  render: () => <Fixture tab="found" company="orchard" />,
+  play: async ({ canvasElement }) => {
+    const user = userEvent.setup();
+    await user.click(await within(firstPane(canvasElement)).findByRole("button", { name: "More for Companies" }));
+    await user.click(await within(document.body).findByRole("menuitem", { name: /^Select$/ }));
+    await user.click(await rowIn(canvasElement, "Copperline"));
+    await user.keyboard("{Shift>}");
+    await user.click(await rowIn(canvasElement, "Tidewell"));
+    await user.keyboard("{/Shift}");
+    await expect(within(firstPane(canvasElement)).getByRole("group", { name: "Selected rows" })).toHaveTextContent(/3 selected/);
+  },
+};
+// On a phone: a long press checks a row and starts selecting; the bar offers Archive and Target.
+export const SelectingPhone: Story = {
+  name: "Selecting, phone",
+  globals: { viewport: { value: "mobile2" } },
+  render: () => <Fixture tab="found" />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(firstPane(canvasElement)).findByRole("button", { name: "More for Companies" }));
+    // On a phone the menu is a sheet of buttons.
+    await userEvent.click(await within(document.body).findByRole("button", { name: "Select" }));
+    await userEvent.click(await rowIn(canvasElement, "Fernhill"));
+    await userEvent.click(await rowIn(canvasElement, "Tidewell"));
+  },
+};
+// The open company's ⋯: Archive (A), kept apart from Not a place to work.
+export const ArchiveFromMenu: Story = {
+  name: "Archive from ⋯",
+  render: () => <Fixture tab="found" company="orchard" />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(firstPane(canvasElement)).findByRole("button", { name: "More for Orchard Forecasting" }));
+    await userEvent.hover(await within(document.body).findByRole("menuitem", { name: /^Archive/ }));
+  },
+};
+// A archives the open company: it leaves Found for Archived, and the next one opens in its place.
+export const ArchivedWithUndo: Story = {
+  name: "Archived, with Undo",
+  render: () => <Fixture tab="found" company="copperline" />,
+  play: async ({ canvasElement }) => {
+    await rowIn(canvasElement, "Copperline");
+    await userEvent.keyboard("a");
+    const pane = within(firstPane(canvasElement));
+    await waitFor(() => expect(pane.queryByRole("button", { name: /^Copperline/ })).toBeNull());
+    await expect(await pane.findByRole("tab", { name: /Found/ })).toHaveTextContent(/Found\s*7/);
+  },
+};
+export const Archived: Story = { render: () => <Fixture data={archivedData} tab="archived" company="tidewell" /> };
+export const ArchivedPhone: Story = {
+  name: "Archived, phone",
+  globals: { viewport: { value: "mobile2" } },
+  render: () => <Fixture data={archivedData} tab="archived" />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(firstPane(canvasElement)).findByRole("button", { name: "More for Companies" }));
+    await userEvent.click(await within(document.body).findByRole("button", { name: "Select" }));
+    await userEvent.click(await rowIn(canvasElement, "Ashgrove"));
+  },
+};

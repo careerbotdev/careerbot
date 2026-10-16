@@ -8,7 +8,7 @@ import { modelFor } from "./aiSettings";
 import type { ModelChoice } from "./aiTasks";
 import { type ChatReply, chatJson, LONG_REPLY_TOKENS } from "./metering";
 import { listOf, type ReplySchema, replyOf, string, strictObject, strings } from "./replyJson";
-import { isSkill, type ItemOf, itemsOf } from "./itemShapes";
+import { isSkill, type ItemOf, itemsOf, liveDirection, recordRedirect } from "./itemShapes";
 import { type CountedRecord, counted, countedRecord, recordOf, sourceCheck } from "./recordContext";
 import { type Basis, basisOf, type Changes, changesSince, describeChanges, hasChanges, type Labels, markOf, resumeBasis } from "./resumeBasis";
 import { type FactStatus, lineFlags, versionChanges } from "./resumeHistory";
@@ -246,7 +246,10 @@ export const save = internalMutation({
     const skipped = args.posting === undefined && from?.skipped?.length ? { skipped: from.skipped } : {};
     // Record growth: a tailored resume written, or a version kept at once (one from Resume updates waits to be kept).
     const counted = args.posting !== undefined || !args.toReview;
-    const id = await ctx.db.insert("resumes", { ...args, ...(roles.length || projects.length || skills.length || bullets.length || words.length ? { layout } : {}), ...skipped, ...(counted ? { tallied: true } : {}), at: Date.now() });
+    // A tailored resume whose direction was merged away while it was written goes with the direction it went into.
+    const directionId = args.posting !== undefined && args.directionId ? await liveDirection(ctx, args.directionId) : args.directionId;
+    const id = await ctx.db.insert("resumes", { ...args, directionId, ...(roles.length || projects.length || skills.length || bullets.length || words.length ? { layout } : {}), ...skipped, ...(counted ? { tallied: true } : {}), at: Date.now() });
+    if (directionId && args.directionId && directionId !== args.directionId) await recordRedirect(ctx, args.workspaceId, args.directionId, { table: "resumes", docId: id, before: null });
     if (counted) await tally(ctx, args.workspaceId, args.posting !== undefined ? "tailored" : "resumeKept", dayOf(Date.now()), 1);
     if (!args.toReview) await syncSoon(ctx, args.workspaceId);
     return id;

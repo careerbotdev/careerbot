@@ -16,14 +16,21 @@ Companies holds every company CareerBot found for your directions, and your rati
 
 The list is on the left, the open company beside it. On a phone the list shows alone and a company opens full screen.
 
-The list has four tabs:
+The list has five tabs (the last ones fold into **More** when they don't fit):
 
 - **Targets**: companies you rated Target. Their roles are read and ranked first.
 - **Maybe**: companies you rated Maybe. Their roles are read too, ranked after your targets'.
-- **Found**: new companies, best fit first, waiting for your rating.
+- **Found**: new companies, best fit first, waiting for your rating. While their fit is being worked out, the filter bar says how many are ranked so far ("Ranking… 19 of 27") (on a phone, a line above the rows), and the ones not ranked yet wait below the rest in **Not ranked yet**, moving into place as they're ranked.
 - **Set aside**: ones you passed on (**Not for me**, with your reason), ones under **Doesn’t fit your goals**, and ones that are **Not a place to work** (staffing agencies, job boards and others that don't hire for themselves). Each says why. Nothing is deleted: **Keep anyway** and **Restore** bring a company back.
+- **Archived**: companies you archived, with the day you did. Each shows the list it was archived from; **Restore** (<Kbd>A</Kbd>) puts it back there.
 
 **Show filters** opens the filter bar: by direction, or on Set aside by reason.
+
+**Sort by**, in the list's ⋯ menu, orders Targets, Maybe, Found and Archived: **Best fit** (the default), **Weakest fit first**, **Has a job board first** (best fit within each; their roles can be read), **Newest found** or **Name**. The whole list is sorted, and the choice stays in the address, so a link opens in the same order.
+
+## Archive
+
+**Archive** (<Kbd>A</Kbd>, in a company's ⋯ menu or for the checked rows) clears a company from every list without saying anything about it: your rating stays as it was, nothing is learned from it, and its roles aren't read or shown in Pursuits while it's archived. It's free; <Kbd>U</Kbd> undoes it. That's what sets it apart from **Not for me**, which later searches learn from. Open **Archived** (under **More** when the tabs don't fit) and **Restore** a company to put it back.
 
 ## Rate companies
 
@@ -48,7 +55,8 @@ The list's ⋯ menu (**More for Companies**):
 
 - **Find companies**: searches for companies for each direction with approved criteria. With an Apollo key it searches Apollo, and for ones like your seed companies. Without one, a web search finds companies that fit each direction, hiring or not, and ones hiring now, plus public job boards when you've added a [Brave Search](/docs/integrations/brave) key. It shows each search and what it costs (Apollo credits, or dollars from your AI budget, and the Brave searches) before you start, and under it what the last search found. Your past employers never come back.
 - **Fill in details**: reads the website and job board of each company not filled in yet, then how it fits your directions.
-- **Select** (or **Select all**): shows a checkbox on each row so you can **Check again** several together. <Kbd>X</Kbd> on a row, or <Kbd>⇧</Kbd>- or <Kbd>⌘</Kbd>-click, starts selecting with that row checked; **Done** or <Kbd>Esc</Kbd> stops (see [Selecting several](/docs/using/keyboard#selecting-several)).
+- **Sort by**: the order of the list (see above).
+- **Select** (or **Select all**): shows a checkbox on each row so you can rate several **Target** together, **Archive** them, or, in the bar's ⋯, rate them **Maybe** or **Not for me** or **Check again**. <Kbd>X</Kbd> on a row, or <Kbd>⇧</Kbd>- or <Kbd>⌘</Kbd>-click, starts selecting with that row checked; <Kbd>⇧</Kbd>-click checks every row between the last one you checked and this one. On a phone, long-press a row to check it and start selecting, then tap to check more. **Done** or <Kbd>Esc</Kbd> stops (see [Selecting several](/docs/using/keyboard#selecting-several)).
 - **Search settings** (also **Change** in Find companies, and <Kbd>⌘K</Kbd>): one dialog, full screen on a phone, with Back to Companies.
   - **Seed companies**: companies you'd love to work at, so searches find ones like them. These are for every direction; a direction's own seed companies add to them.
   - **Companies you’d name**: companies you already want, added to every search. Each shows as a chip you can remove; **Add a website** adds one, and removing one offers **Undo**.
@@ -67,6 +75,7 @@ Company search needs a direction with approved criteria (see [Goals](/docs/using
 | <Kbd>T</Kbd> | **Target** |
 | <Kbd>M</Kbd> | **Maybe** |
 | <Kbd>R</Kbd> | **Not for me** |
+| <Kbd>A</Kbd> | **Archive**, or **Restore** an archived one (the checked rows while selecting) |
 | <Kbd>E</Kbd> | Edit the website or job board |
 | <Kbd>N</Kbd> | Add a note |
 | <Kbd>X</Kbd> | Select the row (starts selecting) |

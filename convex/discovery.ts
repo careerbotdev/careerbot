@@ -4,7 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { type ActionCtx, internalMutation, internalQuery, type QueryCtx, query } from "./_generated/server";
 import { mutation } from "./functions";
 import { refuseCancelled, stopIfCancelled } from "./cancel";
-import { activeLimits, itemsOf } from "./itemShapes";
+import { activeLimits, itemsOf, liveDirection, recordRedirect } from "./itemShapes";
 import { apollo } from "./metering";
 import { DEFAULT_LENS } from "./lens";
 import { screenCompanies } from "./screening";
@@ -159,18 +159,23 @@ export const saveCompanies = internalMutation({
     via: v.union(v.literal("criteria"), v.literal("lookalike"), v.literal("hiring"), v.literal("large"), v.literal("hand")),
     orgs: v.array(v.object({ apolloId: v.string(), name: v.string(), domain: v.optional(v.string()), websiteUrl: v.optional(v.string()), linkedinUrl: v.optional(v.string()), foundedYear: v.optional(v.number()) })),
   },
-  handler: async (ctx, { workspaceId, runId, directionId, via, orgs }) => {
+  handler: async (ctx, { workspaceId, runId, directionId: asked, via, orgs }) => {
     await refuseCancelled(ctx, runId);
+    // A search for a direction merged away since it started counts for the one it went into.
+    const directionId = asked && (await liveDirection(ctx, asked));
     let added = 0;
     const at = Date.now();
     for (const o of orgs) {
       const row = await ctx.db.query("companies").withIndex("by_workspace_apollo", (q) => q.eq("workspaceId", workspaceId).eq("apolloId", o.apolloId)).unique();
       const seen = { directionId, via, runId, at };
       if (!row) {
-        await ctx.db.insert("companies", { workspaceId, ...o, found: [seen], talliedFound: true, at });
+        const id = await ctx.db.insert("companies", { workspaceId, ...o, found: [seen], talliedFound: true, at });
+        if (asked && directionId !== asked) await recordRedirect(ctx, workspaceId, asked, { table: "companies", docId: id, before: { was: { fit: null, found: [{ ...seen, directionId: asked }] }, now: { fit: null, found: [seen] } } });
         added++;
       } else if (!row.found.some((f) => f.runId === runId && f.directionId === directionId && f.via === via)) {
         await ctx.db.patch(row._id, { found: [...row.found, seen] });
+        if (asked && directionId !== asked)
+          await recordRedirect(ctx, workspaceId, asked, { table: "companies", docId: row._id, before: { was: { fit: row.fit ?? null, found: [...row.found, { ...seen, directionId: asked }] }, now: { fit: row.fit ?? null, found: [...row.found, seen] } } });
       }
     }
     await tally(ctx, workspaceId, "companies", dayOf(at), added);
@@ -385,6 +390,10 @@ export const list = query({
         evidence: [...new Set(c.found.flatMap((f) => f.evidence ?? []))],
         // When it was first found.
         foundAt: Math.min(...c.found.map((f) => f.at), c.at),
+        // Its fit has been judged (it's ranked); while a pass runs, the rest wait in Not ranked yet.
+        ranked: c.fitAt !== undefined,
+        // Archived: out of every list but Archived until restored.
+        archived: c.archived ?? null,
       })),
     };
   },

@@ -30,6 +30,7 @@ export const LEFT_OUT: Record<string, string> = {
   imports: "an import's own progress and file",
   importIds: "an import's old and new ids, kept while it runs",
   plans: "an operator's allowance for the workspace on the copy it was set on",
+  mergeMoves: "what a direction merge moved, kept for its Undo on the copy it was made on",
 };
 const FINISHED = new Set(["done", "failed"]);
 

@@ -1293,12 +1293,6 @@
     },
     {
       "screen": "companies",
-      "label": "Let it be set aside",
-      "detail": "Moves it back to Doesn’t fit your goals.",
-      "note": "Free · Undo with U"
-    },
-    {
-      "screen": "companies",
       "label": "Edit website and job board",
       "detail": "Opens its website or job board for editing.",
       "note": "Free"
@@ -1308,6 +1302,12 @@
       "label": "Open its website",
       "detail": "Opens the company’s site in a new tab.",
       "note": "Free"
+    },
+    {
+      "screen": "companies",
+      "label": "Let it be set aside",
+      "detail": "Moves it back to Doesn’t fit your goals.",
+      "note": "Free · Undo with U"
     },
     {
       "screen": "companies",
@@ -1740,6 +1740,12 @@
       "label": "Undo criteria approval",
       "detail": "Puts the criteria back up for review; search doesn’t look for them until you approve them again.",
       "note": "Free · Undo with U"
+    },
+    {
+      "screen": "goals",
+      "label": "Rank again",
+      "detail": "Ranks this direction’s open roles again, for what it says now.",
+      "note": "Uses your AI budget"
     },
     {
       "screen": "goals",

@@ -25,7 +25,8 @@ const groupLook = "[&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col [
 // move, Enter picks, Escape closes. On a phone the search and the list open in a Sheet. `custom`: what's typed can be
 // picked as it is when it isn't one of the options, on a row that says so (`addLabel`, 'Use “Pittsburgh”' by default).
 // `variant="button"`: a small secondary button with `icon` and the placeholder as its words ("Choose for a task"), for
-// adding one from a list rather than showing a choice; its list opens under it with the search box on top.
+// adding one from a list rather than showing a choice; its list opens under it with the search box on top. `wide`: for
+// options with long details (a model's prices), the list is wider on a larger screen and the button spans a phone.
 export function Combobox({
   label,
   value,
@@ -38,6 +39,7 @@ export function Combobox({
   addLabel = (typed) => `Use “${typed}”`,
   variant = "field",
   icon,
+  wide = false,
 }: {
   label: string;
   value: string | undefined;
@@ -50,6 +52,7 @@ export function Combobox({
   addLabel?: (typed: string) => string;
   variant?: "field" | "button";
   icon?: IconName;
+  wide?: boolean;
 }) {
   const small = useSmall();
   const [open, setOpen] = useState(false);
@@ -120,7 +123,7 @@ export function Combobox({
     return (
       <>
         {variant === "button" ? (
-          <button ref={button} type="button" aria-haspopup="dialog" aria-expanded={open} onClick={() => show(true)} className={`${buttonLook("secondary", "self-start", "lg")}`}>
+          <button ref={button} type="button" aria-haspopup="dialog" aria-expanded={open} onClick={() => show(true)} className={`${buttonLook("secondary", wide ? "w-full" : "self-start", "lg")}`}>
             {face}
           </button>
         ) : (
@@ -166,7 +169,7 @@ export function Combobox({
             align="start"
             sideOffset={4}
             onEscapeKeyDown={() => requestAnimationFrame(() => button.current?.focus())}
-            className={`${raisedSurface} flex w-68 flex-col overflow-hidden`}
+            className={`${raisedSurface} flex ${wide ? "w-100" : "w-68"} flex-col overflow-hidden`}
           >
             <Command label={label} filter={filter} value={active} onValueChange={setActive} className="flex max-h-80 flex-col">
               <label className="flex h-9 shrink-0 items-center border-b px-2.5 text-body-md leading-body-md text-text">

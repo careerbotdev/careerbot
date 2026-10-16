@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CompanySort } from "../../../convex/companySets";
 import { Avatar } from "@/components/Avatar";
 import { BulkBar } from "@/components/BulkBar";
 import { Button } from "@/components/Button";
@@ -15,29 +16,45 @@ import { PaneHeader, PaneLayout, useScreenSize } from "@/components/Panes";
 import { Popover } from "@/components/Popover";
 import { ReasonField } from "@/components/ReasonField";
 import { FitWord } from "@/components/StatusTag";
+import { Spinner } from "@/components/Spinner";
 import { TabPanel, Tabs } from "@/components/Tabs";
 import { toast } from "@/components/Toast";
+import { Tooltip } from "@/components/Tooltip";
 import { selectEntries, useSelection } from "@/components/useSelection";
 import { useBar, useCommands } from "../shell/ShellContext";
 import { useTour } from "../shell/useTour";
 import { COMPANIES_TOUR } from "../tours/companies";
 import { checkNote, COMPANY_REASONS, CompanyItem, coverageText, type EditField, editFieldFor, failed, type Rating, WORDS } from "./Company";
 import { type CompaniesData, type Company, type Tab, TABS, useCompaniesEnv } from "./env";
-import { ASIDE, type AsideKind, asideKind, companySets, tabOf } from "./sets";
+import { ASIDE, type AsideKind, archivedFrom, asideKind, companySets, tabOf } from "./sets";
 import { findEstimate, rowLine, totalCost } from "./findPlan";
 import { SearchSettingsDialog, SearchSettingsScreen } from "./SearchSettings";
 import { FindCompanies } from "./Tools";
 
-const TAB_LABEL: Record<Tab, string> = { targets: "Targets", maybe: "Maybe", found: "Found", aside: "Set aside" };
+const TAB_LABEL: Record<Tab, string> = { targets: "Targets", maybe: "Maybe", found: "Found", aside: "Set aside", archived: "Archived" };
 const KINDS = Object.keys(ASIDE) as AsideKind[];
 const FIT_ORDER = { strong: 3, some: 2, weak: 1, none: 0 } as const;
+// Sort by, in the list's ⋯: each order's name and what comes first. Targets, Maybe, Found and Archived follow it.
+const SORTS: Record<CompanySort, { label: string; hint: string }> = {
+  best: { label: "Best fit", hint: "Strongest first" },
+  weakest: { label: "Weakest fit first", hint: "No fit, then weak" },
+  board: { label: "Has a job board first", hint: "Then best fit" },
+  newest: { label: "Newest found", hint: "Latest first" },
+  name: { label: "Name", hint: "A to Z" },
+};
+const SORT_WORDS = {
+  detail: "Changes the order of this list: strongest fit first, weakest first, companies with a job board first (best fit within each), newest found, or A to Z.",
+  note: "Free · Change it any time",
+};
 
 // Where a key types or picks instead of acting on the list.
 const busyElsewhere = (e: KeyboardEvent) =>
   !!(e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable='true'], [role=menu], [role=listbox], [role=dialog], [role=alertdialog]"));
 
-// Companies: their Targets and Maybes, what was Found for them, and what's Set aside, with the one chosen open beside
-// the list (?tab=, ?company=). T, M and R rate the row under the pointer or focus, else the open company; J and K move.
+// Companies: their Targets and Maybes, what was Found for them, what's Set aside and what they Archived, with the one
+// chosen open beside the list (?tab=, ?company=), in the order Sort by sets (?sort=). T, M and R rate the row under the
+// pointer or focus, else the open company, and A archives or restores it (the checked rows, while selecting); J and K
+// move.
 export function Companies() {
   const data = useCompaniesEnv().useData();
   if (!data) return null;
@@ -46,14 +63,14 @@ export function Companies() {
 
 function Screen({ data }: { data: CompaniesData }) {
   const env = useCompaniesEnv();
-  const { tab: tabParam, company: companyParam, settings: searchSettings, set } = env.useParams();
+  const { tab: tabParam, company: companyParam, settings: searchSettings, sort, set } = env.useParams();
   const act = env.useAct();
   const size = useScreenSize();
   const small = size === "small";
   const router = useRouter();
   const tour = useTour(COMPANIES_TOUR);
 
-  const sets = useMemo(() => companySets(data.companies, data.lens.judge), [data.companies, data.lens.judge]);
+  const sets = useMemo(() => companySets(data.companies, data.lens.judge, sort), [data.companies, data.lens.judge, sort]);
   const opened = companyParam ? data.companies.find((c) => c.id === companyParam) : undefined;
   const tab: Tab = tabParam ?? (opened ? tabOf(sets, opened.id) : null) ?? (sets.targets.length ? "targets" : "found");
 
@@ -63,6 +80,7 @@ function Screen({ data }: { data: CompaniesData }) {
   const [filtersOpen, setFiltersOpen] = useState<boolean | null>(null);
   const filtersShown = filtersOpen ?? !small;
   const [folds, setFolds] = useState<Record<AsideKind, boolean>>({ goals: true, no: true, out: true });
+  const [unrankedOpen, setUnrankedOpen] = useState(true);
   const [why, setWhy] = useState<{ id: string; where: "row" | "item" } | null>(null);
   const sel = useSelection();
   const [dialog, setDialog] = useState<"find" | null>(null);
@@ -78,10 +96,17 @@ function Screen({ data }: { data: CompaniesData }) {
   const fitOf = (c: Company) => (direction ? c.fit.find((f) => f.directionId === direction) : [...c.fit].sort((a, b) => FIT_ORDER[b.level] - FIT_ORDER[a.level])[0]);
 
   const groups = tab === "aside" ? KINDS.filter((k) => !reason || k === reason).map((kind) => ({ kind, list: sets.aside[kind] })) : [];
-  const shown = tab === "aside" ? groups.flatMap((g) => g.list) : sets[tab].filter((c) => !direction || c.fit.some((f) => f.directionId === direction && f.level !== "none"));
+  const listed = tab === "aside" ? [] : sets[tab].filter((c) => !direction || c.fit.some((f) => f.directionId === direction && f.level !== "none"));
+  // Found, in an order by fit: the companies whose fit isn't judged yet wait below the ranked ones, in Not ranked yet.
+  const splitRanked = tab === "found" && (sort === "best" || sort === "weakest" || sort === "board");
+  const ranked = splitRanked ? listed.filter((c) => c.ranked) : listed;
+  const unranked = splitRanked ? listed.filter((c) => !c.ranked) : [];
+  const shown = tab === "aside" ? groups.flatMap((g) => g.list) : [...ranked, ...unranked];
   const total = tab === "aside" ? KINDS.reduce((n, k) => n + sets.aside[k].length, 0) : sets[tab].length;
-  // The rows on screen, in order (a folded group's rows aren't), to find the one under the pointer or focus.
-  const rendered = tab === "aside" ? groups.flatMap((g) => (folds[g.kind] ? g.list : [])) : shown;
+  // The rows on screen, in order (a folded group's rows aren't), to find the one under the pointer or focus, and the
+  // rows a Shift-click's range runs over.
+  const rendered = tab === "aside" ? groups.flatMap((g) => (folds[g.kind] ? g.list : [])) : unrankedOpen ? shown : ranked;
+  const renderedIds = rendered.map((c) => c.id);
 
   const chosen = opened ?? (small ? undefined : shown[0]);
   const at = chosen ? shown.findIndex((c) => c.id === chosen.id) : -1;
@@ -142,13 +167,65 @@ function Screen({ data }: { data: CompaniesData }) {
       .recheck({ ids })
       .then(({ skipped }) => toast({ message: `Checking ${ids.length - skipped} again${skipped ? `; ${skipped} skipped` : ""}`, icon: "running" }))
       .catch(failed);
+  // Several companies' names for a toast: "EliseAI, Samsara and Tines", or the first three and how many more.
+  const namesOf = (list: Company[]) => {
+    const names = list.map((c) => c.name);
+    if (names.length > 4) return `${names.slice(0, 3).join(", ")} and ${names.length - 3} more`;
+    return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "");
+  };
+  const short = (message: string) => (message.length > 64 ? `${message.slice(0, 62).trimEnd()}…` : message);
+  // Companies leaving the list together: when the open one is among them, the next one left takes its place.
+  const leaveAll = (list: Company[]) => {
+    if (!chosen || !list.some((c) => c.id === chosen.id)) return;
+    const gone = new Set<string>(list.map((c) => c.id));
+    const i = shown.findIndex((x) => x.id === chosen.id);
+    open((shown.slice(i + 1).find((x) => !gone.has(x.id)) ?? shown.slice(0, Math.max(0, i)).findLast((x) => !gone.has(x.id)))?.id ?? null, true);
+  };
+  // Archive (out of every list, its rating kept) or Restore (back where it was), with Undo.
+  const archive = (list: Company[], on: boolean) => {
+    if (!list.length) return;
+    leaveAll(list);
+    const ids = list.map((c) => c.id);
+    act
+      .archive({ ids, archived: on })
+      .then(() =>
+        toast({
+          message: short(`${on ? "Archived" : "Restored"} ${namesOf(list)}`),
+          icon: on ? "archive" : "undo",
+          action: { label: "Undo", key: "U", run: () => void act.archive({ ids, archived: !on }).catch(failed) },
+        }),
+      )
+      .catch(failed);
+  };
+  // The checked companies rated at once, with Undo putting back each one's own rating.
+  const rateAll = (list: Company[], value: Rating) => {
+    const rateable = list.filter((c) => c.screened?.employer !== false && c.rating !== value);
+    if (!rateable.length) return;
+    leaveAll(rateable);
+    const one = rateable.length === 1;
+    const named = namesOf(rateable);
+    const message = value === "excited" ? `${named} ${one ? "is a Target" : "are Targets"}` : value === "maybe" ? `${named} ${one ? "is a Maybe" : "are Maybes"}` : `Not for me: ${named}`;
+    Promise.all(rateable.map((c) => act.rate({ id: c.id, value })))
+      .then(() =>
+        toast({
+          message: short(message),
+          icon: value === "excited" ? "approve" : value === "no" ? "reject" : "companies",
+          action: {
+            label: "Undo",
+            key: "U",
+            run: () => void Promise.all(rateable.map((c) => act.rate({ id: c.id, value: c.rating, ...(c.ratingReason ? { reason: c.ratingReason } : {}) }))).catch(failed),
+          },
+        }),
+      )
+      .catch(failed);
+  };
 
-  const unfilled = sets.found.filter((c) => !c.details && c.domain);
-  const fillNote = checkNote(unfilled, data.apolloJobs);
+  const unfilled = useMemo(() => sets.found.filter((c) => !c.details && c.domain), [sets]);
+  const fillNote = useMemo(() => checkNote(unfilled, data.apolloJobs), [unfilled, data.apolloJobs]);
   const filling = data.enriching?.status === "queued" || data.enriching?.status === "running";
   const fillIn = () => void act.fillIn({}).then(() => toast({ message: "Filling in details", icon: "running" }), failed);
   const setup = env.useFindSetup();
-  const estimate = setup ? totalCost(findEstimate(data, setup)) : undefined;
+  const estimate = useMemo(() => (setup ? totalCost(findEstimate(data, setup)) : undefined), [data, setup]);
 
   // The row under the keyboard's focus, else the pointer.
   const rowAt = (el: Element | null) => {
@@ -173,10 +250,23 @@ function Screen({ data }: { data: CompaniesData }) {
         e.preventDefault();
         move(key === "j" ? 1 : -1);
       } else if (key === "t" || key === "m" || key === "r") {
+        const checkedNow = shown.filter((c) => sel.checked.has(c.id));
+        if (sel.on && checkedNow.length) {
+          e.preventDefault();
+          rateAll(checkedNow, key === "t" ? "excited" : key === "m" ? "maybe" : "no");
+          sel.done();
+          return;
+        }
         const target = underHand() ?? chosen;
         if (!target) return;
         e.preventDefault();
         rateKey(target, key);
+      } else if (key === "a") {
+        const list = sel.on ? shown.filter((c) => sel.checked.has(c.id)) : [underHand() ?? chosen].filter((c) => c !== undefined);
+        if (!list.length) return;
+        e.preventDefault();
+        archive(list, !list[0].archived);
+        if (sel.on) sel.done();
       } else if (key === "e" && chosen) {
         e.preventDefault();
         setEditing({ id: chosen.id, field: editFieldFor(chosen) });
@@ -203,6 +293,19 @@ function Screen({ data }: { data: CompaniesData }) {
   }, []);
 
   const listMenu: MenuEntry[] = [
+    ...(tab === "aside"
+      ? []
+      : [
+          {
+            label: "Sort by",
+            icon: "sort" as const,
+            hint: SORTS[sort].label,
+            ...SORT_WORDS,
+            items: (Object.keys(SORTS) as CompanySort[]).map((s) => ({ label: SORTS[s].label, hint: SORTS[s].hint, checked: s === sort, onSelect: () => set({ sort: s === "best" ? null : s }, true) })),
+          },
+        ]),
+    ...selectEntries(sel, renderedIds, "companies"),
+    "separator",
     { label: "Find companies", icon: "search", hint: estimate, detail: WORDS.find.detail, note: WORDS.find.note, onSelect: openFind },
     {
       label: filling ? "Filling in details" : `Fill in details${unfilled.length ? ` for ${unfilled.length}` : ""}`,
@@ -213,7 +316,6 @@ function Screen({ data }: { data: CompaniesData }) {
       reason: filling ? "Running" : "All filled in",
       onSelect: fillIn,
     },
-    ...selectEntries(sel, rendered.map((c) => c.id), "companies"),
     "separator",
     { label: "Search settings", icon: "filter", detail: WORDS.settings.detail, note: WORDS.settings.note, onSelect: () => set({ settings: "search" }) },
     "separator",
@@ -226,6 +328,19 @@ function Screen({ data }: { data: CompaniesData }) {
     const out = c.screened?.employer === false;
     const kind = asideKind(sets, c.id);
     const watched = (c.rating === "excited" || c.rating === "maybe") && !out;
+    const edit: MenuEntry = {
+      label: "Edit website and job board",
+      icon: "edit",
+      keys: "E",
+      detail: "Opens its website or job board for editing.",
+      note: "Free",
+      onSelect: () => {
+        if (chosen?.id !== c.id) open(c.id);
+        setEditing({ id: c.id, field: editFieldFor(c) });
+      },
+    };
+    const site: MenuEntry[] = c.domain ? [{ label: "Open its website", icon: "openElsewhere", detail: "Opens the company’s site in a new tab.", note: "Free", onSelect: () => window.open(c.websiteUrl ?? `https://${c.domain}`, "_blank", "noopener") }] : [];
+    if (c.archived) return [{ label: "Restore", icon: "undo", keys: "A", detail: WORDS.unarchive.detail, note: WORDS.unarchive.note, onSelect: () => archive([c], false) }, "separator", edit, ...site];
     return [
       ...(out
         ? []
@@ -240,17 +355,7 @@ function Screen({ data }: { data: CompaniesData }) {
           ] satisfies MenuEntry[])),
       ...(c.goals?.level === "doesnt" && kind !== "goals" && c.goals.keep ? [{ label: "Let it be set aside", icon: "setAside" as const, detail: "Moves it back to Doesn’t fit your goals.", note: "Free · Undo with U", onSelect: () => keep(c, false) }] : []),
       ...(kind === "goals" ? [{ label: "Keep anyway", icon: "approve" as const, detail: WORDS.keep.detail, note: WORDS.keep.note, onSelect: () => keep(c, true) }] : []),
-      {
-        label: "Edit website and job board",
-        icon: "edit",
-        keys: "E",
-        detail: "Opens its website or job board for editing.",
-        note: "Free",
-        onSelect: () => {
-          if (chosen?.id !== c.id) open(c.id);
-          setEditing({ id: c.id, field: editFieldFor(c) });
-        },
-      },
+      edit,
       {
         label: "Check again",
         icon: "tryAgain",
@@ -260,9 +365,10 @@ function Screen({ data }: { data: CompaniesData }) {
         reason: c.checking ? "Checking" : !c.domain ? "Add its website first" : "Restore it first",
         onSelect: () => recheck([c.id]),
       },
-      ...(c.domain ? [{ label: "Open its website", icon: "openElsewhere" as const, detail: "Opens the company’s site in a new tab.", note: "Free", onSelect: () => window.open(c.websiteUrl ?? `https://${c.domain}`, "_blank", "noopener") }] : []),
+      ...site,
       ...(watched ? [{ label: "Open its roles in Pursuits", icon: "pursuits" as const, detail: "Shows its open roles in Pursuits.", note: "Free", onSelect: () => router.push(`/pursuits?company=${c.id}`) }] : []),
       "separator",
+      { label: "Archive", icon: "archive", keys: "A", detail: WORDS.archive.detail, note: WORDS.archive.note, onSelect: () => archive([c], true) },
       out
         ? { label: "Restore", icon: "undo", detail: WORDS.restore.detail, note: WORDS.restore.note, onSelect: () => employer(c, true) }
         : { label: "Not a place to work", icon: "setAside", detail: WORDS.notEmployer.detail, note: WORDS.notEmployer.note, onSelect: () => employer(c, false) },
@@ -280,12 +386,11 @@ function Screen({ data }: { data: CompaniesData }) {
   );
   useCommands(commands);
 
-  const chosenIds = [...sel.checked].filter((id) => data.companies.some((c) => c.id === id)) as Company["id"][];
-  const chosenCheck = checkNote(
-    data.companies.filter((c) => sel.checked.has(c.id)),
-    data.apolloJobs,
-  );
-  const checkAgain = { detail: WORDS.check, note: chosenCheck, reason: chosenIds.length ? undefined : "None selected" };
+  // The checked companies, in the list's order.
+  const checkedRows = shown.filter((c) => sel.checked.has(c.id));
+  const chosenIds = checkedRows.map((c) => c.id);
+  const checkAgain = { detail: WORDS.check, note: checkNote(checkedRows, data.apolloJobs), reason: chosenIds.length ? undefined : "None selected" };
+  const bulk = (run: () => void) => () => (run(), sel.done());
   const whyFor = why ? data.companies.find((c) => c.id === why.id) : undefined;
   const finishWhy = (reason?: string) => {
     setWhy(null);
@@ -300,11 +405,21 @@ function Screen({ data }: { data: CompaniesData }) {
               kind: "bulk",
               count: chosenIds.length,
               onDone: sel.done,
-              actions: (
-                <Button size="lg" variant="primary" className="flex-1" {...checkAgain} onClick={() => (recheck(chosenIds), sel.done())}>
-                  Check again
-                </Button>
-              ),
+              actions:
+                tab === "archived" ? (
+                  <Button size="lg" variant="primary" className="flex-1" detail={WORDS.unarchive.detail} note={WORDS.unarchive.note} onClick={bulk(() => archive(checkedRows, false))}>
+                    Restore
+                  </Button>
+                ) : (
+                  <>
+                    <Button size="lg" className="flex-1" detail={WORDS.archive.detail} note={WORDS.archive.note} onClick={bulk(() => archive(checkedRows, true))}>
+                      Archive
+                    </Button>
+                    <Button size="lg" variant="primary" className="flex-1" detail={WORDS.excited.detail} note={WORDS.excited.note} onClick={bulk(() => rateAll(checkedRows, "excited"))}>
+                      Target
+                    </Button>
+                  </>
+                ),
             }
           : opened
             ? {
@@ -312,7 +427,11 @@ function Screen({ data }: { data: CompaniesData }) {
                 actions: (
                   <>
                     <Menu label={`More for ${opened.name}`} title={opened.name} items={itemMenu(opened, "item")} trigger={<Button size="lg" iconOnly icon="more" aria-label={`More for ${opened.name}`} />} />
-                    {opened.screened?.employer === false ? (
+                    {opened.archived ? (
+                      <Button size="lg" variant="primary" className="flex-1" detail={WORDS.unarchive.detail} note={WORDS.unarchive.note} onClick={() => archive([opened], false)}>
+                        Restore
+                      </Button>
+                    ) : opened.screened?.employer === false ? (
                       <Button size="lg" variant="primary" className="flex-1" detail={WORDS.restore.detail} note={WORDS.restore.note} onClick={() => employer(opened, true)}>
                         Restore
                       </Button>
@@ -339,7 +458,9 @@ function Screen({ data }: { data: CompaniesData }) {
 
   const row = (c: Company) => {
     const out = c.screened?.employer === false;
-    const fit = fitOf(c);
+    // Not ranked yet: no fit word until its fit is judged.
+    const waiting = splitRanked && !c.ranked;
+    const fit = waiting ? undefined : fitOf(c);
     const line =
       tab === "aside"
         ? asideKind(sets, c.id) === "goals"
@@ -349,7 +470,7 @@ function Screen({ data }: { data: CompaniesData }) {
             : c.screened?.kind && c.screened.kind[0].toUpperCase() + c.screened.kind.slice(1)
         : rowLine(c);
     const tag =
-      tab === "found" ? (
+      tab === "found" || tab === "archived" ? (
         fit ? (
           <FitWord level={fit.level} className="text-body-sm leading-body-sm" />
         ) : !c.details ? (
@@ -365,15 +486,19 @@ function Screen({ data }: { data: CompaniesData }) {
         line={line ?? undefined}
         lead={<Avatar name={c.name} company size={28} />}
         tag={tag}
+        meta={c.archived ? new Date(c.archived.at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : undefined}
+        muted={waiting}
         selected={!small && chosen?.id === c.id}
         checked={sel.checked.has(c.id)}
-        onCheck={(on) => sel.check([c.id], on)}
+        onCheck={(on, range) => sel.pick(c.id, on, range ? renderedIds : undefined)}
         selecting={sel.on}
         onOpen={() => open(c.id)}
         actions={
-          out
-            ? []
-            : [
+          c.archived
+            ? [{ label: "Restore", icon: "undo", keys: "A", detail: WORDS.unarchive.detail, note: WORDS.unarchive.note, onSelect: () => archive([c], false) }]
+            : out
+              ? []
+              : [
                 { label: "Target", keys: "T", detail: WORDS[c.rating === "excited" ? "unrate" : "excited"].detail, note: WORDS.excited.note, onSelect: () => rateKey(c, "t") },
                 { label: "Maybe", keys: "M", detail: WORDS[c.rating === "maybe" ? "unrate" : "maybe"].detail, note: WORDS.maybe.note, onSelect: () => rateKey(c, "m") },
                 { label: "Not for me", keys: "R", detail: WORDS[c.rating === "no" ? "unrate" : "no"].detail, note: WORDS.no.note, onSelect: () => rateKey(c, "r") },
@@ -423,6 +548,7 @@ function Screen({ data }: { data: CompaniesData }) {
       ),
     },
     aside: { title: "Nothing set aside", body: "Companies you pass on, and ones that don’t fit your goals, show here." },
+    archived: { title: "Nothing archived", body: "Companies you archive wait here, out of every other list, until you restore them." },
   }[tab];
 
   const findAnchor = (
@@ -446,6 +572,22 @@ function Screen({ data }: { data: CompaniesData }) {
     </Popover>
   );
 
+  // While a pass is judging fit: how many found companies are ranked, of all found. Runs on its own.
+  const rankedCount = sets.found.filter((c) => c.ranked).length;
+  const ranking =
+    tab === "found" && filling && rankedCount < sets.found.length ? (
+      <Tooltip
+        content="Ranking"
+        detail={`${rankedCount} of the ${sets.found.length} found companies have a fit for your directions. The other ${sets.found.length - rankedCount} are listed below them and move into place as they’re ranked.`}
+        note="Runs on its own as companies are read"
+      >
+        <span tabIndex={0} className="flex items-center gap-1.5 text-label leading-label whitespace-nowrap text-muted tabular-nums">
+          <Spinner size={16} />
+          Ranking… {rankedCount} of {sets.found.length}
+        </span>
+      </Tooltip>
+    ) : undefined;
+
   const list = (
     <div ref={listRef} className="flex min-h-0 flex-1 flex-col">
       <PaneHeader
@@ -466,7 +608,8 @@ function Screen({ data }: { data: CompaniesData }) {
           <TabPanel key={t} value={t} className="flex flex-col">
             {t === tab && (
               <>
-                {filtersShown && total > 0 && <FilterBar filters={filters} matches={{ shown: shown.length, total }} onClearAll={() => (setDirection(null), setReason(null))} />}
+                {filtersShown && total > 0 && <FilterBar filters={filters} matches={{ shown: shown.length, total }} status={ranking} onClearAll={() => (setDirection(null), setReason(null))} />}
+                {!filtersShown && ranking && <div className="flex border-b px-4 py-2.5">{ranking}</div>}
                 <div className="min-h-0 flex-1 overflow-y-auto">
                   {total === 0 ? (
                     <EmptyState icon="companies" title={empty.title} action={empty.action}>
@@ -484,7 +627,12 @@ function Screen({ data }: { data: CompaniesData }) {
                     </List>
                   ) : (
                     <List label={TAB_LABEL[tab]} className="px-2 py-2">
-                      {shown.map(row)}
+                      {ranked.map(row)}
+                      {unranked.length > 0 && (
+                        <ListFold label="Not ranked yet" count={unranked.length} open={unrankedOpen} onOpenChange={setUnrankedOpen}>
+                          {unranked.map(row)}
+                        </ListFold>
+                      )}
                     </List>
                   )}
                 </div>
@@ -496,7 +644,28 @@ function Screen({ data }: { data: CompaniesData }) {
       </div>
       {!small && sel.on && (
         <div className="px-2 pb-2">
-          <BulkBar count={chosenIds.length} onDone={sel.done} actions={[{ label: "Check again", primary: true, detail: WORDS.check, note: chosenCheck, onSelect: () => (recheck(chosenIds), sel.done()) }]} />
+          <BulkBar
+            count={chosenIds.length}
+            onDone={sel.done}
+            actions={
+              tab === "archived"
+                ? [{ label: "Restore", keys: "A", primary: true, detail: WORDS.unarchive.detail, note: WORDS.unarchive.note, onSelect: bulk(() => archive(checkedRows, false)) }]
+                : [
+                    { label: "Target", keys: "T", primary: true, detail: WORDS.excited.detail, note: WORDS.excited.note, onSelect: bulk(() => rateAll(checkedRows, "excited")) },
+                    { label: "Archive", keys: "A", detail: WORDS.archive.detail, note: WORDS.archive.note, onSelect: bulk(() => archive(checkedRows, true)) },
+                  ]
+            }
+            more={[
+              ...(tab === "archived"
+                ? []
+                : ([
+                    { label: "Maybe", keys: "M", detail: WORDS.maybe.detail, note: WORDS.maybe.note, onSelect: bulk(() => rateAll(checkedRows, "maybe")) },
+                    { label: "Not for me", keys: "R", detail: WORDS.no.detail, note: WORDS.no.note, onSelect: bulk(() => rateAll(checkedRows, "no")) },
+                    "separator",
+                  ] satisfies MenuEntry[])),
+              { label: "Check again", icon: "tryAgain", ...checkAgain, onSelect: bulk(() => recheck(chosenIds)) },
+            ]}
+          />
         </div>
       )}
     </div>
@@ -509,6 +678,8 @@ function Screen({ data }: { data: CompaniesData }) {
       data={data}
       aside={asideKind(sets, chosen.id)}
       position={at >= 0 ? { at: at + 1, of: shown.length } : null}
+      archived={chosen.archived ? { at: chosen.archived.at, from: TAB_LABEL[archivedFrom(chosen, data.lens.judge) ?? "found"] } : null}
+      onUnarchive={() => archive([chosen], false)}
       small={small}
       size={size}
       why={why?.where === "item" && why.id === chosen.id}

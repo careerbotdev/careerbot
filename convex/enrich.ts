@@ -464,6 +464,9 @@ export const saveFit = internalMutation({
   handler: async (ctx, { workspaceId, id, fit, goals }) => {
     const c = await ctx.db.get(id);
     if (!c || c.workspaceId !== workspaceId) return;
+    // Judged against the directions approved when it started: none for a direction merged away (or set aside) since.
+    const live = new Set((await itemsOf(ctx, workspaceId, "direction", "approved")).map((d) => d._id));
+    fit = fit.filter((f) => live.has(f.directionId));
     await ctx.db.patch(id, { fit, fitAt: Date.now(), recheckAt: undefined, ...(goals ? { goals: { ...goals, ...(c.goals?.keep ? { keep: true } : {}), at: Date.now() } } : {}) });
   },
 });
@@ -493,6 +496,23 @@ export const keepAnyway = mutation({
     const c = await ctx.db.get(id);
     if (!c || c.workspaceId !== workspaceId || !c.goals) throw new Error("Not found.");
     await ctx.db.patch(id, { goals: { ...c.goals, keep } });
+  },
+});
+
+// Archive companies (out of every list, their roles not read, their rating kept) or restore them (back where they were).
+// Its roles' standing in Pursuits follows, as it does a rating.
+export const archive = mutation({
+  args: { ids: v.array(v.id("companies")), archived: v.boolean() },
+  handler: async (ctx, { ids, archived }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const at = Date.now();
+    for (const id of ids) {
+      const c = await ctx.db.get(id);
+      if (!c || c.workspaceId !== workspaceId) throw new Error("Not found.");
+      if (!!c.archived === archived) continue;
+      await ctx.db.patch(id, { archived: archived ? { at } : undefined });
+      if (c.rating?.value === "excited" || c.rating?.value === "maybe") await ctx.scheduler.runAfter(0, internal.roles.refreshRanks, { workspaceId, companyId: id });
+    }
   },
 });
 

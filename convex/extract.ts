@@ -10,13 +10,13 @@ import { type ModelChoice, reasoningLevel } from "./aiTasks";
 import { checkOverlaps } from "./conflicts";
 import { afterReview } from "./insights";
 import { activeLimits, isKind, isSkill, type ItemOf, type ItemStatus, itemsOf, pickRole } from "./itemShapes";
-import { fillWhenApproved } from "./directionFill";
+import { fillWhenApproved, refuseWhileMerging } from "./directionFill";
 import { syncClashes } from "./goals";
 import { ROLE_CHECKED } from "./limitBuckets";
 import { backgroundNarratives, counted, quotedIn, sourceCheck } from "./recordContext";
 import { rejectProject, restoreProject } from "./sources";
 import { tallyApproval } from "./tallies";
-import { FACT_STYLE, PLAIN_LANGUAGE } from "./writingGuides";
+import { FACT_STYLE, PLAIN_LANGUAGE, SKILL_NAMES } from "./writingGuides";
 import { refuseCancelled } from "./cancel";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
 
@@ -31,7 +31,7 @@ Produce three things:
 
 1. roles: the structured record for each employer/role this narrative covers. Fields: employer, title, location, start, end (YYYY or YYYY-MM when you can tell; dates mentioned in passing count), team, projects (list), tools (list), skills (list). Use a stable "key" per role such as "acme-head-of-cs". Reuse an existing role key when it is the same role. "title" is the official title exactly as the employer gave it, nothing else: no parentheses, no second title. If the account doesn't say what the role was officially called, leave "title" empty rather than guessing; they'll be asked. Other names for the same job go in "alternateTitles" (a list): what they call it themselves, and what the market calls the work when the official title undersells it. Always give at least one, the plainest honest name for the job first: until they give the official title, resumes use the first one. A promotion or a real change of job at the same employer is a separate role with its own key, title and dates, with the same "employer" spelled identically, and "change" on the later role: "promotion" only when the account says it was one, otherwise "transition" (the first role at an employer has no "change").
 
-A role's "tools" and "skills" are how its skills, tools and certifications are found later, so list them completely, including ones mentioned only in passing. "tools": every named product, platform, service, language or software suite they used in the role, each by the name a job posting would use; for a suite, name each of its apps they used as well as the suite. "skills": every practice and kind of work they did in the role, named the way a job posting would (customer onboarding, contract negotiation, event marketing, forecasting), never a trait (hard-working, detail-oriented). A certification, license or completed credential they hold goes in a fact, naming who issued it and when, if the account says.
+A role's "tools" and "skills" are how its skills, tools and certifications are found later, so list them completely, including ones mentioned only in passing. "tools": every named product, platform, service, language or software suite they used in the role, each by the name a job posting would use; for a suite, name each of its apps they used as well as the suite. "skills": every practice and kind of work they did in the role, named the way a job posting would (Customer Onboarding, Contract Negotiation, Event Marketing, Forecasting), never a trait (hard-working, detail-oriented). ${SKILL_NAMES} A certification, license or completed credential they hold goes in a fact, naming who issued it and when, if the account says.
 
 An employer is an organization that employed them or hired them on contract, never an activity. Time away from paid work (caring for family, a move, study, health, a layoff, travel) is a career break: a role with "break": true, "start" and "end", no employer and no title, a short plain "reason" in their words ("Finishing my degree"), and key "break-" plus its start (e.g. "break-2019-09"). Side projects, open-source work or volunteering they did during it don't make it a job: name them in the break's "projects", and their facts go on the break. Never invent an employer named after what they did ("Open Source", "Side projects", "Caregiving", "Freelance").
 
@@ -273,6 +273,8 @@ export const review = mutation({
     const { workspaceId } = await requireWorkspace(ctx);
     const item = await getInWorkspace(ctx, workspaceId, id);
     if (!item) throw new Error("Not found.");
+    // A direction a merge is still moving records into or out of stays as it is until the merge is done.
+    if (item.kind === "direction") await refuseWhileMerging(ctx, workspaceId, [id]);
     // A project is a source: rejecting it sets aside what it proposed, and reopening it brings that back (sources.ts).
     if (item.kind === "project" && status === "rejected") return rejectProject(ctx, item, note?.trim() || undefined);
     if (item.kind === "project" && item.status === "rejected" && status === "proposed") return restoreProject(ctx, item);

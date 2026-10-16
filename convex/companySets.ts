@@ -1,8 +1,9 @@
 import type { Lens } from "./lens";
 
 // Which found companies still wait on them, shared by the Companies page and Review. Pure, so the browser can use it.
-// Open: an employer (not screened out) they haven't made a target or passed on. A misfit: when goals hide misfits, one
-// the goals judgment says doesn't fit, that they haven't kept anyway and didn't name themselves.
+// Open: an employer (not screened out, not archived) they haven't made a target or passed on. A misfit: when goals hide
+// misfits, one the goals judgment says doesn't fit, that they haven't kept anyway and didn't name themselves. An
+// archived company is out of every list (and its roles aren't read) until it's restored.
 
 export type Rateable = {
   screened: { employer: boolean } | null;
@@ -10,6 +11,7 @@ export type Rateable = {
   goals: { level: "fits" | "partly" | "doesnt" | "unknown"; keep?: boolean } | null;
   named: boolean;
   fit: { level: "strong" | "some" | "weak" | "none" }[];
+  archived: { at: number } | null;
 };
 
 const isMisfit = (c: Rateable, judge: Lens["judge"]) => judge === "hide" && c.goals?.level === "doesnt" && !c.goals.keep && !c.named;
@@ -22,7 +24,7 @@ export function companyScore(c: Rateable, judge: Lens["judge"]) {
 
 // The open employers, best first, and the misfits set aside from them.
 export function openCompanies<C extends Rateable>(companies: C[], judge: Lens["judge"]) {
-  const open = companies.filter((c) => c.screened?.employer !== false && c.rating !== "excited" && c.rating !== "no");
+  const open = companies.filter((c) => !c.archived && c.screened?.employer !== false && c.rating !== "excited" && c.rating !== "no");
   return {
     employers: open.filter((c) => !isMisfit(c, judge)).sort((a, b) => companyScore(b, judge) - companyScore(a, judge)),
     misfits: open.filter((c) => isMisfit(c, judge)),
@@ -34,4 +36,25 @@ export function openCompanies<C extends Rateable>(companies: C[], judge: Lens["j
 export function companiesToRate<C extends Rateable>(companies: C[], judge: Lens["judge"]) {
   const { employers, misfits } = openCompanies(companies, judge);
   return [...employers.filter((c) => c.rating === null).map((c) => ({ company: c, misfit: false })), ...misfits.map((c) => ({ company: c, misfit: true }))];
+}
+
+// The orders a list of companies can be sorted in (?sort= on Companies; best is the default and leaves it out).
+export const COMPANY_SORTS = ["best", "weakest", "board", "newest", "name"] as const;
+export type CompanySort = (typeof COMPANY_SORTS)[number];
+
+export type Sortable = Rateable & { id: string; name: string; foundAt: number; boardUrl: string | null; details: { board?: { url: string } } | null };
+
+// Sorts a whole list (every company of a tab, never a page of it). Ties fall to the name and then the id, so the order
+// is the same every time and a page cut from it never repeats or skips a company.
+export function sortCompanies<C extends Sortable>(companies: readonly C[], sort: CompanySort, judge: Lens["judge"]): C[] {
+  const byName = (a: C, b: C) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const best = (a: C, b: C) => companyScore(b, judge) - companyScore(a, judge);
+  const order: Record<CompanySort, (a: C, b: C) => number> = {
+    best,
+    weakest: (a, b) => -best(a, b),
+    board: (a, b) => Number(!!(b.boardUrl || b.details?.board?.url)) - Number(!!(a.boardUrl || a.details?.board?.url)) || best(a, b),
+    newest: (a, b) => b.foundAt - a.foundAt,
+    name: () => 0,
+  };
+  return [...companies].sort((a, b) => order[sort](a, b) || byName(a, b));
 }

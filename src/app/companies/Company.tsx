@@ -51,6 +51,8 @@ export const WORDS = {
   keep: { detail: "Moves it to Found, where you can rate it.", note: FREE_UNDO },
   restore: { detail: "Counts it as a place to work again; it goes back to Found.", note: FREE_UNDO },
   notEmployer: { detail: "Sets it aside as not a place to work and stops listing its roles.", note: FREE_UNDO },
+  archive: { detail: "Hides it from every list until you restore it. Your rating stays; its roles aren’t read while it’s archived.", note: FREE_UNDO },
+  unarchive: { detail: "Puts it back in the list it was archived from, with your rating as it was.", note: FREE_UNDO },
   check: "Reads its website and job board afresh, then how it fits your directions.",
   find: { detail: "Shows each search and what it costs before you start one.", note: "Free" },
   settings: { detail: "Sets what searches look for and how found companies are sorted: seed companies, companies you’d name, industries, your goals and your ratings.", note: "Free" },
@@ -102,6 +104,8 @@ export function CompanyItem({
   data,
   aside,
   position,
+  archived,
+  onUnarchive,
   small,
   size,
   why,
@@ -118,6 +122,9 @@ export function CompanyItem({
   data: CompaniesData;
   aside: AsideKind | null;
   position: { at: number; of: number } | null;
+  // Archived: when, and the tab it was in (and goes back to).
+  archived: { at: number; from: string | null } | null;
+  onUnarchive: () => void;
   small: boolean;
   size: "small" | "medium" | "large";
   why: boolean;
@@ -296,13 +303,28 @@ export function CompanyItem({
             </Text>
           </div>
         </div>
-        {!small && !out && <div className="flex flex-col gap-3 md:pl-[54px]" data-tour="companies.rating">{rating}</div>}
-        {!out && (
-          <div className="md:pl-[54px]">
-            <Button size="sm" icon="people" detail="Starts a pursuit at this company without an open role, to write to the people who hire there." note="Free" onClick={startOutreach}>
-              Start outreach
-            </Button>
+        {archived ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 md:pl-[54px]">
+            {!small && (
+              <Button variant="primary" size="sm" keys="A" detail={WORDS.unarchive.detail} note={WORDS.unarchive.note} onClick={onUnarchive}>
+                Restore
+              </Button>
+            )}
+            <Text size="sm" muted>
+              {[`Archived ${new Date(archived.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, archived.from && `was in ${archived.from}`].filter(Boolean).join(" · ")}
+            </Text>
           </div>
+        ) : (
+          <>
+            {!small && !out && <div className="flex flex-col gap-3 md:pl-[54px]" data-tour="companies.rating">{rating}</div>}
+            {!out && (
+              <div className="md:pl-[54px]">
+                <Button size="sm" icon="people" detail="Starts a pursuit at this company without an open role, to write to the people who hire there." note="Free" onClick={startOutreach}>
+                  Start outreach
+                </Button>
+              </div>
+            )}
+          </>
         )}
         {!small && why && (
           <div className="md:pl-[54px]">

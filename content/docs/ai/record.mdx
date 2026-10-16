@@ -6,6 +6,7 @@ sources:
   - docs/architecture/model.c4
   - convex/insights.ts
   - convex/skills.ts
+  - convex/skillNames.ts
   - convex/duplicates.ts
   - convex/sameWork.ts
   - convex/projects.ts
@@ -40,9 +41,14 @@ you rejected, and doesn't repeat one you already have or one waiting for review.
 <AiStep id="gatherSkills" /> runs on its own once a story or project has nothing left to review (and again when you
 approve one of the story's roles after that), and when you choose **Gather** on Skills and tools in Record. It reads
 your approved roles' skills and tools, your approved projects' stacks and your approved facts, and proposes each skill,
-tool and certification once, named the way resumes and postings name it, with where your record shows it. Vague ones are
-flagged as low value, and near-duplicates are offered as merges. It never merges anything you approved, and never pairs
-two items you kept apart. A rejected skill is never proposed again, in any spelling.
+tool and certification once, named the way resumes and postings name it, with where your record shows it. Each item is
+one thing: "Radio advertising and media buying" is two skills, unless the joined name is itself one thing, like Mergers
+and Acquisitions. Skills are written in Title Case (Radio Advertising, Customer Onboarding, Go-to-Market Strategy),
+keeping acronyms and brands as they're written (SEO, B2B, iOS, HubSpot); tools and certifications keep their official
+names, and a name you edited stays exactly as you wrote it. A skill still waiting for review that combines two things is
+split into two. Vague ones are flagged as low value, and near-duplicates are offered as merges. It never merges anything
+you approved, and never pairs two items you kept apart. A rejected skill is never proposed again, in any spelling or
+casing.
 
 Resumes list only the skills you approved here.
 

@@ -14,8 +14,8 @@ import { directionsFixtures } from "./fixtures";
 // review. Clicks, J and K, A, E, R, T, "." and Esc work as in the app; resize the window for medium (768 to 1279) and the
 // phone (under 768).
 
-function Fixture({ query }: { query: string }) {
-  const [answers] = useState(directionsFixtures);
+function Fixture({ query, merged }: { query: string; merged?: boolean }) {
+  const [answers] = useState(() => directionsFixtures({ merged }));
   return (
     <ShellProvider>
       <StoryConvex answers={answers}>
@@ -90,3 +90,50 @@ export const PhoneListReject: Story = {
 };
 
 export const PhoneDirection: Story = { name: "Phone direction, positioning to review", render: () => <Fixture query="direction=dir-planning" /> };
+
+// In Storybook's view with both themes, the light pane comes first; the menu and sheet open over the whole page.
+const firstPane = (canvas: HTMLElement) => within(canvas.querySelector<HTMLElement>("[data-theme]") ?? canvas);
+
+// ⋯ > Merge into…: the other approved directions, each with what it would gain, and what moves with it (a sheet on the phone).
+const openMergeInto = async (canvas: HTMLElement) => {
+  await userEvent.click(await firstPane(canvas).findByRole("button", { name: "More for Logistics Operations" }));
+  await userEvent.click((await page().findAllByText("Merge into…")).at(-1)!);
+  await page().findByText("Merge Logistics Operations into");
+};
+
+export const MergeInto: Story = {
+  name: "Merge into",
+  render: () => <Fixture query="direction=dir-logistics" />,
+  play: async ({ canvasElement }) => openMergeInto(canvasElement),
+};
+
+// Merging at once, with Undo; its records still moving, so the kept direction says Merging… and waits to merge or rank.
+export const Merging: Story = {
+  name: "Merging, with Undo",
+  render: () => <Fixture query="direction=dir-logistics" />,
+  play: async ({ canvasElement }) => {
+    await openMergeInto(canvasElement);
+    // The submenu on wider screens, the sheet on a phone.
+    const picker = page().queryAllByRole("menu").at(-1) ?? page().getByRole("dialog");
+    await userEvent.click(within(picker).getByText("Supply Chain Product"));
+    await page().findByText("Merged Logistics Operations into Supply Chain Product");
+  },
+};
+
+// The merge done: the kept direction's roles ranked before the merge, with Rank again.
+export const Merged: Story = { name: "Merged", render: () => <Fixture query="direction=dir-product" merged /> };
+
+// Undo from the toast: the merged direction is back at once, and both say so while its records move back.
+export const UndoingMerge: Story = {
+  name: "Undoing the merge",
+  render: () => <Fixture query="direction=dir-logistics" />,
+  play: async ({ canvasElement }) => {
+    await openMergeInto(canvasElement);
+    const picker = page().queryAllByRole("menu").at(-1) ?? page().getByRole("dialog");
+    await userEvent.click(within(picker).getByText("Supply Chain Product"));
+    // The toast's own Undo, once the merge is done (on a phone the closing sheet still has Undo approval).
+    const toast = (await page().findByText("Merged Logistics Operations into Supply Chain Product")).parentElement!;
+    await userEvent.click(within(toast).getByRole("button", { name: /^Undo/ }));
+    await firstPane(canvasElement).findAllByText("Undoing the merge…");
+  },
+};

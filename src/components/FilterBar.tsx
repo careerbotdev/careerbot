@@ -74,7 +74,8 @@ export type Filter = {
 
 // Filters as chips under a list's tabs, with how many rows match. "+ Filter" lists every filter (with what each is set
 // to) behind a search; picking one opens its chip. Clear removes them all. Popovers on md and up, sheets on phones.
-export function FilterBar({ filters, matches, onClearAll }: { filters: Filter[]; matches?: { shown: number; total: number }; onClearAll?: () => void }) {
+// `status`, at the right in place of the match count: something under way that changes the list ("Ranking… 19 of 27").
+export function FilterBar({ filters, matches, status, onClearAll }: { filters: Filter[]; matches?: { shown: number; total: number }; status?: ReactNode; onClearAll?: () => void }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const active = filters.filter((f) => f.value !== undefined);
@@ -131,10 +132,16 @@ export function FilterBar({ filters, matches, onClearAll }: { filters: Filter[];
           Clear
         </button>
       )}
-      {matches && (
-        <span aria-live="polite" className="ml-auto pl-2 text-label leading-label whitespace-nowrap text-muted tabular-nums">
-          {matches.shown.toLocaleString("en-US")} of {matches.total.toLocaleString("en-US")}
+      {status ? (
+        <span aria-live="polite" className="ml-auto flex pl-2">
+          {status}
         </span>
+      ) : (
+        matches && (
+          <span aria-live="polite" className="ml-auto pl-2 text-label leading-label whitespace-nowrap text-muted tabular-nums">
+            {matches.shown.toLocaleString("en-US")} of {matches.total.toLocaleString("en-US")}
+          </span>
+        )
       )}
     </div>
   );

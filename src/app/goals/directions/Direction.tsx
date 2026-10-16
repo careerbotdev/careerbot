@@ -47,6 +47,7 @@ export function DirectionItem({
   pane,
   onPane,
   onGone,
+  onMerged,
 }: {
   d: Direction;
   // The other approved directions, to merge into.
@@ -59,8 +60,10 @@ export function DirectionItem({
   onTab: (t: ItemTab) => void;
   pane: Pane | null;
   onPane: (p: Pane | null, version?: string | null) => void;
-  // After it leaves the list (rejected, merged, back in review): the screen opens the next.
+  // After it leaves the list (rejected, back in review): the screen opens the next.
   onGone: () => void;
+  // After it's merged into another: the screen opens the kept one.
+  onMerged: (into: Id<"items">) => void;
 }) {
   const small = size === "small";
   const acts = useDirectionActs();
@@ -71,6 +74,8 @@ export function DirectionItem({
   const addNote = useMutation(api.notes.add);
   const editNote = useMutation(api.notes.edit);
   const removeNote = useMutation(api.notes.remove);
+  const gains = useQuery(api.goals.mergeGains, others.length ? { id: d.id } : "skip");
+  const rankAgain = useMutation(api.roles.rankAgain);
   const [editing, setEditing] = useState<Editing>(null);
   const [rejecting, setRejecting] = useState(false);
   const [partAt, setPartAt] = useState(0);
@@ -97,6 +102,9 @@ export function DirectionItem({
       (e: unknown) => failed(e, "Couldn’t start."),
     );
   const filling = d.fill === "filling";
+  // Records still moving into it (a merge) or back out (its Undo): what would clash waits until that's done.
+  const mergeWords = d.merge === "undoing" ? { tag: "Undoing the merge…", reason: "Undoing the merge now" } : d.merge ? { tag: "Merging…", reason: "Merging now" } : null;
+  const merging = mergeWords ? { disabled: true, reason: mergeWords.reason } : {};
   const reject = (reason?: string) => {
     setRejecting(false);
     void acts.reject(d, reason).then(onGone);
@@ -104,6 +112,10 @@ export function DirectionItem({
   const fill = fillInWords(!!d.data.detail, fillCost);
   const refill = fillInWords(true, fillCost);
   const approvePartWords = { detail: `Approves this ${part === "detail" ? "positioning: resumes are written from it" : "criteria: search looks for them"}.`, note: "Free · Undo with U" };
+  const rank = () => void rankAgain({ directionId: d.id }).then(() => toast({ message: `Ranking roles for ${d.data.name} again`, icon: "running" }), (e: unknown) => failed(e, "Couldn’t start."));
+  // Roles ranked before another direction was merged into it, until they rank again.
+  const rankedBeforeMerge = !!fit?.stale && !!d.data.mergedAt && d.data.mergedAt === d.data.changedAt;
+  const moving = gains && [gains.pursuits && `${gains.pursuits} ${gains.pursuits === 1 ? "pursuit" : "pursuits"}`, gains.notes && `${gains.notes} ${gains.notes === 1 ? "note" : "notes"}`].filter(Boolean).join(" and ");
   const resumeDetail = pane === "resume" ? "Closes the resume beside this direction." : "Opens this direction’s resume beside it.";
 
   const menu: MenuEntry[] = [
@@ -116,29 +128,51 @@ export function DirectionItem({
       detail: fill.detail,
       note: fill.note,
       onSelect: fillIn,
-      ...(filling ? { disabled: true, reason: "Filling in now" } : {}),
+      ...(filling ? { disabled: true, reason: "Filling in now" } : merging),
     },
     {
       label: "Merge into…",
       icon: "switch",
-      ...(others.length ? { items: others.map((o) => ({ label: o.data.name, onSelect: () => void acts.merge(d, { id: o.id, name: o.data.name }).then(onGone) })) } : { disabled: true, reason: "No other approved directions" }),
+      detail: "Moves this direction into the one you pick. That one keeps its name and positioning and gains these titles, companies, roles, pursuits and notes, each company and role at its better fit. This one leaves your directions; its resume stays with it.",
+      note: "Free · Undo with U",
+      ...(d.merge
+        ? merging
+        : others.length
+        ? {
+            title: `Merge ${d.data.name} into`,
+            foot: (
+              <>
+                {moving ? <span className="block">Its {moving} move with it.</span> : null}
+                <span className="block">{small ? "Free · Undo" : "Free · Undo with U"}</span>
+              </>
+            ),
+            items: others.map((o) => {
+              const g = gains?.into.find((x) => x.id === o.id);
+              return {
+                label: o.data.name,
+                line: g ? `${g.titles} new ${g.titles === 1 ? "title" : "titles"} · ${g.roles} new ${g.roles === 1 ? "role" : "roles"} · ${g.companies} new ${g.companies === 1 ? "company" : "companies"}` : undefined,
+                onSelect: () => void acts.merge(d, { id: o.id, name: o.data.name }).then((ok) => ok && onMerged(o.id)),
+              };
+            }),
+          }
+        : { disabled: true, reason: "No other approved directions" }),
     },
     "separator",
-    { label: "Undo approval", icon: "undo", detail: "Moves it back to Proposed; roles aren’t ranked for it until you approve it again.", note: "Free · Undo with U", onSelect: () => void acts.undoApproval(d).then(onGone) },
+    { label: "Undo approval", icon: "undo", detail: "Moves it back to Proposed; roles aren’t ranked for it until you approve it again.", note: "Free · Undo with U", onSelect: () => void acts.undoApproval(d).then(onGone), ...merging },
     ...(positioned ? [{ label: "Undo positioning approval", icon: "undo" as const, detail: "Puts the positioning back up for review; resumes aren’t written from it until you approve it again.", note: "Free · Undo with U", onSelect: () => acts.unapprovePart(d, "detail") }] : []),
     ...(d.data.criteriaStatus === "approved" && d.data.criteria ? [{ label: "Undo criteria approval", icon: "undo" as const, detail: "Puts the criteria back up for review; search doesn’t look for them until you approve them again.", note: "Free · Undo with U", onSelect: () => acts.unapprovePart(d, "criteria") }] : []),
     { label: pane === "resume" ? "Hide resume" : "Show resume", icon: "thirdPane", keys: ".", detail: resumeDetail, note: "Free", onSelect: toggleResume },
     { label: "Copy link", icon: "link", detail: COPY_LINK_WORDS.detail, note: COPY_LINK_WORDS.note, onSelect: () => acts.copyLink(d) },
     "separator",
-    { label: "Reject", icon: "reject", keys: "R", detail: REJECT_WORDS.detail, note: REJECT_WORDS.note, onSelect: () => reject() },
-    { label: "Reject with a note", icon: "reject", detail: REJECT_NOTE_WORDS.detail, note: REJECT_NOTE_WORDS.note, onSelect: () => setRejecting(true) },
+    { label: "Reject", icon: "reject", keys: "R", detail: REJECT_WORDS.detail, note: REJECT_WORDS.note, onSelect: () => reject(), ...merging },
+    { label: "Reject with a note", icon: "reject", detail: REJECT_NOTE_WORDS.detail, note: REJECT_NOTE_WORDS.note, onSelect: () => setRejecting(true), ...merging },
   ];
 
   useEffect(() => {
     if (editing) return;
     const onKey = onItemKey({
       e: () => (part ? editPart(part) : edit("direction")),
-      r: () => reject(),
+      ...(d.merge ? {} : { r: () => reject() }),
       t: tailor,
       ".": toggleResume,
       ...(part ? { a: () => acts.approvePart(d, part) } : {}),
@@ -239,6 +273,14 @@ export function DirectionItem({
             <span className="text-muted">
               {fit.strong} Strong · {fit.some} Some
             </span>
+            {rankedBeforeMerge && (
+              <span className="flex flex-wrap items-center gap-2">
+                <StatusTag tone="caution">Ranked before the merge</StatusTag>
+                <Button variant="ghost" size="sm" icon="tryAgain" reason={mergeWords?.reason} detail="Ranks this direction’s open roles again, for what it says now." note="Uses your AI budget" onClick={rank}>
+                  Rank again
+                </Button>
+              </span>
+            )}
           </>
         ) : (
           <span className="text-muted">No roles yet</span>
@@ -279,6 +321,12 @@ export function DirectionItem({
           <div className="flex min-w-0 items-center gap-3">
             {tailorButton("md")}
             {tailorCost && <CostEstimate amount={tailorCost} />}
+            {mergeWords && <StatusTag tone="info">{mergeWords.tag}</StatusTag>}
+          </div>
+        )}
+        {small && mergeWords && (
+          <div className="flex">
+            <StatusTag tone="info">{mergeWords.tag}</StatusTag>
           </div>
         )}
         {!small && rejecting && <ReasonField decision={`Reject ${d.data.name}`} picks={REJECT_PICKS} onDone={({ reason }) => reject(reason)} className="max-w-[560px]" />}
@@ -314,7 +362,7 @@ export function DirectionItem({
                         {d.fill === "failed" ? "Couldn’t fill in. Try again: " : "Not filled in yet: "}how to position your record for this direction, the titles to aim at, and what search looks for.
                       </Text>
                       <div className="flex items-center gap-3">
-                        <Button icon="tryAgain" detail={fill.detail} note={fill.note} onClick={fillIn}>
+                        <Button icon="tryAgain" reason={mergeWords?.reason} detail={fill.detail} note={fill.note} onClick={fillIn}>
                           Fill in
                         </Button>
                         {fillCost && <CostEstimate amount={fillCost} />}

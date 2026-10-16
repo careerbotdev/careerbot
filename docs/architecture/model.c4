@@ -89,7 +89,7 @@ model {
         }
       }
       companiesScreen = screen 'Companies' {
-        description 'One list with tabs Targets, Maybe, Found and Set aside (Doesn\u2019t fit your goals, Not for me with its reason, Not a place to work, each with a line saying why; nothing is deleted: Keep anyway, Restore). Rating in place: Target T, Maybe M, Not for me R with Why?, saved together. The item: about, how it fits their company goals (Built on), fit per direction, open roles into Pursuits, Start outreach (a pursuit there with no open role, for the direction it fits best, opened at People), people found there, website and job board edited in place, coverage with Check again and its cost, how it was found (with Where it was seen, the page a web search saw it on; a row not filled in says how the web search found it), Notes. The list \u22ef: Find companies on the way companies are found (each search with its Apollo credits, its dollars from the AI budget a direction, or both; Brave job-board searches; the total and what\u2019s left; the last search, with what the web search couldn\u2019t do), Fill in details, Select several (bulk Check again), Search settings (also from Find companies\u2019 Change and the palette; a dialog, full screen with Back on a phone): seed companies for every direction, companies they\u2019d name, industries, checking companies against goals with Check all again, learning from ratings; each change saved at once with Undo.'
+        description 'One list with tabs Targets, Maybe, Found, Set aside and Archived (folded into More when they don\u2019t fit) (Doesn\u2019t fit your goals, Not for me with its reason, Not a place to work, each with a line saying why; nothing is deleted: Keep anyway, Restore). Rating in place: Target T, Maybe M, Not for me R with Why?, saved together. The item: about, how it fits their company goals (Built on), fit per direction, open roles into Pursuits, Start outreach (a pursuit there with no open role, for the direction it fits best, opened at People), people found there, website and job board edited in place, coverage with Check again and its cost, how it was found (with Where it was seen, the page a web search saw it on; a row not filled in says how the web search found it), Notes. The list \u22ef: Find companies on the way companies are found (each search with its Apollo credits, its dollars from the AI budget a direction, or both; Brave job-board searches; the total and what\u2019s left; the last search, with what the web search couldn\u2019t do), Sort by (Best fit, Weakest fit first, Has a job board first, Newest found, Name; ?sort=, the whole of Targets, Maybe, Found and Archived), Fill in details, Select several (Shift-click checks a range; long press on a phone; bulk Target, Archive, Maybe, Not for me, Check again), Search settings (also from Find companies\u2019 Change and the palette; a dialog, full screen with Back on a phone): seed companies for every direction, companies they\u2019d name, industries, checking companies against goals with Check all again, learning from ratings; each change saved at once with Undo. While fit is judged, Found shows Ranking\u2026 N of M and the unranked wait in Not ranked yet. Archive (A, \u22ef, bulk) hides a company from every list, keeping its rating, and its roles aren\u2019t read; Restore (A) puts it back where it was; Undo with U.'
         metadata {
           path '/companies'
         }
@@ -233,7 +233,7 @@ model {
         }
       }
       gatherSkills = aiStep 'Gather skills' {
-        description 'On its own once a story or project has nothing left to review (and again when one of the story’s roles is approved after that), and on request (Gather skills on Record): reads the approved record that counts (roles’ skills and tools, projects’ stack, approved facts) and proposes each skill, tool and certification once, named the way resumes and postings write it, with a group and where the record shows it (roles, projects, facts; anything else dropped). Vague ones are flagged low value; near-duplicates are offered as merges (an item awaiting review flagged as the same as another; never an approved one, never a pair kept apart). An item named by id or by a name they already have is that item: an approved one only gains sources, one awaiting review may be renamed, regrouped or re-kinded. A rejected one is never proposed again, in any spelling (checked in code). A run saves once.'
+        description 'On its own once a story or project has nothing left to review (and again when one of the story’s roles is approved after that), and on request (Gather skills on Record): reads the approved record that counts (roles’ skills and tools, projects’ stack, approved facts) and proposes each skill, tool and certification once, one thing per item, named the way resumes and postings write it (a skill in Title Case, applied in code on save to the names it writes, never to one they edited), with a group and where the record shows it (roles, projects, facts; anything else dropped). Vague ones are flagged low value; near-duplicates are offered as merges (an item awaiting review flagged as the same as another; never an approved one, never a pair kept apart). An item named by id or by a name they already have is that item: an approved one only gains sources, one awaiting review may be renamed, regrouped or re-kinded, and one awaiting review that combines two things is split (its id keeps one part, the other parts come as new items with the same sources). A rejected one is never proposed again, in any spelling or casing (checked in code). A run saves once.'
         metadata {
           functions 'skills:start, skills:inputs, skills:save'
           model_task 'skills'
@@ -367,9 +367,9 @@ model {
         }
       }
       goalsApi = service 'Goals review' {
-        description 'Directions: edit (title, what it covers, fit), merge; either one approving a direction with nothing filled in starts its fill-in (directionsStep, automatic). Limits: clashes recomputed for the workspace on every change (syncClashes: Work and Companies never clash; others when a field both rules set differs for the same scope and condition; each limit names the other, clashWith); keepBoth keeps a pair unmarked until either changes; recomputeClashes (operator, once) recomputes every workspace and drops the old flag. Limits: one updateLimit (wording, firm, filters, scope, condition; hand-entered filters must be valid), add (in their words, or as its fields approved as given and worded from them: the Goals page adds Eligibility this way, the security clearance they hold and whether they need visa sponsorship). An edit to a direction\u2019s title or summary records when it changed, so roles ranked before it are marked.'
+        description 'Directions: edit (title, what it covers, fit), merge (no AI call. At once: the kept one gains the other\u2019s titles, words to use and criteria once each, and its roles show as ranked before the merge until Rank again; the other is merged away and Undo is ready. Then a merge job, shown in Activity with how far it has got, goes through the records a page at a time, each page its own write, checkpointed: each company and role keeps its better fit; pursuits, tailored resumes and notes move to the kept one, limits scoped to the other are scoped to it, the other\u2019s own resume stays with it; every move is kept in mergeMoves; then a final sweep moves whatever still names the merged direction, so nothing is left naming it (work started before the merge writes for the kept one: discovery, enrich and role verdicts drop or redirect the merged direction, notes and tailored resumes go to the kept one). While it runs, merging, ranking, filling in or setting aside either direction is refused with why. Undo stops a merge job under way and an Undo job puts every record back as it was, a page at a time, keeping what was written since (records put with the kept direction for the merged one during the merge are among the moves, so they go back too); while it runs both directions say so and the same actions are refused), mergeGains (what each other direction would gain); either one approving a direction with nothing filled in starts its fill-in (directionsStep, automatic). Limits: clashes recomputed for the workspace on every change (syncClashes: Work and Companies never clash; others when a field both rules set differs for the same scope and condition; each limit names the other, clashWith); keepBoth keeps a pair unmarked until either changes; recomputeClashes (operator, once) recomputes every workspace and drops the old flag. Limits: one updateLimit (wording, firm, filters, scope, condition; hand-entered filters must be valid), add (in their words, or as its fields approved as given and worded from them: the Goals page adds Eligibility this way, the security clearance they hold and whether they need visa sponsorship). An edit to a direction\u2019s title or summary records when it changed, so roles ranked before it are marked.'
         metadata {
-          functions 'goals:items, goals:edit, goals:merge, goals:unmerge, goals:updateLimit, goals:addLimit, goals:setLimitOn, goals:updateRule, goals:keepRule, goals:removeLimit, goals:keepBoth, goals:recomputeClashes, goals:lastRead, goals:effects, goals:hiddenBy'
+          functions 'goals:items, goals:edit, goals:merge, goals:unmerge, goals:mergeGains, goals:mergeCount, goals:mergePage, goals:unmergePage, goals:updateLimit, goals:addLimit, goals:setLimitOn, goals:updateRule, goals:keepRule, goals:removeLimit, goals:keepBoth, goals:recomputeClashes, goals:lastRead, goals:effects, goals:hiddenBy'
         }
       }
       questionsApi = service 'Questions' {
@@ -379,9 +379,9 @@ model {
         }
       }
       skillsApi = service 'Skills and tools' {
-        description 'Their skills, tools and certifications for the Record page (with where each shows, whether it counts, the item a flagged one looks like, the last gathering). Edit (name, group, kind: approved as given), Merge (one name stays, approved, with both items’ sources; the other superseded; flags, resume skill lines and left-out choices move to the kept one), Keep both (never offered as the same again). Approve, reject (with reason), reopen and undo approval go through Record review. migrate (operator, once): approved roles’ skills and tools become proposed items, one per name.'
+        description 'Their skills, tools and certifications for the Record page (with where each shows, whether it counts, the item a flagged one looks like, the last gathering). Edit (name, group, kind: approved as given), Merge (one name stays, approved, with both items’ sources; the other superseded; flags, resume skill lines and left-out choices move to the kept one), Keep both (never offered as the same again). Approve, reject (with reason), reopen and undo approval go through Record review. migrate (operator, once): approved roles’ skills and tools become proposed items, one per name. titleCase (operator, once): skill names the model wrote, approved or awaiting review, in Title Case, never one they edited, nor tools or certifications; the old name is kept for titleCaseUndo; approved ones that combine two things are left as they are.'
         metadata {
-          functions 'skills:list, skills:edit, skills:merge, skills:unmerge, skills:keepApart, skills:reopenPair, skills:onResumes, skills:classify, skills:migrate'
+          functions 'skills:list, skills:edit, skills:merge, skills:unmerge, skills:keepApart, skills:reopenPair, skills:onResumes, skills:classify, skills:migrate, skills:titleCase, skills:titleCaseUndo'
         }
       }
       sameWorkApi = service 'Same work' {
@@ -466,7 +466,7 @@ model {
         }
       }
       directionsApi = service 'Directions review' {
-        description 'Approve, undo the approval of (logged on the direction) or edit positioning and criteria; criteria must use the shared industry, size and stage lists. Approving, undoing or editing either records when the direction changed, so roles ranked before it are marked.'
+        description 'Approve, undo the approval of (logged on the direction) or edit positioning and criteria; criteria must use the shared industry, size and stage lists. Approving, undoing or editing either records when the direction changed, so roles ranked before it are marked (fit says whether some are).'
         metadata {
           functions 'directions:list, directions:fit, directions:approvePart, directions:unapprovePart, directions:editDetail, directions:editCriteria'
         }
@@ -528,7 +528,7 @@ model {
         }
       }
       aiSettings = service 'AI models' {
-        description 'One main model and reasoning per workspace (aiDefaults) that every task uses, chosen from a few recommended models with their price and what they would cost a month at the workspace\u2019s last 30 days of use; a task may have its own model (Advanced), and clearTask sends it back to the main one. Decision tasks (sorting roles with Jev) keep their own choice and never fall back. adoptDefault (operator, once) made each workspace\u2019s most used model its main one.'
+        description 'One main model and reasoning per workspace (aiDefaults) that every task uses, chosen from a few recommended models with their price and what they would cost a month at the workspace\u2019s last 30 days of use, or from OpenRouter\u2019s whole list (catalog: an alias like ~anthropic/claude-haiku-latest listed at its target\u2019s price), in Settings and in Getting started\u2019s key step; a task may have its own model (Advanced), and clearTask sends it back to the main one. Decision tasks (sorting roles with Jev) keep their own choice and never fall back. adoptDefault (operator, once) made each workspace\u2019s most used model its main one.'
         metadata {
           functions 'aiSettings:choiceFor, aiSettings:list, aiSettings:set, aiSettings:defaultChoice, aiSettings:setDefault, aiSettings:clearTask, aiSettings:recommended, aiSettings:usagePage, aiSettings:adoptDefault, aiSettings:catalog'
         }
@@ -549,7 +549,7 @@ model {
       enrich = aiStep 'Fill in companies' {
         description 'Free details for places to work, strongest-sourced first, in batches of 40 (fit in batches of 15; each schedules the next). A site that turns away server requests is read through Jina Reader (r.jina.ai, public URL only); with no readable site, a summary from general knowledge, labelled, only for companies the model knows. Job board found by, in order: a board link the person gave; a link on the company site or careers page; a Brave Search result that names the company or its site (optional key); a guessed board name kept only if the board page links back to the site; last, only if turned on, Apollo job postings (1 credit). Readers (convex/boards.ts, one shape for every provider, tested on recorded replies; scripts/board-canary.ts checks them live): Greenhouse, Lever, Ashby, Workday, Oracle Recruiting Cloud and large Eightfold boards (total + a search per target title), Breezy, Personio, Rippling, Gem, Workable, Recruitee, BambooHR, Pinpoint, Jobvite, iCIMS (search pages, or the company’s iCIMS career site its search page sends visitors to: read whole up to 300 roles, else searched per target title, one request at a time 5 s apart as its robots.txt asks), JazzHR, Dover, Eightfold. SmartRecruiters and Teamtailor boards are recognised but never read (their published rules ask automated readers, or AI, to stay away; boards.ts NOT_READ), and a pasted one is refused. Open and remote counts and roles matching approved directions’ titles, counted only inside the approved Location limit (its countries; remote only if remote is allowed; a role naming only other countries never counts). One AI call per batch writes a one-sentence summary from site text only. Once details are in, further batches judge fit per approved-criteria direction (strong/some/weak/none with a reason) from the summary, roles, direction and approved limits. The person rates each company Excited (a target), Maybe or Not for me. Only public https hosts fetched; every redirect re-checked. With goals judgment on (the lens: Rank or Hide), the same call also judges each company against the approved company goals (fits / partly / doesn’t / can’t tell, with a reason; general knowledge of well-known companies allowed and labelled); a signal only; Keep anyway overrides; named companies are never set aside. Check again (one company or a selection) and Edit website clear that company’s details and verdicts and put it first in the next pass; Judge all again keeps details and redoes fit and goals. One pass at a time.'
         metadata {
-          functions 'enrich:todo, enrich:save, enrich:next, enrich:start, enrich:setApolloJobs, enrich:saveFit, enrich:rate, enrich:keepAnyway, enrich:rejudge, enrich:recheck, enrich:setWebsite, enrich:setBoard'
+          functions 'enrich:todo, enrich:save, enrich:next, enrich:start, enrich:setApolloJobs, enrich:saveFit, enrich:rate, enrich:archive, enrich:keepAnyway, enrich:rejudge, enrich:recheck, enrich:setWebsite, enrich:setBoard'
           model_task 'companies'
         }
       }
@@ -1049,6 +1049,12 @@ model {
         }
       }
       }
+      tMergeMoves = table 'mergeMoves' {
+        description 'What merging a direction into another moved or changed, one row per record (a company\u2019s or role\u2019s verdict and finds or sort, a pursuit, a tailored resume, a note, a limit\u2019s scope, a resume length), with that part as it was, so Undo puts each back exactly; deleted on Undo. Never read by an AI step.'
+        metadata {
+          table 'mergeMoves'
+        }
+      }
       tNotes = table 'notes' {
         description 'Their own notes on a pursuit, company, role or record item: text, when, when edited. Never read by an AI step.'
         metadata {
@@ -1299,6 +1305,15 @@ model {
   careerbot.core.goalsApi -[writes]-> careerbot.data.tItems.directions
   careerbot.core.goalsApi -[writes]-> careerbot.data.tItems.limits
   careerbot.core.goalsApi -[uses]-> careerbot.core.limitSchema 'validation'
+  careerbot.core.goalsApi -[reads]-> careerbot.data.tRoleRanks 'mergeGains: roles that fit each direction'
+  careerbot.core.goalsApi -[writes]-> careerbot.data.tJobs 'a merge job and its Undo (no AI, no cost)'
+  careerbot.core.goalsApi -[writes]-> careerbot.data.tMergeMoves 'merge records every move; Undo puts them back and deletes them'
+  careerbot.core.goalsApi -[writes]-> careerbot.data.tCompanies 'merge: the better fit and finds move to the kept direction'
+  careerbot.core.goalsApi -[writes]-> careerbot.data.tPostings 'merge: the better verdict, sort and rank-again asks move to the kept direction'
+  careerbot.core.goalsApi -[writes]-> careerbot.data.tPursuits 'merge: pursuits move to the kept direction'
+  careerbot.core.goalsApi -[writes]-> careerbot.data.tResumes 'merge: tailored resumes move to the kept direction'
+  careerbot.core.goalsApi -[writes]-> careerbot.data.tNotes 'merge: notes on the direction move to the kept one'
+  careerbot.core.goalsApi -[writes]-> careerbot.data.tResumeSettings 'merge: the merged direction\u2019s resume length is dropped'
   careerbot.core.narrativesApi -[writes]-> careerbot.data.tNarratives
   careerbot.core.narrativesApi -[writes]-> careerbot.data.tNarrativeVersions
   careerbot.core.narrativesApi -[writes]-> careerbot.data.tItems 'delete: drops its sources and quotes from every item, flags its facts'
@@ -1604,6 +1619,7 @@ model {
   }
   careerbot.platform.discovery -[calls]-> careerbot.platform.enrich 'after each run'
   careerbot.ui.companiesScreen -[calls]-> careerbot.platform.enrich 'Fill in details'
+  careerbot.ui.companiesScreen -[calls]-> careerbot.platform.enrich 'Archive and Restore'
   careerbot.ui.companiesScreen -[calls]-> careerbot.platform.enrich 'Search settings: Check all again'
   careerbot.ui.goalsScreen -[calls]-> careerbot.platform.discovery 'a direction\u2019s Criteria: the seeds from Search settings'
   careerbot.ui.companiesScreen -[calls]-> careerbot.ai.directionsStep 'Fill in a direction not filled in (Find companies)'
@@ -1648,7 +1664,7 @@ model {
 
   // ---- Finding roles ----
   careerbot.platform.watchRoles -[uses]-> careerbot.platform.jobs 'runs as a job'
-  careerbot.platform.watchRoles -[reads]-> careerbot.data.tCompanies 'Targets and Maybe companies with their job board'
+  careerbot.platform.watchRoles -[reads]-> careerbot.data.tCompanies 'Targets and Maybe companies with their job board (not archived)'
   careerbot.platform.watchRoles -[writes]-> careerbot.data.tCompanies 'coverage: last read, roles read, board total'
   careerbot.platform.watchRoles -[calls]-> companyWebsites 'job board listings and job detail pages; public hostnames only'
   careerbot.platform.watchRoles -[uses]-> careerbot.platform.metering 'Apollo job postings, only while turned on'

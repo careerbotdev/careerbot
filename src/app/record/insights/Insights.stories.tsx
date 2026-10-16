@@ -72,6 +72,7 @@ function insightAnswers(state: RecordState) {
           reframe: [],
           evidence: coldChain.map((id) => (state.items.find((x) => x._id === id) as Of<"fact"> | undefined)?.data.text ?? ""),
           fill: null,
+          merge: null,
           avoided: [],
         },
       ],

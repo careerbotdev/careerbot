@@ -137,6 +137,7 @@ export const Icons = {
   edit: Pencil,
   undo: Undo2,
   setAside: Archive,
+  archive: Archive,
   delete: Trash2,
   add: Plus,
   select: SquareCheck,

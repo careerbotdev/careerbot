@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { isSkill } from "./itemShapes";
 import { seedModelPrices } from "./modelPrices.testing";
 import schema from "./schema";
 import { seal } from "./secretBox";
@@ -109,21 +110,21 @@ test("gathering names each skill once with where the record shows it, flags vagu
     ["tool", "Salesforce", "proposed", "CRM", null, null, [["Head of CS", 0]], []],
     ["tool", "dashboards", "proposed", "Analytics", "Too vague to stand out.", null, [["Head of CS", 0]], []],
     ["tool", "TypeScript", "proposed", "Languages", null, null, [["Trail", 1]], ["Built Trail in TypeScript."]],
-    ["skill", "Customer onboarding", "proposed", "Customer success", null, "Onboarding", [["Head of CS", 0]], []],
+    ["skill", "Customer Onboarding", "proposed", "Customer success", null, "Onboarding", [["Head of CS", 0]], []],
   ]);
   expect((await list()).filter((i) => i.status === "rejected").map((i) => i.name)).toEqual(["Excel"]);
   // The other workspace's run saw nothing of this one's.
   expect((await asB.query(api.skills.list, {})).items).toEqual([]);
 
   // Merge keeps one name, approved, with where both were found; the other is gone from the list.
-  const customer = await byName("Customer onboarding");
+  const customer = await byName("Customer Onboarding");
   await expect(asB.mutation(api.skills.merge, { id: customer.id, keep: "other" })).rejects.toThrow("Not found");
   await asA.mutation(api.skills.merge, { id: customer.id, keep: "other" });
-  expect((await list()).map((i) => i.name)).not.toContain("Customer onboarding");
-  expect(await byName("Onboarding")).toMatchObject({ status: "approved", sources: [{ title: "Head of CS" }], merged: [{ id: customer.id, name: "Customer onboarding" }] });
+  expect((await list()).map((i) => i.name)).not.toContain("Customer Onboarding");
+  expect(await byName("Onboarding")).toMatchObject({ status: "approved", sources: [{ title: "Head of CS" }], merged: [{ id: customer.id, name: "Customer Onboarding" }] });
   // Undo from the kept one's merged list: both are back as they were, the flag too.
   await asA.mutation(api.skills.unmerge, { id: customer.id });
-  expect((await byName("Customer onboarding")).sameAs?.name).toBe("Onboarding");
+  expect((await byName("Customer Onboarding")).sameAs?.name).toBe("Onboarding");
   expect((await byName("Onboarding")).merged).toEqual([]);
   await asA.mutation(api.skills.merge, { id: customer.id, keep: "other" });
 
@@ -162,7 +163,7 @@ test("a certification says who issued it and when it was earned; filing one unde
   // A month that isn't one is left out; a tool has no issuer.
   expect(await byName("CSM cert")).toMatchObject({ issuer: "Scrum Alliance", earned: null });
   expect(await byName("Zendesk")).toMatchObject({ issuer: null });
-  expect((await byName("Onboarding customers")).sameAs).toMatchObject({ name: "Onboarding", why: "Both are bringing customers on." });
+  expect((await byName("Onboarding Customers")).sameAs).toMatchObject({ name: "Onboarding", why: "Both are bringing customers on." });
 
   const cert = await byName("CSM cert");
   await expect(asA.mutation(api.skills.edit, { id: cert.id, name: "CSM", kind: "certification", earned: "2020" })).rejects.toThrow("YYYY-MM");
@@ -265,4 +266,65 @@ test("merging moves a resume's skill line and left-out choices to the kept item"
   const resume = await t.run((ctx) => ctx.db.get(v1.id as Id<"resumes">));
   expect(resume!.doc!.skills).toEqual([{ group: "Tools", items: ["SFDC"], keys: [salesforce.id] }]);
   expect(await t.run(async (ctx) => (await ctx.db.query("resumeSettings").withIndex("by_workspace", (q) => q.eq("workspaceId", w)).unique())?.skills)).toEqual([{ key: salesforce.id, hidden: true }]);
+});
+
+test("a combined skill awaiting review is split in two, each part with where the record shows it; a name they edited stays theirs", async () => {
+  const { t, asA, w, run, list, roleFact } = await setup();
+  const add = (data: Record<string, unknown>) => t.run((ctx) => ctx.db.insert("items", { workspaceId: w, kind: "skill", status: "proposed", data, sources: [], at: 0 } as never));
+  const combined = await add({ name: "Radio advertising and media buying", from: { roles: ["acme"], projects: [], facts: [roleFact] } });
+  const theirs = await add({ name: "trade shows", edited: true, from: { roles: ["acme"], projects: [], facts: [] } });
+  await asA.mutation(api.skills.start, {});
+  const [sent] = await run({
+    items: [
+      { id: combined, kind: "skill", name: "radio advertising", group: "Marketing", from: { roles: ["acme"], facts: [roleFact] } },
+      { kind: "skill", name: "media buying", group: "Marketing", from: { roles: ["acme"], facts: [roleFact] } },
+      { id: theirs, kind: "skill", name: "Trade Show Marketing", group: "Marketing", from: { roles: ["acme"] } },
+    ],
+  });
+  expect(sent).toContain("Radio advertising and media buying");
+  const rows = (await list()).filter((i) => i.kind === "skill").map((i) => [i.id === combined, i.name, i.status, i.group, i.sources.map((s) => [s.title, s.facts]), i.facts.map((f) => f.text)]);
+  expect(rows).toEqual([
+    [true, "Radio Advertising", "proposed", "Marketing", [["Head of CS", 1]], ["Cut churn by 20%."]],
+    [false, "trade shows", "proposed", "Marketing", [["Head of CS", 0]], []],
+    [false, "Media Buying", "proposed", "Marketing", [["Head of CS", 1]], ["Cut churn by 20%."]],
+  ]);
+});
+
+test("a rejected skill isn't proposed again in new casing", async () => {
+  const { t, asA, w, run, list } = await setup();
+  await t.run((ctx) => ctx.db.insert("items", { workspaceId: w, kind: "skill", status: "rejected", data: { name: "radio advertising", from: { roles: ["acme"], projects: [], facts: [] }, rejectedBecause: "Not my work" }, sources: [], at: 0 }));
+  await asA.mutation(api.skills.start, {});
+  await run({ items: [{ kind: "skill", name: "Radio Advertising", from: { roles: ["acme"] } }, { kind: "skill", name: "RADIO advertising", from: { roles: ["acme"] } }] });
+  expect((await list()).filter((i) => i.kind === "skill").map((i) => [i.name, i.status])).toEqual([["radio advertising", "rejected"]]);
+});
+
+test("skill names the model wrote go in Title Case once, leaving their own, tools and certifications alone, and can be undone", async () => {
+  const { t, asA, w } = await setup();
+  const from = { roles: ["acme"], projects: [], facts: [] };
+  const add = (kind: "skill" | "tool" | "certification", status: "approved" | "proposed", data: { name: string; edited?: boolean }) =>
+    t.run((ctx) => ctx.db.insert("items", { workspaceId: w, kind, status, data: { ...data, from }, sources: [], at: 0 } as never));
+  const ids = [
+    await add("skill", "approved", { name: "radio advertising" }),
+    await add("skill", "approved", { name: "event marketing and sponsorships" }),
+    await add("skill", "approved", { name: "customer onboarding", edited: true }),
+    await add("skill", "proposed", { name: "go-to-market strategy" }),
+    await add("skill", "approved", { name: "SEO" }),
+    await add("tool", "approved", { name: "hubspot" }),
+    await add("certification", "approved", { name: "google ads certification" }),
+  ];
+  const names = () => t.run(async (ctx) => (await Promise.all(ids.map((id) => ctx.db.get(id)))).map((i) => (i && isSkill(i) ? i.data.name : null)));
+
+  // The joined one is re-cased, not split.
+  expect(await t.mutation(internal.skills.titleCase, {})).toEqual({ changed: 3, skipped: { edited: 1, unchanged: 1 }, joined: 1 });
+  const cased = ["Radio Advertising", "Event Marketing and Sponsorships", "customer onboarding", "Go-to-Market Strategy", "SEO", "hubspot", "google ads certification"];
+  expect(await names()).toEqual(cased);
+  // Again: nothing changes.
+  expect(await t.mutation(internal.skills.titleCase, {})).toEqual({ changed: 0, skipped: { edited: 1, unchanged: 4 }, joined: 1 });
+  expect(await names()).toEqual(cased);
+
+  // Undo puts back what the model wrote, except where they renamed it since.
+  await asA.mutation(api.skills.edit, { id: ids[3], name: "GTM Strategy", kind: "skill" });
+  expect(await t.mutation(internal.skills.titleCaseUndo, {})).toEqual({ restored: 2, kept: 1 });
+  expect(await names()).toEqual(["radio advertising", "event marketing and sponsorships", "customer onboarding", "GTM Strategy", "SEO", "hubspot", "google ads certification"]);
+  expect(await t.mutation(internal.skills.titleCaseUndo, {})).toEqual({ restored: 0, kept: 0 });
 });

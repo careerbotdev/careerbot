@@ -9,7 +9,7 @@ import { braveKeyFor } from "./braveKey";
 import { refuseCancelled, stopIfCancelled } from "./cancel";
 import { BOARD_QUERIES, normName, toDomain } from "./discovery";
 import { type WorkArea, workAreaOf } from "./enrich";
-import { activeLimits, itemsOf } from "./itemShapes";
+import { activeLimits, itemsOf, liveDirection, recordRedirect } from "./itemShapes";
 import { countryName } from "./limitBuckets";
 import { chatJson, withBackoff } from "./metering";
 import { replyOf, string } from "./replyJson";
@@ -72,8 +72,10 @@ export const saveCompanies = internalMutation({
     via: v.union(v.literal("relevant"), v.literal("hiringNow"), v.literal("hand")),
     companies: v.array(v.object({ name: v.string(), domain: v.string(), source: v.optional(v.union(v.literal("aiSearch"), v.literal("jobBoards"))), evidence: v.optional(v.string()) })),
   },
-  handler: async (ctx, { workspaceId, runId, directionId, via, companies }) => {
+  handler: async (ctx, { workspaceId, runId, directionId: asked, via, companies }) => {
     await refuseCancelled(ctx, runId);
+    // A search for a direction merged away since it started counts for the one it went into.
+    const directionId = asked && (await liveDirection(ctx, asked));
     let added = 0;
     const at = Date.now();
     for (const c of companies) {
@@ -81,10 +83,13 @@ export const saveCompanies = internalMutation({
       const row = await ctx.db.query("companies").withIndex("by_workspace_domain", (q) => q.eq("workspaceId", workspaceId).eq("domain", c.domain)).first();
       if (!row) {
         if (!trustedName(c.name)) continue;
-        await ctx.db.insert("companies", { workspaceId, name: c.name, domain: c.domain, websiteUrl: `https://${c.domain}`, found: [seen], talliedFound: true, at });
+        const id = await ctx.db.insert("companies", { workspaceId, name: c.name, domain: c.domain, websiteUrl: `https://${c.domain}`, found: [seen], talliedFound: true, at });
+        if (asked && directionId !== asked) await recordRedirect(ctx, workspaceId, asked, { table: "companies", docId: id, before: { was: { fit: null, found: [{ ...seen, directionId: asked }] }, now: { fit: null, found: [seen] } } });
         added++;
       } else if (!row.found.some((f) => f.runId === runId && f.directionId === directionId && f.via === via && f.source === c.source)) {
         await ctx.db.patch(row._id, { found: [...row.found, seen] });
+        if (asked && directionId !== asked)
+          await recordRedirect(ctx, workspaceId, asked, { table: "companies", docId: row._id, before: { was: { fit: row.fit ?? null, found: [...row.found, { ...seen, directionId: asked }] }, now: { fit: row.fit ?? null, found: [...row.found, seen] } } });
       }
     }
     await tally(ctx, workspaceId, "companies", dayOf(at), added);

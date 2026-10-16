@@ -87,7 +87,7 @@ async function waiting(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
   const discovery = await ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
   const companyRows = await ctx.db.query("companies").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).order("desc").collect();
   const companies = companiesToRate(
-    companyRows.map((c) => ({ doc: c, screened: c.screened ?? null, rating: c.rating?.value ?? null, goals: c.goals ?? null, named: c.found.some((f) => f.via === "hand"), fit: c.fit ?? [] })),
+    companyRows.map((c) => ({ doc: c, screened: c.screened ?? null, rating: c.rating?.value ?? null, goals: c.goals ?? null, named: c.found.some((f) => f.via === "hand"), fit: c.fit ?? [], archived: c.archived ?? null })),
     (discovery?.lens ?? DEFAULT_LENS).judge,
   );
 

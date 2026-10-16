@@ -363,7 +363,8 @@ const DOC: ResumeDoc = {
 const LOADSTAR = "Who we are\n\nAbout Loadstar Systems\n\nLoadstar Systems builds transportation management software for mid-size shippers.";
 const MERIDIAN = "Senior Product Manager, Planning at Meridian Coldchain · Chicago\n\nABOUT THE TEAM\n\nMeridian Coldchain’s planning team builds the tools that keep temperature-controlled freight on schedule. You will own the forecasting and capacity-planning surfaces, from discovery with shippers and carriers through launch and adoption…";
 
-export function directionsFixtures(): Answers {
+// merged: Logistics Operations already merged into Supply Chain Product, its records moved (the merge done).
+export function directionsFixtures({ merged = false }: { merged?: boolean } = {}): Answers {
   const withFacts = (s: { text: string; factIds: string[]; how?: string }) => ({ ...s, facts: s.factIds.map((k) => FACTS[k as FactKey]) });
   let rows: { spec: Spec; status: Spec["status"]; data: Data; mergedInto?: string }[] = SPECS.map((spec) => ({ spec, status: spec.status, data: spec.data }));
   const notes: Record<string, Note[]> = {
@@ -385,7 +386,16 @@ export function directionsFixtures(): Answers {
   let suggesting: FunctionReturnType<typeof api.directions.list>["suggest"] = { status: "done", error: undefined, result: { suggested: 9 } };
   // Directions being filled in now (Fill in, or approved with nothing filled in).
   const filling = new Set<string>();
+  // Directions another is still being merged into, and those a merge is still being undone for.
+  const merging = new Set<string>();
+  const undoing = new Set<string>();
   const find = (id: string) => rows.find((r) => r.spec.id === id)!;
+  if (merged) {
+    const from = find("dir-logistics");
+    const to = find("dir-product");
+    from.mergedInto = to.data.name;
+    to.data = { ...to.data, includes: [...(to.data.includes ?? []), from.data.name, ...(from.data.includes ?? [])], changedAt: 1, mergedAt: 1 };
+  }
 
   const list = (): FunctionReturnType<typeof api.directions.list> => ({
     suggest: suggesting,
@@ -402,6 +412,7 @@ export function directionsFixtures(): Answers {
         evidence: (spec.evidence ?? []).map((k) => FACTS[k]),
         avoided: [],
         fill: filling.has(spec.id) ? ("filling" as const) : null,
+        merge: undoing.has(spec.id) ? ("undoing" as const) : merging.has(spec.id) ? ("merging" as const) : null,
       })),
   });
 
@@ -409,7 +420,7 @@ export function directionsFixtures(): Answers {
     ...answer(api.discovery.seeds, () => ["lumenplan.example.com", "copperline.example.com"]),
     ...answer(api.directions.list, list),
     ...answer(api.directions.fit, () =>
-      rows.filter((r) => r.status === "approved" && FIT[r.spec.id]).map((r) => ({ directionId: r.spec.id as Id<"items">, count: FIT[r.spec.id][0] + FIT[r.spec.id][1], strong: FIT[r.spec.id][0], some: FIT[r.spec.id][1], more: false })),
+      rows.filter((r) => r.status === "approved" && FIT[r.spec.id]).map((r) => ({ directionId: r.spec.id as Id<"items">, count: FIT[r.spec.id][0] + FIT[r.spec.id][1], strong: FIT[r.spec.id][0], some: FIT[r.spec.id][1], more: false, stale: !!r.data.mergedAt })),
     ),
     ...answer(api.estimates.costs, () => ({
       followUp: 0.01, outreach: 0.01, letter: 0.02, ask: 0.01, tailor: 0.04, rankPerRole: 0.0001, read: null, readRevision: null, rewrite: null, disagreements: null, duplicates: null, sameWork: null, skills: null, insights: null, repository: null,
@@ -513,16 +524,36 @@ export function directionsFixtures(): Answers {
       r.data = { ...r.data, ...fields, ...(path ? { path: path as Data["path"] } : {}), edited: true };
       r.status = "approved";
     }),
+    // Merge into…: what each other approved direction would gain, worked out from the fixture's titles and fits.
+    ...answer(api.goals.mergeGains, ({ id }) => {
+      const from = find(id);
+      const titlesOf = (d: Data) => [d.name, ...(d.includes ?? []), ...(d.detail?.targetTitles ?? [])].map((t) => t.toLowerCase());
+      const mine = [...new Set(titlesOf(from.data))];
+      const others = rows.filter((r) => r.status === "approved" && !r.mergedInto && r.spec.id !== id);
+      return {
+        pursuits: 2,
+        notes: (notes[id] ?? []).length,
+        into: others.map((o, i) => {
+          const has = new Set(titlesOf(o.data));
+          return { id: o.spec.id as Id<"items">, titles: mine.filter((t) => !has.has(t)).length, roles: Math.max(1, (FIT[id]?.[0] ?? 0) + (FIT[id]?.[1] ?? 0) - i), companies: 6 + 2 * i };
+        }),
+      };
+    }),
     ...answer(api.goals.merge, ({ id, into }) => {
       const from = find(id);
       const to = find(into);
       from.mergedInto = to.data.name;
-      to.data = { ...to.data, includes: [...(to.data.includes ?? []), from.data.name] };
+      to.data = { ...to.data, includes: [...(to.data.includes ?? []), from.data.name, ...(from.data.includes ?? [])], changedAt: 1, mergedAt: 1 };
+      merging.add(into);
     }),
     ...answer(api.goals.unmerge, ({ id }) => {
       const from = find(id);
       rows = rows.map((r) => (r.data.includes?.includes(from.data.name) ? { ...r, data: { ...r.data, includes: r.data.includes.filter((n) => n !== from.data.name) } } : r));
       find(id).mergedInto = undefined;
+      for (const r of rows) if (merging.has(r.spec.id)) undoing.add(r.spec.id);
+      undoing.add(id);
+      merging.clear();
+      rows = rows.map((r) => (r.data.mergedAt ? { ...r, data: { ...r.data, changedAt: undefined, mergedAt: undefined } } : r));
     }),
     ...answer(api.resume.start, () => "job-resume" as Id<"jobs">),
     ...answer(api.notes.add, ({ subject, text }) => {

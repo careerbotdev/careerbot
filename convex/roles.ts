@@ -1,6 +1,7 @@
 import { type ExpressionOrValue, type FilterBuilder, type NamedTableInfo, paginationOptsValidator } from "convex/server";
 import { ConvexError, type Infer, type ObjectType, v, type Validator } from "convex/values";
 import { internal } from "./_generated/api";
+import { refuseWhileMerging } from "./directionFill";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { type ActionCtx, internalAction, internalMutation, internalQuery, type MutationCtx, query, type QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
@@ -94,9 +95,10 @@ type Step = "text" | "sort" | "judge";
 const onlyCompanies = v.optional(v.array(v.id("companies")));
 const STEPS: Step[] = ["text", "sort", "judge"];
 
-// Targets (excited) and Maybe companies that are places to work: the ones whose roles are watched, with their rating.
+// Targets (excited) and Maybe companies that are places to work and aren't archived: the ones whose roles are watched,
+// with their rating.
 const watched = (c: Doc<"companies">): Rated | null =>
-  (c.rating?.value === "excited" || c.rating?.value === "maybe") && c.screened?.employer !== false ? c.rating.value : null;
+  (c.rating?.value === "excited" || c.rating?.value === "maybe") && c.screened?.employer !== false && !c.archived ? c.rating.value : null;
 // A role listed again under another id (or another board) is the same role when its title and location match.
 const sameRole = (title: string, location?: string) => [title, location ?? ""].map((s) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()).join("|");
 
@@ -678,10 +680,12 @@ export const saveSort = internalMutation({
     for (const r of results) {
       const p = await ctx.db.get(r.id);
       if (!p || p.workspaceId !== workspaceId || p.claimedBy !== worker) continue;
-      const sorted = new Set<string>(r.against);
+      // Sorted against the directions approved when it started: none for a direction merged away (or set aside) since.
+      const against = r.against.filter((d) => approved.has(d));
+      const sorted = new Set<string>(against);
       const sort = {
         directionIds: [...(p.sort?.directionIds ?? []).filter((d) => !sorted.has(d)), ...r.directionIds.filter((d) => sorted.has(d))],
-        against: [...(p.sort?.against ?? []).filter((a) => !sorted.has(a.directionId)), ...r.against.map((d) => ({ directionId: d, directionAt: changed.get(d) ?? at }))],
+        against: [...(p.sort?.against ?? []).filter((a) => !sorted.has(a.directionId)), ...against.map((d) => ({ directionId: d, directionAt: changed.get(d) ?? at }))],
         method,
         at,
       };
@@ -833,9 +837,11 @@ export const saveFit = internalMutation({
     const { approved } = rank;
     const changed = new Map(directions.map((d) => [String(d.id), d.changedAt]));
     const at = Date.now();
-    for (const { id, judged, fit, stretch, details, brief } of results) {
+    for (const { id, judged: asked, fit, stretch, details, brief } of results) {
       const p = await ctx.db.get(id);
       if (!p || p.workspaceId !== workspaceId || p.claimedBy !== worker) continue;
+      // Judged for the directions approved when it started: no verdict for a direction merged away (or set aside) since.
+      const judged = asked.filter((d) => approved.has(d));
       const verdicts = judged.map((d) => {
         const f = fit.find((x) => x.directionId === d);
         return {
@@ -1607,7 +1613,11 @@ export async function rankAgainFor(ctx: MutationCtx, workspaceId: Id<"workspaces
 
 export const rankAgain = mutation({
   args: { directionId: v.optional(v.id("items")) },
-  handler: async (ctx, { directionId }) => rankAgainFor(ctx, (await requireWorkspace(ctx)).workspaceId, "you", directionId),
+  handler: async (ctx, { directionId }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    await refuseWhileMerging(ctx, workspaceId, directionId ? [directionId] : undefined);
+    return rankAgainFor(ctx, workspaceId, "you", directionId);
+  },
 });
 
 // How roles are sorted before judging: an AI model or Jev. Applies to roles sorted from now on.

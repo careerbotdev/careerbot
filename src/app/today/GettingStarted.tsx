@@ -12,6 +12,7 @@ import { pursuitHref as hrefOf, type Path, takesApply, takesOutreach } from "../
 import type { FirstPursuit, SetupStep } from "../../../convex/today";
 import { Button, type ButtonSize, type ButtonVariant, buttonLook } from "@/components/Button";
 import { Checkbox } from "@/components/Checkbox";
+import { Combobox } from "@/components/Combobox";
 import { CostAction, CostEstimate } from "@/components/CostEstimate";
 import { Field, Input, Textarea } from "@/components/Field";
 import { Icons } from "@/components/icons";
@@ -33,7 +34,7 @@ import { ModelChoice, type ModelChoiceValue, useRecommended } from "../ModelChoi
 import { day } from "../pursuits/dates";
 import { PersonRow } from "../pursuits/People";
 import { DRIVE_RETURNED } from "../settings/Drive";
-import { useModelCatalog } from "../useModelCatalog";
+import { modelOptions, useModelCatalog } from "../useModelCatalog";
 import { useBar } from "../shell/ShellContext";
 import { useConnectionReturn } from "../shell/useConnectionReturn";
 import { DONE, docsHref, type Go, type Learn, type Named, PATH_ROWS, type PathDef, type PathKey, PURSUIT_STEPS, type PursuitKey, SETUP_STEPS, type SetupKey, type StepKey, STORY_GUIDE, WHAT_TO_COVER } from "./steps";
@@ -1013,6 +1014,26 @@ function KeyStep({ small, onSaved }: { small: boolean; onSaved: () => void }) {
           </Text>
         </div>
         <ModelChoice value={choice} onChange={setModel} recommendations={recommended.data} catalog={models} />
+        <div className="flex items-center gap-3 border-t pt-3">
+          <Combobox
+            variant="button"
+            icon="search"
+            wide
+            label="Choose another model"
+            placeholder="Choose another model"
+            searchPlaceholder="Search models…"
+            value={choice?.model}
+            onChange={(id) => setModel({ model: id, reasoning: models?.find((m) => m.id === id)?.reasoning ? choice?.reasoning : undefined })}
+            options={modelOptions(models, true)}
+          />
+          {!small && (
+            <Tooltip content="Choose another model" detail="Lists every model on OpenRouter that works with CareerBot, with its price. The one you pick is used instead of those above." note="Free">
+              <Text size="sm" muted as="span">
+                Any model on OpenRouter
+              </Text>
+            </Tooltip>
+          )}
+        </div>
         {recommended.error && (
           <Text size="sm" muted className="pt-2">
             {recommended.error}

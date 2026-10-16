@@ -14,7 +14,7 @@ import { approvedRecord, backgroundNarratives, counted } from "./recordContext";
 import { PLAIN_LANGUAGE } from "./writingGuides";
 import { refuseCancelled } from "./cancel";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
-import { fillIn, fillingNow, fillProgress, passDone, passIds, recentJobs, underway } from "./directionFill";
+import { fillIn, fillingNow, fillProgress, passDone, passIds, recentJobs, refuseWhileMerging, underway } from "./directionFill";
 
 // Deepens each direction: how to position the record for it, the titles and vocabulary its market uses, which stories
 // carry over and which need reframing, how past titles translate, and what search should look for. "Suggest more" proposes
@@ -69,6 +69,7 @@ export const detail = mutation({
   args: { id: v.optional(v.id("items")) },
   handler: async (ctx, { id }) => {
     const { workspaceId } = await requireWorkspace(ctx);
+    await refuseWhileMerging(ctx, workspaceId, id ? [id] : undefined);
     if (id) {
       const d = await getInWorkspace(ctx, workspaceId, id);
       if (d?.kind !== "direction" || d.status !== "approved") throw new Error("Not found.");
@@ -282,6 +283,12 @@ export const list = query({
           data: d.data,
           sources: d.sources,
           fill: await fillOf(d),
+          // Records still moving: another direction being merged into it, or a merge of it or into it being undone.
+          merge: jobs.some((j) => j.kind === "unmerge" && underway(j) && (j.args.id === d._id || j.args.into === d._id))
+            ? ("undoing" as const)
+            : jobs.some((j) => j.kind === "merge" && underway(j) && j.args.into === d._id)
+              ? ("merging" as const)
+              : null,
           carriesOver: (d.data.detail?.carriesOver ?? []).map(withFacts),
           reframe: (d.data.detail?.reframe ?? []).map(withFacts),
           evidence: (d.data.evidence ?? []).map((id) => facts.get(id) ?? "(no longer in your record)"),
@@ -296,7 +303,8 @@ export const list = query({
 // Listed roles counted per direction (up to FIT_CAP; more: there are more).
 const FIT_CAP = 2000;
 
-// How many listed, judged roles fit each approved direction strongly or somewhat, leaving out those they rated Not for me.
+// How many listed, judged roles fit each approved direction strongly or somewhat, leaving out those they rated Not for me,
+// and whether some of its roles were ranked before it last changed (stale; roles.rankAgain ranks them afresh).
 export const fit = query({
   args: {},
   handler: async (ctx) => {
@@ -310,7 +318,8 @@ export const fit = query({
         .take(FIT_CAP + 1);
       const fits = rows.slice(0, FIT_CAP);
       const strong = fits.filter((r) => r.level === "strong").length;
-      out.push({ directionId: d._id, count: fits.length, strong, some: fits.length - strong, more: rows.length > FIT_CAP });
+      const stale = !!(await ctx.db.query("roleRanks").withIndex("by_ranked", (q) => q.eq("workspaceId", workspaceId).eq("directionId", d._id).lt("at", d.data.changedAt ?? d.at)).first());
+      out.push({ directionId: d._id, count: fits.length, strong, some: fits.length - strong, more: rows.length > FIT_CAP, stale });
     }
     return out;
   },

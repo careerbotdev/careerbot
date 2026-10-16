@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { type ReactElement, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { type IconName, Icons } from "./icons";
+import { Tooltip } from "./Tooltip";
 
 // A toast confirms what just happened and carries its one action: Undo, Open, Try again. One at a time; a new one
 // replaces the last. It stays 6 seconds (longer while the pointer or focus is on it). An action with a `key` runs from
 // that key while the toast shows, and stays bound after it hides until another toast replaces it, so U undoes the
 // last thing even after the toast has gone. `icon` says what kind of thing happened; `failed` is red. `keep`: while it
 // shows, a failure doesn't replace it, for a toast that already says why the action didn't happen (the demo's refusal),
-// whose caller then fails too and would only repeat it less clearly.
-export type ToastAction = { label: string; run: () => void; key?: string };
+// whose caller then fails too and would only repeat it less clearly. An action's `detail` and `note` are its explainer
+// (what it does; what it costs), in a tooltip over it.
+export type ToastAction = { label: string; run: () => void; key?: string; detail?: string; note?: string };
 export type Toast = { message: string; icon?: IconName; action?: ToastAction; keep?: boolean };
 
 const lifetime = 6000;
@@ -67,18 +69,20 @@ export function ToastView({ toast: t, onAction, onClose }: { toast: Toast; onAct
       )}
       <p className="min-w-0 flex-1 text-body-sm leading-body-sm">{t.message}</p>
       {t.action && (
-        <button
-          type="button"
-          onClick={onAction}
-          className="relative flex h-8 shrink-0 items-center gap-2 rounded-sm bg-paper/10 px-2.5 text-label leading-label font-medium transition-colors duration-100 after:absolute after:inset-x-0 after:-inset-y-1.5 hover:bg-paper/20 md:after:hidden dark:bg-border dark:hover:bg-control-border"
-        >
-          {t.action.label}
-          {t.action.key && (
-            <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-paper/14 px-[5px] font-mono text-mono leading-mono font-medium dark:bg-paper/12">
-              {t.action.key}
-            </kbd>
-          )}
-        </button>
+        <Explained action={t.action}>
+          <button
+            type="button"
+            onClick={onAction}
+            className="relative flex h-8 shrink-0 items-center gap-2 rounded-sm bg-paper/10 px-2.5 text-label leading-label font-medium transition-colors duration-100 after:absolute after:inset-x-0 after:-inset-y-1.5 hover:bg-paper/20 md:after:hidden dark:bg-border dark:hover:bg-control-border"
+          >
+            {t.action.label}
+            {t.action.key && (
+              <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-paper/14 px-[5px] font-mono text-mono leading-mono font-medium dark:bg-paper/12">
+                {t.action.key}
+              </kbd>
+            )}
+          </button>
+        </Explained>
       )}
       <button type="button" aria-label="Dismiss" onClick={onClose} className="relative flex size-7 shrink-0 items-center justify-center rounded-sm after:absolute after:-inset-2 hover:bg-paper/10 md:after:hidden">
         <span data-theme="dark" className="flex text-muted">
@@ -86,6 +90,16 @@ export function ToastView({ toast: t, onAction, onClose }: { toast: Toast; onAct
         </span>
       </button>
     </div>
+  );
+}
+
+// An action with an explainer, in a tooltip above it.
+function Explained({ action, children }: { action: ToastAction; children: ReactElement }) {
+  if (!action.detail) return children;
+  return (
+    <Tooltip content={action.label} keys={action.key} detail={action.detail} note={action.note} side="top">
+      {children}
+    </Tooltip>
   );
 }
 

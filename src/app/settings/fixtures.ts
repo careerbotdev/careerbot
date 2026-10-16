@@ -24,6 +24,8 @@ export const CATALOG: CatalogModel[] = [
   { id: "google/gemini-3.8-flash", name: "Google: Gemini 3.8 Flash", inPerM: 0.3, outPerM: 2.5, contextLength: 1048576, reasoning: true, json: true },
   { id: "anthropic/claude-sonnet-5.5", name: "Anthropic: Claude Sonnet 5.5", inPerM: 2, outPerM: 10, contextLength: 1000000, reasoning: true, json: true },
   { id: "mistralai/mistral-medium-4", name: "Mistral: Mistral Medium 4", inPerM: 0.4, outPerM: 2, contextLength: 131072, reasoning: false, json: true },
+  { id: "qwen/qwen3.8-flash", name: "Qwen: Qwen3.8 Flash", inPerM: 0.15, outPerM: 0.47, contextLength: 262144, reasoning: true, json: true },
+  { id: "~anthropic/claude-haiku-latest", name: "Anthropic: Claude Haiku Latest", inPerM: 1, outPerM: 5, contextLength: 200000, reasoning: true, json: true },
   { id: "typesafe/jev-1.13", name: "TypeSafe: Jev 1.13", inPerM: 0.2, outPerM: 0.2, contextLength: 32768, reasoning: false, json: false },
 ];
 

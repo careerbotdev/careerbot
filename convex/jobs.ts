@@ -10,7 +10,7 @@ import { chat, spendingFor } from "./metering";
 import { dayOf, tally } from "./tallies";
 import { modelFor } from "./aiSettings";
 import { runCompare } from "./compare";
-import { runGoals, runLimitRule } from "./goals";
+import { runGoals, runLimitRule, runMerge } from "./goals";
 import { runCheck } from "./conflicts";
 import { runInsights } from "./insights";
 import { runFollowups } from "./followups";
@@ -68,6 +68,9 @@ const handlers: Record<Doc<"jobs">["kind"], (ctx: ActionCtx, job: Doc<"jobs">) =
   lineUpdate: runLineUpdate,
   // Google Drive: no AI, no cost.
   driveSync: runDriveSync,
+  // Merging a direction into another, and its Undo: no AI, no cost.
+  merge: runMerge,
+  unmerge: runMerge,
 };
 
 export const start = mutation({
