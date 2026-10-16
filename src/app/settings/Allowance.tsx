@@ -42,7 +42,7 @@ export function AllowanceNotice({ status, size = "md" }: { status: BudgetStatus 
             <Icons.email aria-hidden="true" />
             Ask for more
           </a>
-          <Link href="/settings?section=keys" className={buttonLook("secondary", "", size)}>
+          <Link href="/settings?section=connections" className={buttonLook("secondary", "", size)}>
             <Icons.goIn aria-hidden="true" />
             Add your own key
           </Link>

@@ -6,11 +6,12 @@ import { openrouterHeaders } from "./openrouterApp";
 import type { Reasoning } from "./aiTasks";
 import { APOLLO_CREDITS } from "./apolloPricing";
 import { addAiSpend, BUDGET_REACHED, type BudgetReached, monthStart, resumeHeld } from "./budgets";
+import { cancelledError } from "./cancel";
 import { priceOf, worstCase } from "./modelPrices";
 import { apolloBalance, apolloKeyFor } from "./apolloKey";
 import { openrouterKeyFor } from "./openrouterKey";
 import { addPlatformSpend, NOT_ON_PLATFORM, platformAi, resumePlatformHeld } from "./plan";
-import { RECOMMENDED } from "./aiSettings";
+import { RECOMMENDED, WEB_SEARCH_MODEL } from "./aiSettings";
 import { CutOffReply, parseReplyJson, type ReplySchema, UnreadableReply } from "./replyJson";
 import { addSpend } from "./tallies";
 
@@ -43,9 +44,10 @@ export const settle = internalMutation({
     lookup: v.optional(v.array(v.string())),
     unseen: v.optional(v.number()),
   },
+  // Returns whether the call's job was cancelled from Activity meanwhile: the call is paid, but its answer isn't used.
   handler: async (ctx, { usageId, state, ...patch }) => {
     const row = await ctx.db.get(usageId);
-    if (!row) return;
+    if (!row) return false;
     // An indeterminate call keeps what it holds until the daily check knows what it cost.
     const release = state === "indeterminate" ? 0 : (row.reservedUsd ?? 0);
     const next = { ...patch, state: state ?? ("settled" as const), ...(release ? { reservedUsd: undefined } : {}) };
@@ -56,6 +58,7 @@ export const settle = internalMutation({
     if (release) await resumeHeld(ctx, row.workspaceId);
     if (release && row.platform) await resumePlatformHeld(ctx);
     await addSpend(ctx, { ...row, ...next });
+    return !!row.jobId && (await ctx.db.get(row.jobId))?.status === "cancelled";
   },
 });
 
@@ -66,13 +69,13 @@ async function reserveAi(ctx: MeteredCtx, args: { workspaceId: Id<"workspaces">;
 }
 
 // The key an AI call goes with: the workspace's own, else CareerBot's (plan.ts), which only takes the recommended
-// models.
+// models and the web search's own (WEB_SEARCH_MODEL).
 async function aiKey(ctx: ActionCtx, workspaceId: Id<"workspaces">, model: string) {
   const own = await openrouterKeyFor(ctx, workspaceId);
   if (own) return { key: own, platform: false };
   const platform = platformAi();
   if (!platform || !(await ctx.runQuery(internal.plan.onPlatform, { workspaceId }))) throw new Error("Add your OpenRouter key in settings first.");
-  if (!RECOMMENDED.some((m) => m.id === model)) throw new Error(NOT_ON_PLATFORM);
+  if (!RECOMMENDED.some((m) => m.id === model) && model !== WEB_SEARCH_MODEL) throw new Error(NOT_ON_PLATFORM);
   return { key: platform.key, platform: true };
 }
 
@@ -111,15 +114,16 @@ export async function chat(ctx: ActionCtx, args: ChatArgs): Promise<ChatReply> {
   const maxTokens = Math.min(args.maxTokens ?? REPLY_TOKENS, price.maxTokens ?? Infinity);
   // usage.include asks OpenRouter to report the real dollar cost of this call. JSON mode alone isn't kept by every
   // provider (Anthropic's models write what they like under it), so a reply with a schema goes as structured output,
-  // only to the providers that keep it (require_parameters), when the model has one. An alias goes to the model it was
-  // priced as (modelPrices: target).
+  // only to the providers that keep it (require_parameters), when the model has one. A model none of whose providers
+  // takes JSON mode (noJsonMode) is asked for JSON by the prompt alone. An alias goes to the model it was priced as
+  // (modelPrices: target).
   const structured = args.json && args.schema && price.structured;
   const request = JSON.stringify({
     model: price.target ?? args.model,
     messages: args.messages,
     usage: { include: true },
     max_tokens: maxTokens,
-    ...(structured ? { response_format: { type: "json_schema", json_schema: { ...args.schema, strict: true } }, provider: { require_parameters: true } } : args.json ? { response_format: { type: "json_object" } } : {}),
+    ...(structured ? { response_format: { type: "json_schema", json_schema: { ...args.schema, strict: true } }, provider: { require_parameters: true } } : args.json && !price.noJsonMode ? { response_format: { type: "json_object" } } : {}),
     ...(args.reasoning ? { reasoning: { effort: args.reasoning } } : {}),
   });
   // The prompt is at most one token per byte of the request: byte-level BPE tokenizers (GPT, Llama, Qwen, DeepSeek) never
@@ -144,7 +148,8 @@ export async function chat(ctx: ActionCtx, args: ChatArgs): Promise<ChatReply> {
   }
   // An answer that doesn't say what it cost was still charged: its generation is looked up later (reconcile).
   const unknownCost = res.ok && body.usage?.cost === undefined;
-  await ctx.runMutation(internal.metering.settle, {
+  // A job cancelled while this call was out still pays for it, but gets no answer (cancel.ts).
+  const cancelled = await ctx.runMutation(internal.metering.settle, {
     usageId,
     ok: res.ok,
     model: body.model ?? price.target ?? args.model,
@@ -154,6 +159,7 @@ export async function chat(ctx: ActionCtx, args: ChatArgs): Promise<ChatReply> {
     generationId: body.id,
     ...(unknownCost ? { state: "indeterminate" as const, ...(body.id ? { lookup: [body.id] } : { unseen: 1 }) } : {}),
   });
+  if (cancelled) throw cancelledError();
   if (!res.ok) throw new OpenRouterError(body.error?.message ?? `OpenRouter returned ${res.status}.`, res.status, retryAfterMs(res.headers.get("retry-after")), body.error?.metadata?.limit_source, body.error?.metadata?.raw);
   return {
     text: body.choices?.[0]?.message?.content ?? "",
@@ -264,7 +270,7 @@ export async function apollo(
     await ctx.runMutation(internal.metering.settle, { usageId, ok: false, credits, state: "indeterminate" });
     throw e;
   }
-  await ctx.runMutation(internal.metering.settle, { usageId, ok: res.ok, credits: res.ok ? credits : 0 });
+  if (await ctx.runMutation(internal.metering.settle, { usageId, ok: res.ok, credits: res.ok ? credits : 0 })) throw cancelledError();
   if (!res.ok) throw new Error(res.status === 401 ? "Apollo didn't accept your key." : res.status === 403 ? "Your Apollo plan or key doesn't allow this search." : res.status === 429 ? "Apollo's rate limit was hit. Try again in a while." : `Apollo returned ${res.status}.`);
   return res.json() as Promise<unknown>;
 }
@@ -364,7 +370,7 @@ export async function decide(ctx: ActionCtx, args: { workspaceId: Id<"workspaces
   const done = await Promise.allSettled(args.decisions.map((d) => withBackoff(() => one(d))));
   const failed = done.find((r): r is PromiseRejectedResult => r.status === "rejected");
   const unsure = lookup.length || unseen ? { state: "indeterminate" as const, ...(lookup.length ? { lookup } : {}), ...(unseen ? { unseen } : {}) } : {};
-  await ctx.runMutation(internal.metering.settle, { usageId, ok: !failed, model, inputTokens, outputTokens, costUsd, ...unsure });
+  if (await ctx.runMutation(internal.metering.settle, { usageId, ok: !failed, model, inputTokens, outputTokens, costUsd, ...unsure })) throw cancelledError();
   if (failed) throw failed.reason;
   return { answers: done.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])), costUsd, model };
 }

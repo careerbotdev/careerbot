@@ -19,7 +19,7 @@ import { day, dayTime } from "./words";
 // connected or needs connecting again.
 
 type DriveFile = NonNullable<FunctionReturnType<typeof api.drive.fileFor>>;
-const SETTINGS = "/settings?section=drive";
+const SETTINGS = "/settings?section=connections";
 export const DRIVE_EXPLAINER = "Keeps a Google Doc of each resume in your CareerBot folder, updated when you keep a new version. CareerBot can only see the files it makes.";
 const TRY_AGAIN = "Syncs your CareerBot folder now. Files deleted in Drive are made again.";
 

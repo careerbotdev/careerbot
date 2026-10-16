@@ -406,13 +406,14 @@ export function directionsFixtures(): Answers {
   });
 
   return {
+    ...answer(api.discovery.seeds, () => ["lumenplan.example.com", "copperline.example.com"]),
     ...answer(api.directions.list, list),
     ...answer(api.directions.fit, () =>
       rows.filter((r) => r.status === "approved" && FIT[r.spec.id]).map((r) => ({ directionId: r.spec.id as Id<"items">, count: FIT[r.spec.id][0] + FIT[r.spec.id][1], strong: FIT[r.spec.id][0], some: FIT[r.spec.id][1], more: false })),
     ),
     ...answer(api.estimates.costs, () => ({
       followUp: 0.01, outreach: 0.01, letter: 0.02, ask: 0.01, tailor: 0.04, rankPerRole: 0.0001, read: null, readRevision: null, rewrite: null, disagreements: null, duplicates: null, sameWork: null, skills: null, insights: null, repository: null,
-      resume: 0.03, directionResume: 0.03, resumeLines: null, goals: 0.05, limitRule: 0.01, directionDetail: 0.02, suggestDirections: 0.05, lineCheck: null, lineUpdate: null,
+      resume: 0.03, directionResume: 0.03, resumeLines: null, goals: 0.05, limitRule: 0.01, directionDetail: 0.02, suggestDirections: 0.05, lineCheck: null, lineUpdate: null, findRelevant: null, findHiringNow: null,
     })),
     ...answer(api.resume.list, ({ directionId }): ResumeList => ({
       facts: FACTS,

@@ -717,7 +717,7 @@ function DriveStep({ setup, small, onDone }: { setup: Setup; small: boolean; onD
       {!connected && !skipped && (
         <Button
           variant="ghost"
-          detail="Leaves Google Drive out of Getting started. Connect it any time in Settings, Google Drive."
+          detail="Leaves Google Drive out of Getting started. Connect it any time in Settings, Connections."
           note="Free · Undo with U"
           onClick={() =>
             void skip({ step: "drive", skipped: true }).then(
@@ -1138,7 +1138,7 @@ function ApolloStep({ small, skippable, onSaved }: { small: boolean; skippable: 
             variant="ghost"
             size={small ? "lg" : "md"}
             className={small ? "flex-1" : ""}
-            detail="Leaves Apollo out of Getting started. Add a key any time in Settings, Keys, to find companies and people."
+            detail="Leaves Apollo out of Getting started. Add a key any time in Settings, Connections, to find companies and people."
             note="Free · Undo with U"
             onClick={() =>
               void skip({ step: "apollo", skipped: true }).then(

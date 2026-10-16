@@ -36,7 +36,7 @@ export function SeniorityNotices({ name, titles }: { name: string; titles: strin
   );
 }
 
-// The criteria as rows of values; the seeds say "Your defaults" when they're empty.
+// The criteria as rows of values; the seeds show Search settings' (for every direction) above the direction's own.
 export function criteriaRows(d: Direction, all = true) {
   const c = d.data.criteria!;
   const tags = (xs: string[], max?: number) => (xs.length ? <ValueTags items={xs} max={max} /> : <span className="text-muted">Any</span>);
@@ -54,8 +54,30 @@ export function criteriaRows(d: Direction, all = true) {
     { label: "Sizes", value: tags(c.sizes.map(sizeLabel)) },
     { label: "Stages", value: tags(c.stages.map(stageLabel)) },
     { label: "Keywords", value: c.keywords.length ? <ValueTags items={c.keywords} max={9} /> : <span className="text-muted">None</span> },
-    ...(all ? [{ label: "Own seed companies", value: c.seeds?.length ? <ValueTags items={c.seeds} /> : <span className="text-muted">Your defaults</span> }] : []),
+    ...(all ? [{ label: "Seed companies", value: <Seeds d={d} /> }] : []),
   ];
+}
+
+// A direction's seed companies: Search settings' for every direction (muted), then the ones it adds.
+function Seeds({ d }: { d: Direction }) {
+  const global = useQuery(api.discovery.seeds);
+  const own = (d.data.criteria?.seeds ?? []).filter((s) => !global?.includes(s));
+  return (
+    <span className="flex flex-col gap-2">
+      {global !== undefined && (
+        <span className="flex flex-col gap-1">
+          <span className="text-body-sm leading-body-sm text-muted">From Search settings, for every direction</span>
+          {global.length ? <ValueTags items={global} className="opacity-70" /> : <span className="text-muted">None yet</span>}
+        </span>
+      )}
+      {own.length > 0 && (
+        <span className="flex flex-col gap-1">
+          <span className="text-body-sm leading-body-sm text-muted">Added for {d.data.name}</span>
+          <ValueTags items={own} />
+        </span>
+      )}
+    </span>
+  );
 }
 
 const EDIT_CRITERIA = "Change what search looks for in this direction. Saving approves them.";

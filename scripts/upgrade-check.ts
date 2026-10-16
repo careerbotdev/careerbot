@@ -200,7 +200,10 @@ async function main() {
   mkdirSync(fromDir);
   out("tar", ["-xf", join(work, "from.tar"), "-C", fromDir]);
   const oldFiles = [join(fromDir, "compose.yaml")];
-  const oldCompose = readFileSync(oldFiles[0], "utf8");
+  // Convex moved its images from ghcr.io/get-convex to ghcr.io/convex (same tags), and the old address now refuses
+  // pulls. A copy that's running has its images already; here they're pulled fresh, from where they are now.
+  const oldCompose = readFileSync(oldFiles[0], "utf8").replaceAll("ghcr.io/get-convex/", "ghcr.io/convex/");
+  writeFileSync(oldFiles[0], oldCompose);
   console.log(`\n== ${from}: starting it`);
   if (!/careerbot-web:\$\{CAREERBOT_VERSION:-/.test(oldCompose)) dc(oldFiles, ["up", "-d", "--build"]);
   else if (dc(oldFiles, ["pull", "web", "convex-setup"], { allowFail: true }) !== null) dc(oldFiles, ["up", "-d"]);

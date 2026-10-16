@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import {
   addedToMap,
@@ -22,6 +23,22 @@ const change = (over: Partial<Change> = {}): Change => ({
   note: "Something works again.",
   selfHost: null,
   ...over,
+});
+
+// CI builds the release images from Docker Hub's node image when signed in there, and from AWS's mirror otherwise (the
+// Dockerfile's default): every build of every job gets the same node, and a change to the Dockerfile's moves both.
+test("CI's node base image is the Dockerfile's, from either registry, and every image build passes it", () => {
+  const tagOf = (s: string) => /node:([\w.-]+)/.exec(s)?.[1];
+  const dockerfile = /^ARG NODE_IMAGE=(\S+)/m.exec(readFileSync("Dockerfile", "utf8"))![1];
+  const ci = readFileSync(".github/workflows/ci.yml", "utf8");
+  const line = /^ {2}NODE_IMAGE: (.+)$/m.exec(ci)![1];
+  const images = [...line.matchAll(/'([\w./-]+:[\w.-]+)'/g)].map((m) => m[1]);
+  expect(images).toHaveLength(2);
+  expect(images).toContain(dockerfile);
+  expect(new Set(images.map(tagOf))).toEqual(new Set([tagOf(dockerfile)]));
+  const builds = ci.split("uses: docker/build-push-action").slice(1).map((step) => step.split(/\n {6}- /)[0]);
+  expect(builds.length).toBeGreaterThan(0);
+  for (const step of builds) expect(step).toContain("build-args: NODE_IMAGE=${{ env.NODE_IMAGE }}");
 });
 
 test("before 1.0 breaking and minor raise the minor number, patch the patch", () => {

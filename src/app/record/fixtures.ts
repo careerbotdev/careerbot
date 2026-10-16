@@ -440,7 +440,7 @@ function factAnswers(state: RecordState): Answers {
 
 // The answers every Record screen's stories share. Queries read `state`; mutations change it.
 export function recordAnswers(state: RecordState): Answers {
-  const COSTS = { followUp: 0.01, outreach: 0.01, letter: 0.03, ask: 0.01, tailor: 0.04, rankPerRole: 0.0004, read: 0.05, readRevision: 0.03, rewrite: 0.01, disagreements: 0.02, duplicates: 0.02, sameWork: 0.01, skills: 0.02, insights: 0.05, repository: 0.03, resume: 0.04, directionResume: 0.04, resumeLines: 0.01, goals: 0.03, limitRule: 0.01, directionDetail: 0.02, suggestDirections: 0.05, lineCheck: 0.001, lineUpdate: 0.01 };
+  const COSTS = { followUp: 0.01, outreach: 0.01, letter: 0.03, ask: 0.01, tailor: 0.04, rankPerRole: 0.0004, read: 0.05, readRevision: 0.03, rewrite: 0.01, disagreements: 0.02, duplicates: 0.02, sameWork: 0.01, skills: 0.02, insights: 0.05, repository: 0.03, resume: 0.04, directionResume: 0.04, resumeLines: 0.01, goals: 0.03, limitRule: 0.01, directionDetail: 0.02, suggestDirections: 0.05, lineCheck: 0.001, lineUpdate: 0.01, findRelevant: null, findHiringNow: null };
   return {
     ...answer(api.estimates.costs, () => COSTS),
     ...factAnswers(state),

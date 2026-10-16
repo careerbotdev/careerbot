@@ -7,16 +7,18 @@ sources:
   - convex/screening.ts
   - convex/enrich.ts
   - convex/discovery.ts
+  - convex/webDiscovery.ts
   - convex/budgets.ts
   - convex/metering.ts
   - src/app/companies/Companies.tsx
   - src/app/companies/Company.tsx
-  - src/app/settings/Companies.tsx
+  - src/app/companies/SearchSettings.tsx
   - src/app/settings/Budgets.tsx
 ---
 
 A company search in <Screen id="companies" /> looks for companies that match your approved directions' search
-criteria, through Apollo. Two AI steps then work on what it found: one sorts out the companies that don't hire for
+criteria, through Apollo, or through a web search when you haven't added an Apollo key (see
+[Finding companies](/docs/how-it-works/companies-and-roles#finding-companies)). Two AI steps then work on what it found: one sorts out the companies that don't hire for
 themselves, the other fills in what each remaining company does and how well it fits.
 
 ## The steps
@@ -47,10 +49,10 @@ places to work from free sources first, in batches, strongest-sourced companies 
 - Fit. Once details are in, it judges each company against each direction that has approved criteria: strong,
   some, weak or none, with a reason, from the summary, the roles, the direction and your approved limits.
 
-With **Check companies against your goals** set to **Rank** or **Hide** in Settings, the same call also checks each
+With **Check companies against your goals** set to **Rank** or **Hide** in Companies, ⋯ > **Search settings**, the same call also checks each
 company against your approved company goals: fits, partly, doesn't, or can't tell, with a reason. It's a signal only.
 With **Hide**, ones that don't fit move to **Doesn’t fit your goals**; **Keep anyway** keeps one. Companies you named
-yourself are never set aside. **Check all again** in Settings checks every company again against your goals and
+yourself are never set aside. **Check all again** in Search settings checks every company again against your goals and
 directions after you change them.
 
 You decide which companies matter: rate each **Target**, **Maybe** or **Not for me**. Roles are read only from Targets
@@ -63,7 +65,7 @@ spent only for these:
 
 - Company searches. **Find companies** shows its estimate in credits before it runs.
 - Apollo's job postings for a company with no public job board, about 1 credit per company, only when **Job postings
-  from Apollo** is on in Settings.
+  from Apollo** is on in Settings, Connections.
 - Revealing a person's email in a pursuit, 1 credit each, only when you choose to. Finding people is free.
 
 Every Apollo call reads your Apollo balance first and sets aside its credits before it runs. It is refused when your

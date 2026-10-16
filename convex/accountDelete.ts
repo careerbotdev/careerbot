@@ -29,6 +29,7 @@ import { linksIn, shapeOf, WORKSPACE_TABLES } from "./workspaceCopy";
 // them, deleted by an index on that field, or kept and why. Every such table is listed (accountDelete.test.ts).
 export const PERSON_TABLES: Record<string, { index: string; field: string } | { kept: string }> = {
   accountDeletions: { kept: "the deletion's own progress, forgotten an hour after it's done" },
+  accountResets: { index: "by_user", field: "userId" },
   invites: { index: "by_accepted_user", field: "acceptedUserId" },
   operators: { index: "by_user", field: "userId" },
   suspensions: { index: "by_user", field: "userId" },
@@ -216,6 +217,24 @@ async function pageOf(ctx: QueryCtx, table: string, workspaceId: Id<"workspaces"
   return { rows: page.page.filter((d) => "workspaceId" in d && d.workspaceId === workspaceId), done: page.isDone, cursor: page.continueCursor };
 }
 
+// Whether a workspace still has rows in a table (by its workspace index; false for one without).
+export async function anyLeft(ctx: QueryCtx, table: string, workspaceId: Id<"workspaces">) {
+  return !!WORKSPACE_TABLES[table].index && (await pageOf(ctx, table, workspaceId, undefined)).rows.length > 0;
+}
+
+// Deletes one page of a workspace's rows in a table, with the stored files they name: how many went, whether the table
+// is through, and where the next page starts. Deleting an account and resetting one (accountReset.ts) both go through it.
+export async function purgePage(ctx: MutationCtx, table: string, workspaceId: Id<"workspaces">, cursor: string | undefined) {
+  const page = await pageOf(ctx, table, workspaceId, cursor);
+  for (const doc of page.rows) {
+    for (const file of linksIn(SHAPES[table], doc, "_storage")) {
+      if (await ctx.db.system.get(file as Id<"_storage">)) await ctx.storage.delete(file as Id<"_storage">);
+    }
+    await ctx.db.delete(doc._id);
+  }
+  return { deleted: page.rows.length, done: page.done, cursor: page.cursor };
+}
+
 // Deletes a page of the table it's at, with the stored files its rows name, then schedules the next.
 export const purge = internalMutation({
   args: { id: v.id("accountDeletions") },
@@ -226,8 +245,7 @@ export const purge = internalMutation({
     if (row.table >= ORDER.length) {
       // Once through: anything written meanwhile sends it round again from that table.
       for (const [i, table] of ORDER.entries()) {
-        if (!WORKSPACE_TABLES[table].index) continue;
-        if ((await pageOf(ctx, table, workspaceId, undefined)).rows.length) {
+        if (await anyLeft(ctx, table, workspaceId)) {
           await ctx.db.patch(id, { table: i, cursor: undefined, beat: Date.now() });
           await ctx.scheduler.runAfter(0, internal.accountDelete.purge, { id });
           return;
@@ -237,15 +255,8 @@ export const purge = internalMutation({
       await ctx.scheduler.runAfter(row.by === "self" ? GRACE_MS : 0, internal.accountDelete.finish, { id });
       return;
     }
-    const table = ORDER[row.table];
-    const page = await pageOf(ctx, table, workspaceId, row.cursor);
-    for (const doc of page.rows) {
-      for (const file of linksIn(SHAPES[table], doc, "_storage")) {
-        if (await ctx.db.system.get(file as Id<"_storage">)) await ctx.storage.delete(file as Id<"_storage">);
-      }
-      await ctx.db.delete(doc._id);
-    }
-    await ctx.db.patch(id, { deleted: row.deleted + page.rows.length, beat: Date.now(), ...(page.done ? { table: row.table + 1, cursor: undefined } : { cursor: page.cursor }) });
+    const page = await purgePage(ctx, ORDER[row.table], workspaceId, row.cursor);
+    await ctx.db.patch(id, { deleted: row.deleted + page.deleted, beat: Date.now(), ...(page.done ? { table: row.table + 1, cursor: undefined } : { cursor: page.cursor }) });
     await ctx.scheduler.runAfter(0, internal.accountDelete.purge, { id });
   },
 });

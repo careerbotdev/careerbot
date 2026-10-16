@@ -557,7 +557,7 @@ export function pursuitsFixtures({ now = Date.now(), empty = false }: { now?: nu
     ...answer(api.people.list, ({ pursuitId: pid }) => people(pid)),
     ...answer(api.notes.list, ({ subject }) => notes[subject.id] ?? []),
     ...answer(api.profile.get, () => ({ name: "Wren Castellano", email: "wren@example.com", phone: "", location: "Pittsburgh, Pennsylvania", links: [] })),
-    ...answer(api.estimates.costs, () => ({ followUp: 0.01, outreach: 0.01, letter: 0.02, ask: 0.01, tailor: 0.04, rankPerRole: 0.0001, read: null, readRevision: null, rewrite: null, disagreements: null, duplicates: null, sameWork: null, skills: null, insights: null, repository: null, resume: null, directionResume: null, resumeLines: null, goals: null, limitRule: null, directionDetail: null, suggestDirections: null, lineCheck: null, lineUpdate: 0.01 })),
+    ...answer(api.estimates.costs, () => ({ followUp: 0.01, outreach: 0.01, letter: 0.02, ask: 0.01, tailor: 0.04, rankPerRole: 0.0001, read: null, readRevision: null, rewrite: null, disagreements: null, duplicates: null, sameWork: null, skills: null, insights: null, repository: null, resume: null, directionResume: null, resumeLines: null, goals: null, limitRule: null, directionDetail: null, suggestDirections: null, lineCheck: null, lineUpdate: 0.01, findRelevant: null, findHiringNow: null })),
     ...answer(api.followUpEmails.forPursuit, ({ pursuitId: pid }) =>
       pid === pursuitId("sc-coldchain")
         ? {

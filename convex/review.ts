@@ -360,7 +360,7 @@ export const items = query({
             key: String(c._id),
             id: c._id,
             title: c.name,
-            line: [c.details?.summary ?? c.domain, c.foundedYear ? `Founded ${c.foundedYear}` : ""].filter(Boolean).join(" · "),
+            line: c.details?.summary ?? c.domain ?? "",
             context: found.length ? (found[0] === "your list" ? "From your list" : `Found for ${and(found)}`) : "Found",
             name: c.name,
             about: orNull(c.details?.summary ?? c.details?.siteDescription),

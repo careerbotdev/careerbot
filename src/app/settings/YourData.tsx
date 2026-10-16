@@ -5,11 +5,12 @@ import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { ConvexError } from "convex/values";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import { CHUNK_BYTES, MAX_IMPORT_BYTES, STALLED_MS, TOO_LARGE } from "../../../convex/exportRules";
 import { Button, type ButtonSize } from "@/components/Button";
 import { ExternalLink } from "@/components/ExternalLink";
+import { Checkbox } from "@/components/Checkbox";
 import { Dialog } from "@/components/Dialog";
 import { ErrorLine, Field, Input } from "@/components/Field";
 import { FileDrop } from "@/components/FileDrop";
@@ -22,14 +23,16 @@ import { Rows, SettingRow, SettingsPane } from "./ui";
 
 // Settings, Your data (the Your data boards in Paper): Export makes one ZIP of everything in this workspace, to keep or
 // to bring into another copy; Import brings such a ZIP into an empty workspace, checked first and shown as a preview
-// (convex/yourData.ts); Delete account deletes the account and everything in it (convex/accountDelete.ts). Each runs
-// in the background with its progress here; an import or deletion that stopped partway can be continued. On a phone
-// the pane's actions sit in the bottom bar.
+// (convex/yourData.ts); Reset account clears everything in the workspace and keeps the sign-in (convex/accountReset.ts);
+// Delete account deletes the account and everything in it (convex/accountDelete.ts). Each runs in the background with
+// its progress here; an import, reset or deletion that stopped partway can be continued. On a phone the pane's actions
+// sit in the bottom bar.
 
 export const DOCS = "/docs/using/your-data";
 type Status = FunctionReturnType<typeof api.yourData.status>;
 type ImportState = NonNullable<Status["import"]>;
 type AccountStatus = NonNullable<FunctionReturnType<typeof api.accountDelete.status>>;
+type ResetStatus = NonNullable<FunctionReturnType<typeof api.accountReset.status>>;
 
 // "4.2 MB", "212 KB".
 const megabytes = (bytes: number) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
@@ -125,11 +128,12 @@ async function upload(url: string, token: string | null, file: File, onProgress:
 export function YourData({ size }: { size: ScreenSize }) {
   const status = useQuery(api.yourData.status);
   const account = useQuery(api.accountDelete.status);
+  const reset = useQuery(api.accountReset.status);
   if (!status) return null;
-  return <YourDataView status={status} account={account ?? null} size={size} />;
+  return <YourDataView status={status} account={account ?? null} reset={reset ?? null} size={size} />;
 }
 
-function YourDataView({ status, account, size }: { status: Status; account: AccountStatus | null; size: ScreenSize }) {
+function YourDataView({ status, account, reset, size }: { status: Status; account: AccountStatus | null; reset: ResetStatus | null; size: ScreenSize }) {
   const small = size === "small";
   const router = useRouter();
   const startExport = useMutation(api.yourData.startExport);
@@ -234,10 +238,11 @@ function YourDataView({ status, account, size }: { status: Status; account: Acco
     continueButton
   ) : null);
 
-  // While the account is being deleted, only its progress shows.
+  // While the account is being deleted or reset, only its progress shows.
   const deleting = !!account?.deletion && account.deletion.step !== "done";
+  const resetting = !!reset?.reset && reset.reset.step !== "done";
   useBar(
-    small && !deleting
+    small && !deleting && !resetting
       ? preview
         ? { kind: "actions", actions: (<>{anotherButton}{importButton}</>) }
         : importStopped
@@ -256,12 +261,10 @@ function YourDataView({ status, account, size }: { status: Status; account: Acco
   const checking = im?.status === "checking" && !importStalled;
   const refusal = tooLarge ? TOO_LARGE : im?.status === "refused" ? im.error ?? undefined : undefined;
 
-  if (deleting && account) {
+  if ((deleting && account) || (resetting && reset)) {
     return (
       <SettingsPane title="Your data" size={size}>
-        <Rows>
-          <DeleteAccount account={account} size={size} />
-        </Rows>
+        <Rows>{deleting && account ? <DeleteAccount account={account} size={size} /> : reset && <ResetAccount reset={reset} size={size} />}</Rows>
       </SettingsPane>
     );
   }
@@ -341,8 +344,8 @@ function YourDataView({ status, account, size }: { status: Status; account: Acco
               )}
               <div className="flex flex-col">
                 {[
-                  { title: "Add your keys again", line: "OpenRouter, and Apollo or Brave if you used them", label: "Open Keys", href: "/settings?section=keys", detail: "Opens Settings, Keys." },
-                  { title: "Connect Google Drive again", line: "If you kept your resumes there", label: "Open Google Drive", href: "/settings?section=drive", detail: "Opens Settings, Google Drive." },
+                  { title: "Add your keys again", line: "OpenRouter, and Apollo or Brave if you used them", label: "Open Connections", href: "/settings?section=connections", detail: "Opens Settings, Connections." },
+                  { title: "Connect Google Drive again", line: "If you kept your resumes there", label: "Open Connections", href: "/settings?section=connections", detail: "Opens Settings, Connections, where Google Drive is." },
                   { title: "Connect GitHub again", line: "If you read your repositories in Projects", label: "Open Projects", href: "/record/projects?github=1", detail: "Opens Projects in your record, where GitHub is connected." },
                 ].map((n) => (
                   <div key={n.title} className="flex flex-col gap-2 border-t py-3 @lg:flex-row @lg:items-center @lg:gap-6">
@@ -359,9 +362,186 @@ function YourDataView({ status, account, size }: { status: Status; account: Acco
             </div>
           )}
         </SettingRow>
+        {reset && <ResetAccount reset={reset} size={size} />}
         {account && <DeleteAccount account={account} size={size} />}
       </Rows>
     </SettingsPane>
+  );
+}
+
+// ---- Reset account ----
+
+// Reset my account (the Reset account boards): asks for the account's name, then clears everything in this workspace
+// in the background (convex/accountReset.ts), its progress here and in the activity list; once done, a toast offers
+// Getting started on Today.
+function ResetAccount({ reset, size }: { reset: ResetStatus; size: ScreenSize }) {
+  const router = useRouter();
+  const small = size === "small";
+  const start = useMutation(api.accountReset.start);
+  const [asking, setAsking] = useState(false);
+  const running = reset.reset?.step === "done" ? null : reset.reset;
+  const stalled = useStalled(running, !!running);
+  const btn: ButtonSize = small ? "lg" : "sm";
+  // Done within the last minute: say how much went, once.
+  const done = reset.reset?.step === "done" ? reset.reset : null;
+  const told = useRef(0);
+  useEffect(() => {
+    if (!done || told.current === done.beat || Date.now() - done.beat > 60_000) return;
+    told.current = done.beat;
+    toast({ message: `Reset your account: ${count(done.cleared)} items cleared`, icon: "done", action: { label: "Get started", run: () => router.push("/") } });
+  }, [done, router]);
+  const resume = () => void start({ confirm: reset.name ?? "", keys: false }).catch((e: unknown) => failed(e, "Couldn’t continue resetting your account."));
+  const control = running ? (
+    stalled && (
+      <Button variant="secondary" size={btn} detail="Picks the reset up where it stopped." note="Free · Can’t be undone" onClick={resume}>
+        Continue
+      </Button>
+    )
+  ) : (
+    <Button
+      variant="secondary"
+      size={btn}
+      detail="Clears your stories, record, goals, companies, seed companies, pursuits, resumes, notes, exports and activity. Keeps your sign-in, settings, spending and, unless you choose, your keys."
+      note="Free · Can’t be undone"
+      onClick={() => setAsking(true)}
+    >
+      Reset my account
+    </Button>
+  );
+  return (
+    <SettingRow
+      title="Reset account"
+      line={running ? "Clearing this workspace. You stay signed in." : "Clears everything in this workspace, seed companies and past exports too, and keeps your sign-in, settings, keys and spending. Export first to keep a copy."}
+      control={control || undefined}
+    >
+      {running && (
+        <div className="flex flex-col gap-2">
+          <Progress
+            className="max-w-120"
+            label={running.step === "counting" ? "Starting" : "Clearing"}
+            value={running.cleared}
+            max={running.total || 1}
+            status={stalled ? "stopped" : "running"}
+            detail={`${count(running.cleared)} of ${count(running.total)} items cleared`}
+          />
+          {stalled && <ErrorLine>The reset stopped partway. Continue picks it up where it stopped.</ErrorLine>}
+        </div>
+      )}
+      {reset.name && asking && <ResetDialog onOpenChange={setAsking} name={reset.name} small={small} />}
+    </SettingRow>
+  );
+}
+
+// What a reset clears, by the dialog's groups.
+const CLEARS: { key: keyof FunctionReturnType<typeof api.accountReset.counts>["groups"]; label: string; short: string }[] = [
+  { key: "stories", label: "Stories, with their versions", short: "Stories" },
+  { key: "record", label: "Record: facts, roles, projects and background", short: "Record" },
+  { key: "review", label: "Waiting in Review", short: "Waiting in Review" },
+  { key: "goals", label: "Directions and limits", short: "Directions and limits" },
+  { key: "companies", label: "Companies and the roles found at them", short: "Companies and roles found" },
+  { key: "seeds", label: "Seed companies", short: "Seed companies" },
+  { key: "pursuits", label: "Pursuits, with their people, letters and follow-ups", short: "Pursuits, with people and letters" },
+  { key: "resumes", label: "Resumes, every version", short: "Resumes" },
+  { key: "notes", label: "Notes", short: "Notes" },
+  { key: "activity", label: "Activity", short: "Activity" },
+  { key: "exports", label: "Past exports", short: "Past exports" },
+];
+
+// Asks before resetting: what goes with live counts, what stays, the keys optionally, Export first, and the account's
+// name typed to confirm.
+function ResetDialog({ onOpenChange, name, small }: { onOpenChange: (open: boolean) => void; name: string; small: boolean }) {
+  const start = useMutation(api.accountReset.start);
+  const startExport = useMutation(api.yourData.startExport);
+  const counts = useQuery(api.accountReset.counts);
+  const [typed, setTyped] = useState("");
+  const [keys, setKeys] = useState(false);
+  const [error, setError] = useState<string>();
+  const [sending, setSending] = useState(false);
+  const matches = typed.trim().toLowerCase() === name.trim().toLowerCase();
+  const submit = async (e?: FormEvent) => {
+    e?.preventDefault();
+    if (!matches) return setError(`Type ${name} to confirm.`);
+    setSending(true);
+    try {
+      await start({ confirm: typed, keys });
+      onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof ConvexError ? String(err.data) : "Couldn’t start resetting your account. Try again.");
+    } finally {
+      setSending(false);
+    }
+  };
+  const exportFirst = (
+    <Button
+      size={small ? "lg" : "md"}
+      className={small ? "shrink-0" : "mr-auto"}
+      detail="Closes this and makes a .zip of everything in this workspace. Download it before you reset: a reset clears past exports too."
+      note="Free"
+      onClick={() => {
+        onOpenChange(false);
+        void startExport({}).catch((err: unknown) => failed(err, "Couldn’t start the export."));
+      }}
+    >
+      Export first
+    </Button>
+  );
+  return (
+    <Dialog
+      open
+      onOpenChange={onOpenChange}
+      title="Reset your account?"
+      footer={
+        <>
+          {!small && exportFirst}
+          <Button onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            variant="destructive"
+            disabled={!matches}
+            loading={sending}
+            loadingLabel="Resetting"
+            detail="Clears everything in this workspace. You stay signed in."
+            note="Free · Can’t be undone"
+            onClick={() => void submit()}
+          >
+            Reset my account
+          </Button>
+        </>
+      }
+    >
+      <form noValidate onSubmit={submit} className="flex flex-col gap-3.5">
+        <p className="text-body-sm leading-body-sm text-muted">{small ? "Clears this workspace so you can start over." : "Clears this workspace so you can start over. You stay signed in."}</p>
+        <div className="flex flex-col gap-1">
+          <h3 className="text-body-sm leading-body-sm font-medium text-text">Clears</h3>
+          <dl className="flex flex-col">
+            {CLEARS.map((c) => (
+              <div key={c.key} className={`flex items-center justify-between gap-3 text-body-sm leading-body-sm ${small ? "py-px" : "py-0.5"}`}>
+                <dt className="text-text">{small ? c.short : c.label}</dt>
+                <dd className="font-mono text-muted tabular-nums">{counts ? count(counts.groups[c.key]) : "–"}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+        <div className="flex flex-col gap-1">
+          <h3 className="text-body-sm leading-body-sm font-medium text-text">Keeps</h3>
+          <p className="text-body-sm leading-body-sm text-muted">
+            Your sign-in, your other settings, Google Drive and GitHub connections, and spending, so this month’s budget still counts {small ? "it" : "what you’ve spent"}.
+          </p>
+        </div>
+        <Checkbox label="Also remove my keys" checked={keys} onChange={setKeys} description="OpenRouter, Apollo and Brave. You add them again in Connections before anything can run." />
+        {small ? (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-body-sm leading-body-sm text-muted">It can’t be undone. To keep a copy, download one:</p>
+            {exportFirst}
+          </div>
+        ) : (
+          <p className="text-body-sm leading-body-sm text-muted">It can’t be undone. To keep a copy, export first and download it.</p>
+        )}
+        <Field label={`Type ${name} to confirm`} error={error}>
+          {(p) => <Input {...p} autoComplete="off" autoCapitalize="none" spellCheck={false} value={typed} onChange={(e) => setTyped(e.target.value)} />}
+        </Field>
+        <button type="submit" hidden />
+      </form>
+    </Dialog>
   );
 }
 

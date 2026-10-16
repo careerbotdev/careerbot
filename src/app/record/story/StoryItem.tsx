@@ -27,7 +27,7 @@ import { Tooltip } from "@/components/Tooltip";
 import { WritingArea } from "@/components/WritingArea";
 import { aboutUsd } from "../../costs";
 import { useDemo } from "../../demo/demo";
-import { useBar, useCommands, useConfirm } from "../../shell/ShellContext";
+import { useBar, useCommands } from "../../shell/ShellContext";
 import { docsHref, STORY_GUIDE } from "../../today/steps";
 import { Proposals, type Run, useProposals, useRoleNames } from "./Proposals";
 import { Compare, type Pair, type Story, VersionList } from "./Versions";
@@ -83,7 +83,7 @@ function Item({ id, size, nav, tab, onTab, third, onThird, pair, onPair, fresh, 
   const restoreVersion = useMutation(api.narratives.restore);
   const remove = useMutation(api.narratives.remove);
   const link = useMutation(api.narratives.link);
-  const ask = useConfirm();
+  const [deleting, setDeleting] = useState(false);
 
   // The text as written here; `base` is what was last saved, so a restore elsewhere shows unless they're mid-change.
   const [draft, setDraft] = useState({ title: story.title, body: story.body });
@@ -215,18 +215,11 @@ function Item({ id, size, nav, tab, onTab, third, onThird, pair, onPair, fresh, 
       (e: unknown) => failed(e, "Couldn’t link it."),
     );
   };
-  const deleteIt = async () => {
-    const count = story.versions.length;
-    const yes = await ask({
-      title: `Delete the ${story.title} ${noun}?`,
-      body: `${count === 1 ? "Its one version goes" : `Its ${count} versions go`} with it. The facts it gave your record stay, each marked for you to Keep it or Reject it.`,
-      confirmLabel: `Delete ${noun}`,
-    });
-    if (!yes) return;
+  const deleteIt = (choice: { unreviewed: boolean; approved: boolean }) => {
     latest.current.dirty = false;
-    void remove({ id }).then(
-      () => {
-        toast({ message: `Deleted the ${story.title} ${noun}`, icon: "delete" });
+    void remove({ id, ...choice }).then(
+      ({ facts }) => {
+        toast({ message: `Deleted the ${story.title} ${noun}${facts ? ` and ${facts === 1 ? "1 fact" : `${facts} facts`}` : ""}`, icon: "delete" });
         onDeleted();
       },
       (e: unknown) => failed(e, "Couldn’t delete it."),
@@ -272,8 +265,8 @@ function Item({ id, size, nav, tab, onTab, third, onThird, pair, onPair, fresh, 
       label: `Delete ${noun}…`,
       icon: "delete",
       tone: "danger",
-      onSelect: () => void deleteIt(),
-      detail: `Deletes the ${noun} and its versions. The facts it gave your record stay, for you to keep or reject.`,
+      onSelect: () => setDeleting(true),
+      detail: `Deletes this ${noun} with its versions and notes. You choose whether what came from it goes too. Facts another story also tells stay.`,
       note: "Free · Asks first · can’t be undone",
     },
   ];
@@ -329,7 +322,7 @@ function Item({ id, size, nav, tab, onTab, third, onThird, pair, onPair, fresh, 
             { id: "story-reject", group: story.title, label: `Reject ${story.title}`, icon: "reject" as const, onSelect: () => rejectIt() },
             { id: "story-reject-note", group: story.title, label: `Reject ${story.title} with a note…`, icon: "reject" as const, onSelect: () => setRejecting(true) },
           ]),
-      { id: "story-delete", group: story.title, label: `Delete ${noun}…`, icon: "delete", onSelect: () => void deleteIt() },
+      { id: "story-delete", group: story.title, label: `Delete ${noun}…`, icon: "delete", onSelect: () => setDeleting(true) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [story, canRead, againReason, dirty, draft, third, canTalk, listening, versionsOpen],
@@ -619,6 +612,7 @@ function Item({ id, size, nav, tab, onTab, third, onThird, pair, onPair, fresh, 
           (e: unknown) => failed(e, "Couldn’t start reading."),
         )
       } />
+      <DeleteStory open={deleting} onOpenChange={setDeleting} id={id} title={story.title} noun={noun} small={small} onDelete={deleteIt} />
     </div>
   );
 }
@@ -746,6 +740,111 @@ function ReadAgain({ open, onOpenChange, title, version, cost, onRead }: { open:
         {(props) => <Textarea {...props} rows={2} value={lookFor} onChange={(e) => setLookFor(e.target.value)} placeholder="The plant move, the safety award" />}
       </Field>
       <Checkbox label="Including what I rejected" description="Looks past what you rejected from it, for this read only." checked={including} onChange={setIncluding} />
+    </Dialog>
+  );
+}
+
+type Counts = { facts: number; roles: number; insights: number; questions: number };
+// "2 approved facts and 1 question" (`first` before the first noun); empty when there's nothing.
+function things(c: Counts, first = "") {
+  const parts = (
+    [
+      [c.facts, "fact"],
+      [c.roles, "role"],
+      [c.insights, "insight"],
+      [c.questions, "question"],
+    ] as const
+  )
+    .filter(([n]) => n > 0)
+    .map(([n, noun], k) => `${n} ${k === 0 ? first : ""}${noun}${n === 1 ? "" : "s"}`);
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : (parts[0] ?? "");
+}
+
+// Delete story…: what goes with it (its versions and notes), and whether what only it backs goes too: what's waiting for
+// review (ticked) and approved facts (unticked, they stay marked for keep or reject). What another story or a project
+// also backs stays either way; what it alone backs that they rejected goes either way. Can't be undone, so the safe
+// choice comes first and has focus. On a phone, the Sheet.
+function DeleteStory({ open, onOpenChange, id, title, noun, small, onDelete }: { open: boolean; onOpenChange: (o: boolean) => void; id: Id<"narratives">; title: string; noun: string; small: boolean; onDelete: (choice: { unreviewed: boolean; approved: boolean }) => void }) {
+  const r = useQuery(api.narratives.removal, open ? { id } : "skip");
+  const [unreviewed, setUnreviewed] = useState(true);
+  const [approved, setApproved] = useState(false);
+  const keep = useRef<HTMLButtonElement>(null);
+  const close = (o: boolean) => {
+    onOpenChange(o);
+    if (!o) {
+      setUnreviewed(true);
+      setApproved(false);
+    }
+  };
+  const waiting = r ? things(r.unreviewed) : "";
+  const kept = r ? things(r.approved, "approved ") : "";
+  const goes = r && [r.versions === 1 ? "Its one version" : `Its ${r.versions} versions`, r.notes ? (r.notes === 1 ? "1 note" : `${r.notes} notes`) : ""].filter(Boolean).join(" and ");
+  const stays = r && [r.stays.roles.length === 1 ? `The ${r.stays.roles[0]} role` : r.stays.roles.length ? `${r.stays.roles.length} roles` : "", r.stays.facts ? (r.stays.facts === 1 ? "1 fact" : `${r.stays.facts} facts`) : ""].filter(Boolean);
+  const one = r && r.stays.roles.length + r.stays.facts === 1;
+  const why = r && (r.stays.by.length === 1 && !r.stays.project ? `your ${r.stays.by[0]} tells ${one ? "it" : "them"} too` : !r.stays.by.length ? `a project backs ${one ? "it" : "them"} too` : `other stories or a project back ${one ? "it" : "them"} too`);
+  const buttons = (
+    <>
+      {small ? (
+        <Button ref={keep} size="lg" className="flex-1" detail={`Keeps the ${noun} and everything that came from it.`} note="Free" onClick={() => close(false)}>
+          Keep {noun}
+        </Button>
+      ) : (
+        <Button ref={keep} onClick={() => close(false)}>
+          Cancel
+        </Button>
+      )}
+      <Button
+        variant="destructive"
+        size={small ? "lg" : undefined}
+        className={small ? "flex-1" : undefined}
+        disabled={!r}
+        detail={`Deletes this ${noun} with its versions and notes, and what you ticked. Facts another story also tells stay.`}
+        note="Free · Can’t be undone"
+        onClick={() => {
+          onDelete({ unreviewed: unreviewed && !!waiting, approved: approved && !!kept });
+          close(false);
+        }}
+      >
+        Delete {noun}
+      </Button>
+    </>
+  );
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={close}
+      title={`Delete the ${title} ${noun}?`}
+      onOpenAutoFocus={(e) => {
+        e.preventDefault();
+        keep.current?.focus();
+      }}
+      footer={small ? <div className="flex gap-2">{buttons}</div> : buttons}
+    >
+      {r && (
+        <>
+          <p className="text-body-sm leading-body-sm text-muted">
+            {goes} {r.versions === 1 && !r.notes ? "goes" : "go"} with it.
+          </p>
+          {waiting && <Checkbox label={`Also delete the ${waiting} waiting for review`} description="Not reviewed yet, so no decision of yours is lost." checked={unreviewed} onChange={setUnreviewed} />}
+          {kept && (
+            <Checkbox
+              label={`Also delete ${kept}`}
+              description={`Unticked, they stay in your record, marked for you to keep or reject.${r.inResumes ? (r.inResumes === 1 ? " 1 is in a resume line." : ` ${r.inResumes} are in resume lines.`) : ""}`}
+              checked={approved}
+              onChange={setApproved}
+            />
+          )}
+          {stays && stays.length > 0 && (
+            <p className="flex gap-2 text-body-sm leading-body-sm text-muted">
+              <Icons.link aria-hidden size={16} className="mt-0.5 shrink-0" />
+              <span>
+                {stays.join(" and ")} {one ? "stays" : "stay"} either way: {why}.{r.rejected > 0 && " Rejected items from it go too."}
+              </span>
+            </p>
+          )}
+          {r.rejected > 0 && !(stays && stays.length > 0) && <p className="text-body-sm leading-body-sm text-muted">Rejected items from it go too.</p>}
+        </>
+      )}
     </Dialog>
   );
 }

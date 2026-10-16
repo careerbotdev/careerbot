@@ -185,6 +185,8 @@ export function limitsFixtures(): Answers {
     suggestDirections: null,
     lineCheck: null,
     lineUpdate: null,
+    findRelevant: null,
+    findHiringNow: null,
   };
   return {
     ...answer(api.goals.items, () => state),

@@ -86,7 +86,7 @@ export type SidebarProps = {
   counts?: Partial<Record<string, number>>;
   // Areas with something new since last looked, by key; the rail marks them with a steel square.
   fresh?: string[];
-  activity: { jobs: Job[]; spend?: Spend };
+  activity: { jobs: Job[]; spend?: Spend; onClearFinished?: () => void };
   user: { name: string };
   // The account row's menu (Profile, Sign out).
   account: MenuEntry[];
@@ -242,7 +242,7 @@ function Expanded({ current, counts = {}, activity, user, account, onSearch, onT
       </nav>
       <div className="flex shrink-0 flex-col gap-px border-t pt-2">
         <div data-tour="shell.activity" className="flex flex-col">
-          <Activity jobs={activity.jobs} spend={activity.spend} />
+          <Activity {...activity} />
         </div>
         <Link href={SETTINGS.href} aria-current={on === SETTINGS.href ? "page" : undefined} className={row(on === SETTINGS.href)}>
           <Icons.settings className={icon(on === SETTINGS.href)} />
@@ -338,7 +338,7 @@ function Rail({ current, counts = {}, fresh = [], activity, user, account, onSea
         </ul>
       </nav>
       <div data-tour="shell.activity" className="flex flex-col items-center">
-        <Activity jobs={activity.jobs} spend={activity.spend} look="rail" />
+        <Activity {...activity} look="rail" />
       </div>
       <div className="h-2 shrink-0" />
       <ul className="flex flex-col items-center gap-0.5">
@@ -441,7 +441,7 @@ export function MoreSheet({
           })}
           {divider}
           <li>
-            <Activity jobs={activity.jobs} spend={activity.spend} look="phone" />
+            <Activity {...activity} look="phone" />
           </li>
           <li>
             <Link href={SETTINGS.href} onClick={close} aria-current={on === SETTINGS.href ? "page" : undefined} className={row(on === SETTINGS.href)}>

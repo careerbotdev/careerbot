@@ -10,7 +10,9 @@ import { useSmall } from "./useSmall";
 // A dialog is rare: a destructive confirmation, or a short form with nowhere else to live. 440 wide, centred over the
 // backdrop, `surface` in light and `subtle` in dark; a title with a close button, the body, and the choices in a footer
 // under a rule. Esc, the close button or a click on the backdrop closes it. On phones a form dialog is the Sheet, its
-// footer the sheet's action.
+// footer the sheet's action. `wide`: 600 wide for a settings form of several sections (Search settings), with a
+// larger title, 24 at the sides, the footer's rule inset like the sections' rules, and its body a size container so a
+// setting row puts its control beside its title as on the Settings page.
 export function Dialog({
   open,
   onOpenChange,
@@ -19,6 +21,7 @@ export function Dialog({
   footer,
   onOpenAutoFocus,
   onCloseAutoFocus,
+  wide = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -28,6 +31,7 @@ export function Dialog({
   onOpenAutoFocus?: (e: Event) => void;
   // Where focus goes once it has closed, when what opened it is gone (call e.preventDefault() and focus it).
   onCloseAutoFocus?: (e: Event) => void;
+  wide?: boolean;
 }) {
   const small = useSmall();
   const [anchor, container] = useThemeRoot();
@@ -58,18 +62,18 @@ export function Dialog({
               })
             }
             onCloseAutoFocus={onCloseAutoFocus}
-            className="fixed inset-0 z-50 m-auto flex h-fit max-h-[calc(100%-64px)] w-110 max-w-[calc(100%-32px)] flex-col rounded-sm border bg-surface text-text shadow-overlay outline-none dark:bg-subtle transition-[opacity,scale] duration-160 ease-out starting:scale-98 starting:opacity-0 motion-reduce:starting:scale-100 data-[state=closed]:animate-[fadeOut_160ms_var(--ease-in)]"
+            className={`fixed inset-0 z-50 m-auto flex h-fit max-h-[calc(100%-64px)] ${wide ? "w-150" : "w-110"} max-w-[calc(100%-32px)] flex-col rounded-sm border bg-surface text-text shadow-overlay outline-none dark:bg-subtle transition-[opacity,scale] duration-160 ease-out starting:scale-98 starting:opacity-0 motion-reduce:starting:scale-100 data-[state=closed]:animate-[fadeOut_160ms_var(--ease-in)]`}
           >
-            <div className="flex items-start gap-3 px-5 pt-5">
-              <RadixDialog.Title className="flex-1 text-title-md leading-title-md font-semibold">{title}</RadixDialog.Title>
+            <div className={wide ? "flex items-center gap-2 px-6 pt-5 pb-3" : "flex items-start gap-3 px-5 pt-5"}>
+              <RadixDialog.Title className={wide ? "flex-1 text-title-lg leading-title-lg font-semibold tracking-title-lg" : "flex-1 text-title-md leading-title-md font-semibold"}>{title}</RadixDialog.Title>
               <RadixDialog.Close asChild>
-                <Button variant="ghost" size="sm" iconOnly icon="close" aria-label="Close" />
+                <Button variant="ghost" size={wide ? undefined : "sm"} iconOnly icon="close" aria-label="Close" />
               </RadixDialog.Close>
             </div>
-            <div ref={body} className="flex min-h-0 flex-col gap-3.5 overflow-y-auto px-5 pt-2 pb-5">
+            <div ref={body} className={wide ? "@container flex min-h-0 flex-col gap-3.5 overflow-y-auto px-6" : "flex min-h-0 flex-col gap-3.5 overflow-y-auto px-5 pt-2 pb-5"}>
               {children}
             </div>
-            <div className="flex shrink-0 justify-end gap-2 border-t px-5 py-3">{footer}</div>
+            <div className={wide ? "mx-6 flex shrink-0 justify-end gap-2 border-t pt-4 pb-5" : "flex shrink-0 justify-end gap-2 border-t px-5 py-3"}>{footer}</div>
           </RadixDialog.Content>
         </RadixDialog.Portal>
       </RadixDialog.Root>

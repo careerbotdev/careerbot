@@ -76,6 +76,8 @@ const TASKS: Record<string, string> = {
   "large companies": "Finding companies",
   "hiring now": "Finding companies hiring now",
   "lookalike companies": "Finding similar companies",
+  "relevant companies": "Finding companies that fit",
+  "companies hiring now": "Finding companies hiring now",
   "company summaries": "Summarizing companies",
   "company summaries (general knowledge)": "Summarizing companies",
   "company fit": "Screening companies",

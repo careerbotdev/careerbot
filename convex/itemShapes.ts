@@ -132,7 +132,7 @@ export const directionDetail = v.object({
   titleMap: v.array(v.object({ from: str, to: str })),
 });
 export const directionCriteria = v.object({
-  // Seed company websites for lookalike searches; when set, they replace the workspace's default seeds.
+  // Seed company websites for lookalike searches, added to the workspace's (Companies, Search settings).
   seeds: opt(strs),
   industries: strs,
   sizes: strs,

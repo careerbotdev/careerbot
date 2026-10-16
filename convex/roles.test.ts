@@ -13,6 +13,9 @@ import { seal } from "./secretBox";
 import { ensureWorkspace } from "./workspaces";
 
 const modules = import.meta.glob("./**/*.ts");
+// These run whole passes through convex-test (workers, scheduled steps, budgets): about a second each alone, but several
+// times that while the rest of the suite runs beside them, past vitest's 5 s default on an otherwise idle machine.
+vi.setConfig({ testTimeout: 30_000 });
 
 beforeEach(() => {
   process.env.MASTER_KEY_V1 = "66".repeat(32);
@@ -268,6 +271,21 @@ test("workers never hold the same role: descriptions first, sorting only once th
   const rows = new Map((await s.postings()).map((p) => [p._id, p]));
   expect(toJudge.map((id) => rows.get(id)!.fit![0].reason)).toEqual(toJudge.map((id) => (ids(w2).includes(id) ? "w2" : "w4")));
   expect(toJudge.every((id) => rows.get(id)!.queue === undefined && rows.get(id)!.claimedBy === undefined)).toBe(true);
+});
+
+test("a pass cancelled from Activity hands its workers nothing more, queues no next run and isn't marked done", async () => {
+  const s = await setup();
+  await queued(s, [{ title: "j", queue: "judge", sorted: true }]);
+  const since = Date.now();
+  const jobId = await s.t.run((ctx) => ctx.db.insert("jobs", { workspaceId: s.a.w, kind: "roles", args: { since }, status: "cancelled", tallied: true }));
+  expect(await s.t.mutation(internal.roles.claim, { workspaceId: s.a.w, since, worker: `${jobId}:0`, jobId })).toBeNull();
+  expect(await s.t.action(internal.roles.work, { workspaceId: s.a.w, since, worker: `${jobId}:0`, until: Date.now() + 1000, jobId })).toBe(0);
+  expect((await s.t.query(internal.roles.progress, { workspaceId: s.a.w, since, jobId })).stopped).toBe(true);
+  await s.t.mutation(internal.roles.next, { workspaceId: s.a.w, since, boards: true, after: jobId });
+  await s.t.mutation(internal.enrich.next, { workspaceId: s.a.w, after: jobId });
+  expect(await s.t.mutation(internal.roles.finish, { jobId, workspaceId: s.a.w, since, boards: true })).toBe(false);
+  const jobs = await s.t.run((ctx) => ctx.db.query("jobs").collect());
+  expect(jobs.map((j) => [j.kind, j.status])).toEqual([["roles", "cancelled"]]);
 });
 
 // Every save counts only for the worker holding the role, so a role two workers held at once would be saved twice here.

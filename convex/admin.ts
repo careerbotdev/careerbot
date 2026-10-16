@@ -200,7 +200,7 @@ export const readTrialProject = internalMutation({
   },
 });
 
-// Operator: set a workspace's default seed companies (websites).
+// Operator: set a workspace's seed companies for every direction (websites).
 export const setSeeds = internalMutation({
   args: { workspaceId: v.id("workspaces"), seeds: v.array(v.string()) },
   handler: async (ctx, { workspaceId, seeds }) => {

@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { type ActionCtx, httpAction, internalAction, internalMutation, internalQuery, type MutationCtx, query, type QueryCtx } from "./_generated/server";
 import { action, mutation } from "./functions";
+import { stopIfCancelled } from "./cancel";
 import { docxOf } from "./docxFiles";
 import { cleanName, type DocContent, type DriveNode, isFrozen, pastedKey, planNodes, ROOT, ROOT_NAME, type Step, stepFor, type TailoredInput } from "./drivePaths";
 import { syncSoon } from "./driveSoon";
@@ -361,7 +362,7 @@ const redirect = (to: string, cookie?: string) => new Response(null, { status: 3
 const clearCookie = `${COOKIE}=; Path=/google/drive; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
 // Back to where connecting began: Getting started's Google Drive step, or Settings.
 const back = (outcome: "connected" | "failed" | "denied", from?: "today") =>
-  from === "today" ? `${siteOf().web}/?step=drive&drive=${outcome}` : `${siteOf().web}/settings?section=drive&drive=${outcome}`;
+  from === "today" ? `${siteOf().web}/?step=drive&drive=${outcome}` : `${siteOf().web}/settings?section=connections&drive=${outcome}`;
 const callbackUrl = () => `${siteOf().convex}/google/drive/callback`;
 
 // GET /google/drive/connect?state=…: remember this browser (the callback must come back to it) and go to Google.
@@ -628,6 +629,8 @@ export async function runDriveSync(ctx: ActionCtx, job: Doc<"jobs">) {
       let step: Step = made.has(node.parent) ? "create" : stepFor(node, row);
       if (step === "skip" && full && row?.fileId && !(await call((t) => stillThere(t, row.fileId!)))) step = "create";
       if (step === "skip") continue;
+      // Cancelled from Activity: nothing more is written.
+      await stopIfCancelled(ctx, job._id);
       if (step === "mark" && row?.fileId) {
         await ctx.runMutation(internal.drive.saveFile, { ...base, fileId: row.fileId, ...doc });
         continue;

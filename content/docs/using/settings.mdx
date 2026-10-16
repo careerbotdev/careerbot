@@ -1,6 +1,6 @@
 ---
 title: Settings
-description: Your account, the AI model and budget, keys, company search, reminders, contact details, Google Drive and your data. Every change saves as you make it.
+description: Your account, the AI model, budgets, connections (keys, company search, Google Drive and GitHub), updates and your data. Every change saves as you make it.
 sources:
   - src/app/settings
   - src/app/tours/drive.ts
@@ -15,6 +15,8 @@ Settings is a list of sections, each with its current state under its name. The 
 ## Account
 
 Your name, how you signed in, and your workspace. **Sign out** signs you out on this device and clears anything you were writing here that isn't saved.
+
+**Contact details** are at the top of your base resume; every resume and letter uses them. **Edit in base resume** opens them there.
 
 On a copy you run yourself (self-hosted), Account also shows your **Username** and **Change password** (your other devices are signed out). The owner also sees **People**: everyone who can sign in to this copy, each with a workspace of their own.
 
@@ -43,36 +45,40 @@ See [Models and AI tasks](/docs/ai/models).
 - **Automated Apollo work**: **On**, **Only when I ask** or **Paused**. On lets CareerBot find companies, their details and job postings on its own, within the credits above.
 - **Open Reports** for spending by month, task and pursuit.
 
-## Keys
+## Connections
 
-**OpenRouter** (pays for every AI task; optional on careerbot.dev, where CareerBot's AI is included up to your allowance), **Apollo** (finds companies, their details and job postings; shows the credits left this cycle) and **Brave Search** (optional: finds a company's job board when its website doesn't link one). Keys show masked. **Add key** or **Replace** checks the key first; the old one keeps working until the new one is checked. **Remove key** asks first and stops that work until you add a key again.
+Three groups.
 
-## Companies
+### AI
 
-- **Industries you want**: **Steer**, **Only these** or **Ignore**.
-- **Check companies against your goals**: **Off**, **Rank** or **Hide**. **Check all again** checks every company again after you change your goals or directions, at the cost shown.
-- **Learn from your ratings**: targets seed searches, and companies you said Not for me aren't found again.
+**OpenRouter** key (pays for every AI task; optional on careerbot.dev, where CareerBot's AI is included up to your allowance).
+
+### Companies
+
+- **Finding companies**: Apollo, Apollo + AI or AI only.
+- **Apollo** key (optional: finds companies, their details, job postings and people; shows the credits left this cycle; without it, companies are found by a web search).
+- **Brave Search** key (optional: finds a company's job board when its website doesn't link one, and searches job boards for companies hiring now).
 - **Job postings from Apollo**: when a company has no public job board, ask Apollo for its postings (about 1 Apollo credit per company, while automated Apollo work is on).
 
-## Reminders
+Keys show masked. **Add key** or **Replace** checks the key first; the old one keeps working until the new one is checked. **Remove key** asks first and stops that work until you add a key again.
 
-Switch each reminder on or off: **Follow up when an application or outreach goes quiet** (after 7 and 14 days without a reply to an application; for outreach, a follow-up after 7 days, then the next contact), **Prepare before an interview** (the day before), and **Check on a pursuit that hasn’t moved** (after 3 weeks with no change). Reminders show on Today and in Pursuits.
+Which companies searches look for (seed companies, companies you'd name, industries, checking against your goals) is in Companies, ⋯ > **Search settings**. See [Companies](/docs/using/companies).
 
-## Contact and GitHub
+### Resumes and projects
 
-**Contact details** at the top of your base resume; every resume and letter uses them (**Edit in base resume**). GitHub shows whether it's connected; **Open Projects** to connect it and choose repositories.
-
-## Google Drive
-
-Keeps a Google Doc of each resume in a CareerBot folder in your Drive. CareerBot can only see the files it makes and the folder you choose.
+**Google Drive** keeps a Google Doc of each resume in a CareerBot folder in your Drive. CareerBot can only see the files it makes and the folder you choose.
 
 <Steps>
 <Step title="Connect">**Connect Google Drive** opens Google to give access. You come back here once it's done.</Step>
-<Step title="Check the folder">**CareerBot folder** shows where your Docs live. **Open folder** shows it in Drive; **Choose a folder** moves it, with everything in it.</Step>
 <Step title="Sync">**Sync now** writes what changed and makes again any file deleted in Drive. After a failure it reads **Try again**.</Step>
+<Step title="Check the folder">In ⋯, **Open folder** shows it in Drive; **Choose a folder** moves it, with everything in it.</Step>
 </Steps>
 
-**Disconnect** asks first, stops syncing and ends access; your folder and its Docs stay in Drive.
+⋯ > **Disconnect** asks first, stops syncing and ends access; your folder and its Docs stay in Drive.
+
+**GitHub** shows whether it's connected; **Open Projects** to connect it and choose repositories.
+
+Reminders are in Pursuits, ⋯ > **Reminders**. See [Pursuits](/docs/using/pursuits).
 
 ## Updates
 
@@ -93,6 +99,15 @@ off too. The [changelog](/changelog) has every release; after an update, a note 
 **Import** brings such a ZIP into an empty workspace. Keys, connections and your password stay behind.
 **Delete account** deletes your account and everything in your workspace, once you've typed its name. What's in an
 export, how importing works, and what deleting takes: [Your data](/docs/using/your-data).
+
+## Old addresses
+
+Links to sections that moved still work:
+
+- `/settings?section=keys` and `/settings?section=drive` open Settings, Connections.
+- `/settings?section=companies` opens Companies with Search settings open.
+- `/settings?section=reminders` opens Pursuits.
+- `/settings?section=contact` opens Settings, Account.
 
 ## Related
 

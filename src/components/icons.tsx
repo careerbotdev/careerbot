@@ -27,6 +27,7 @@ import {
   CircleCheck,
   CircleHelp,
   CirclePause,
+  CircleStop,
   Clock,
   Coins,
   Command,
@@ -144,6 +145,7 @@ export const Icons = {
   running: LoaderCircle,
   done: CircleCheck,
   failed: CircleAlert,
+  cancelled: CircleStop,
   tryAgain: RefreshCw,
   // A newer version of CareerBot is out (a self-hosted copy's owner, on Today).
   update: CircleArrowUp,

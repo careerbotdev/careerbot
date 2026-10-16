@@ -10,10 +10,12 @@ import { useSmall } from "./useSmall";
 // outside closes it), the Sheet on phones. `title` names it for screen readers and heads the sheet; `showTitle` also
 // shows it on the panel. The panel has 4px inside, so a list or a field fits edge to edge; a panel with a shown title
 // lays its content out in 8px with 12px between. Open and closed are yours to hold (`open`, `onOpenChange`) or its own.
+// `action` sits in the sheet's title row on phones; on the panel, the content carries its own.
 export function Popover({
   trigger,
   title,
   showTitle = false,
+  action,
   children,
   open,
   onOpenChange,
@@ -24,6 +26,7 @@ export function Popover({
   trigger: ReactElement<Record<string, unknown> & { onClick?: (e: MouseEvent) => void }>;
   title: string;
   showTitle?: boolean;
+  action?: ReactNode;
   children: ReactNode;
   open?: boolean;
   onOpenChange?: (o: boolean) => void;
@@ -52,7 +55,7 @@ export function Popover({
             setOpen(true);
           },
         })}
-        <Sheet open={isOpen} onOpenChange={setOpen} title={title}>
+        <Sheet open={isOpen} onOpenChange={setOpen} title={title} action={action}>
           {showTitle ? <div className="flex flex-col gap-3 px-2 pb-2">{children}</div> : children}
         </Sheet>
       </>

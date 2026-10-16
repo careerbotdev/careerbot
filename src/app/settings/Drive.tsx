@@ -5,22 +5,23 @@ import { ConvexError } from "convex/values";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "../../../convex/_generated/api";
-import { Button, buttonLook } from "@/components/Button";
-import { Icons } from "@/components/icons";
+import { Button } from "@/components/Button";
+import { Menu, type MenuEntry } from "@/components/Menu";
 import type { ScreenSize } from "@/components/Panes";
+import { Text } from "@/components/Text";
 import { toast, type Toast } from "@/components/Toast";
-import { Tooltip } from "@/components/Tooltip";
 import { DRIVE_EXPLAINER } from "../resumes/Drive";
 import { useConfirm } from "../shell/ShellContext";
 import { pickFolder } from "./drivePicker";
 import { DRIVE_TOUR } from "../tours/drive";
 import { useConnectionReturn } from "../shell/useConnectionReturn";
 import { useTour } from "../shell/useTour";
-import { monthDay, Rows, saved, SettingRow, SettingsPane } from "./ui";
+import { monthDay, saved, SettingRow } from "./ui";
 
-// Google Drive: connect (Google's own consent screen, for the files CareerBot makes and nothing else), then the
-// account, the CareerBot folder (open it; choose where it lives with Google's Picker once the Picker key is set up)
-// and how syncing went (Sync now, or Try again after a failure). Disconnect asks first; the files stay in Drive.
+// Google Drive, one row of Settings, Connections: connect (Google's own consent screen, for the files CareerBot makes
+// and nothing else); once connected, the account, where the CareerBot folder is and how syncing went, with Sync now
+// (Try again after a failure) and ⋯ Open folder, Choose a folder (Google's Picker, once its key is set up) and
+// Disconnect (asks first; the files stay in Drive).
 // Coming back from Google (?drive=connected|failed|denied) finishes connecting and says how it went, once (here, or on
 // Getting started's step).
 
@@ -46,7 +47,7 @@ export function Drive({ size }: { size: ScreenSize }) {
   const btn = small ? "lg" : "sm";
   useTour(DRIVE_TOUR, status !== undefined);
 
-  useConnectionReturn("drive", DRIVE_RETURNED, () => router.replace("/settings?section=drive", { scroll: false }));
+  useConnectionReturn("drive", DRIVE_RETURNED, () => router.replace("/settings?section=connections", { scroll: false }));
 
   const start = () => void connect({}).then((url) => window.location.assign(url), (e: unknown) => fail(e, "Couldn’t start connecting. Try again."));
   const connectButton = (again: boolean) => (
@@ -63,17 +64,13 @@ export function Drive({ size }: { size: ScreenSize }) {
     </Button>
   );
 
-  if (status === undefined) return <SettingsPane title="Google Drive" size={size}>{null}</SettingsPane>;
+  if (status === undefined) return <div className="h-24 border-t" />;
   const c = status.connected;
   if (!c)
     return (
-      <SettingsPane title="Google Drive" size={size}>
-        <Rows>
-          <div data-tour="drive.connect" className="flex flex-col">
-            <SettingRow title="Google Drive" line={DRIVE_EXPLAINER} control={connectButton(false)} />
-          </div>
-        </Rows>
-      </SettingsPane>
+      <div data-tour="drive.connect" className="flex flex-col">
+        <SettingRow title="Google Drive" line={DRIVE_EXPLAINER} control={connectButton(false)} />
+      </div>
     );
 
   const letGo = async () => {
@@ -106,66 +103,40 @@ export function Drive({ size }: { size: ScreenSize }) {
           ? `${c.files} ${c.files === 1 ? "Doc" : "Docs"}${c.syncedAt ? `, last synced ${time(c.syncedAt)}` : ""}`
           : "No Docs yet. Each resume, cover letter and set of answers is added once it’s written.";
 
+  const more: MenuEntry[] = [
+    ...(c.folderUrl ? [{ label: "Open folder", icon: "openElsewhere" as const, detail: "Opens your CareerBot folder in Google Drive.", note: "Free", onSelect: () => window.open(c.folderUrl!, "_blank", "noreferrer") }] : []),
+    ...(status.picker
+      ? [{ label: "Choose a folder", icon: "onward" as const, detail: "Opens Google’s folder picker to choose where the CareerBot folder lives. It moves there with everything in it.", note: "Free · Undo with U", disabled: choosing, reason: "Choosing", onSelect: () => void choose() }]
+      : []),
+    "separator",
+    { label: "Disconnect", icon: "link" as const, detail: "Stops syncing and ends CareerBot’s access to your Drive. Your CareerBot folder and its Docs stay in Drive.", note: "Free · Asks first · Connect again any time", onSelect: () => void letGo() },
+  ];
+
   return (
-    <SettingsPane title="Google Drive" size={size}>
-      <Rows>
-        <div data-tour="drive.account" className="flex flex-col">
-        <SettingRow
-          title="Account"
-          line={`Connected as ${c.account || "your Google account"}`}
-          control={
-            <Button size={btn} variant="ghost" detail="Stops syncing and ends CareerBot’s access to your Drive. Your CareerBot folder and its Docs stay in Drive." note="Free · Asks first · Connect again any time" onClick={() => void letGo()}>
-              Disconnect
-            </Button>
-          }
-        />
-        </div>
-        <div data-tour="drive.folder" className="flex flex-col">
-        <SettingRow
-          title="CareerBot folder"
-          line={c.folderUrl ? `In ${c.place}` : "Made at the first sync"}
-          control={
-            <>
-              {c.folderUrl && (
-                <Tooltip content="Open folder" detail="Opens your CareerBot folder in Google Drive." note="Free">
-                  <a href={c.folderUrl} target="_blank" rel="noreferrer" className={buttonLook("secondary", "", btn)}>
-                    <Icons.openElsewhere aria-hidden="true" />
-                    Open folder
-                  </a>
-                </Tooltip>
-              )}
-              {status.picker && (
-                <Button
-                  size={btn}
-                  loading={choosing}
-                  loadingLabel="Choosing"
-                  detail="Opens Google’s folder picker to choose where the CareerBot folder lives. It moves there with everything in it."
-                  note="Free · Undo with U"
-                  onClick={() => void choose()}
-                >
-                  Choose a folder
-                </Button>
-              )}
-            </>
-          }
-        />
-        </div>
-        <div data-tour="drive.sync" className="flex flex-col">
-        <SettingRow
-          title="Sync"
-          line={syncLine}
-          control={
-            c.broken ? (
+    <div data-tour="drive.row" className="flex flex-col">
+      <SettingRow
+        title="Google Drive"
+        line={DRIVE_EXPLAINER}
+        control={
+          <>
+            {c.broken ? (
               connectButton(true)
             ) : (
               <Button size={btn} icon="tryAgain" loading={c.syncing} loadingLabel="Syncing" detail="Syncs your CareerBot folder now: what changed is written, and files deleted in Drive are made again." note="Free" onClick={sync}>
                 {c.failed ? "Try again" : "Sync now"}
               </Button>
-            )
-          }
-        />
-        </div>
-      </Rows>
-    </SettingsPane>
+            )}
+            <Menu label="More for Google Drive" title="Google Drive" items={more} trigger={<Button size={btn} variant="ghost" iconOnly icon="more" aria-label="More for Google Drive" />} />
+          </>
+        }
+      >
+        <Text size="sm" className="break-words">
+          Connected as {c.account || "your Google account"} · {c.folderUrl ? `folder in ${c.place}` : "folder made at the first sync"}
+        </Text>
+        <Text size="sm" muted>
+          {syncLine}
+        </Text>
+      </SettingRow>
+    </div>
   );
 }

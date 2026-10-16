@@ -113,7 +113,7 @@ export function DirectionForm({ d, onDone }: { d: Direction; onDone: () => void 
 }
 
 // What search looks for: titles and keywords as typed, industries, sizes and stages from the shared lists, and their
-// own seed companies (websites, one per line; empty uses their defaults).
+// own seed companies (websites, one per line), added to the ones in Search settings.
 export function CriteriaForm({ d, onDone }: { d: Direction; onDone: () => void }) {
   const edit = useMutation(api.directions.editCriteria);
   const c = d.data.criteria;
@@ -140,7 +140,7 @@ export function CriteriaForm({ d, onDone }: { d: Direction; onDone: () => void }
       </div>
       <MultiSelect label="Keywords" custom value={keywords} onChange={setKeywords} options={options(c?.keywords ?? [])} empty="None" />
       <Field label="Own seed companies">
-        {(p) => <Textarea rows={2} value={seeds} placeholder="Websites, one per line. Empty uses your defaults." onChange={(e) => setSeeds(e.target.value)} {...p} />}
+        {(p) => <Textarea rows={2} value={seeds} placeholder="Websites, one per line. Adds to the ones in Search settings." onChange={(e) => setSeeds(e.target.value)} {...p} />}
       </Field>
     </Form>
   );

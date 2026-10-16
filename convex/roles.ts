@@ -8,6 +8,7 @@ import { modelFor } from "./aiSettings";
 import { BOARD_PROVIDERS } from "./boardProviders";
 import { Boilerplate } from "./boilerplate";
 import { aiRunning, BUDGET_REACHED, type BudgetReached, HELD_BY_RUNNING } from "./budgets";
+import { refuseCancelled, stopIfCancelled, wasCancelled } from "./cancel";
 import { HELD_BY_PLATFORM } from "./plan";
 import { learns } from "./discovery";
 import { type Board, interleave, type Read, readBoard, readDescription, setSearchTitles } from "./boards";
@@ -117,6 +118,10 @@ async function isStopped(ctx: QueryCtx, workspaceId: Id<"workspaces">, since: nu
   const row = await settingsOf(ctx, workspaceId);
   return !!row?.rolesStoppedAt && row.rolesStoppedAt >= since;
 }
+
+// A pass's workers are named `<its job>:<n>` (runRoles). What one saves after that job was cancelled from Activity is
+// dropped: the step it was on is paid, not kept (cancel.ts).
+const refuseCancelledWorker = (ctx: QueryCtx, worker: string) => refuseCancelled(ctx, ctx.db.normalizeId("jobs", worker.split(":")[0]));
 
 type Row = Omit<Doc<"roleRanks">, "_id" | "_creationTime">;
 const ROW_KEYS = ["directionId", "best", "companyRating", "state", "meetsPreferences", "level", "score", "rating", "payMin", "setup", "seniority", "employmentType", "yearsAsked", "travel", "clearance", "visa", "places", "countries", "postedAt", "newest", "at"] as const;
@@ -345,12 +350,14 @@ async function freeIn(ctx: QueryCtx, workspaceId: Id<"workspaces">, step: Step, 
 
 // A worker takes a few roles nobody holds: descriptions first; sorting once every description is in (so what a
 // company repeats is counted across all its roles); then judging. Once the budget refused an AI call in this pass in a
-// way waiting on running calls won't change (release's `budget`), only descriptions are handed out. Null: stopped, or
-// nothing left it may take. wait: the rest is held by other workers (or waits on their descriptions).
+// way waiting on running calls won't change (release's `budget`), only descriptions are handed out. Null: stopped (or
+// its job cancelled from Activity), or nothing left it may take. wait: the rest is held by other workers (or waits on
+// their descriptions).
 export const claim = internalMutation({
-  args: { workspaceId: v.id("workspaces"), since: v.number(), worker: v.string() },
-  handler: async (ctx, { workspaceId, since, worker }): Promise<{ step: Step; ids: Id<"postings">[] } | { wait: true } | null> => {
+  args: { workspaceId: v.id("workspaces"), since: v.number(), worker: v.string(), jobId: v.optional(v.id("jobs")) },
+  handler: async (ctx, { workspaceId, since, worker, jobId }): Promise<{ step: Step; ids: Id<"postings">[] } | { wait: true } | null> => {
     if (await isStopped(ctx, workspaceId, since)) return null;
+    if (jobId && (await ctx.db.get(jobId))?.status === "cancelled") return null;
     const refused = (await settingsOf(ctx, workspaceId))?.rolesBudget?.since === since;
     const now = Date.now();
     let textLeft = false;
@@ -416,12 +423,12 @@ export const release = internalMutation({
   },
 });
 
-// Whether each step has roles left, whether the pass was stopped, why the AI budget refused a call in it (refused) and
-// whether an AI call is still running then, and problems that weren't about any one role. Reads only the first role of
-// each step, however many are queued.
+// Whether each step has roles left, whether the pass was stopped (or its job cancelled), why the AI budget refused a
+// call in it (refused) and whether an AI call is still running then, and problems that weren't about any one role.
+// Reads only the first role of each step, however many are queued.
 export const progress = internalQuery({
-  args: { workspaceId: v.id("workspaces"), since: v.number() },
-  handler: async (ctx, { workspaceId, since }) => {
+  args: { workspaceId: v.id("workspaces"), since: v.number(), jobId: v.optional(v.id("jobs")) },
+  handler: async (ctx, { workspaceId, since, jobId }) => {
     const left: Record<Step, boolean> = { text: false, sort: false, judge: false };
     for (const step of STEPS) left[step] = !!(await inQueue(ctx, workspaceId, step).first());
     const settings = await settingsOf(ctx, workspaceId);
@@ -429,7 +436,7 @@ export const progress = internalQuery({
     const refused = settings?.rolesBudget?.since === since ? settings.rolesBudget.message : null;
     return {
       ...left,
-      stopped: await isStopped(ctx, workspaceId, since),
+      stopped: (await isStopped(ctx, workspaceId, since)) || (!!jobId && (await ctx.db.get(jobId))?.status === "cancelled"),
       refused,
       running: refused ? await aiRunning(ctx, workspaceId) : false,
       problems: problems && problems.since === since ? { count: problems.count, error: problems.error } : null,
@@ -565,6 +572,7 @@ export const saveTexts = internalMutation({
     at: v.number(),
   },
   handler: async (ctx, { workspaceId, worker, texts, at }) => {
+    await refuseCancelledWorker(ctx, worker);
     const rank = await ranker(ctx, workspaceId);
     const { approved } = rank;
     for (const { id, text, postedAt, facts } of texts) {
@@ -662,6 +670,7 @@ export const saveSort = internalMutation({
     results: v.array(v.object({ id: v.id("postings"), against: v.array(v.id("items")), directionIds: v.array(v.id("items")) })),
   },
   handler: async (ctx, { workspaceId, worker, method, directions, results }) => {
+    await refuseCancelledWorker(ctx, worker);
     const rank = await ranker(ctx, workspaceId);
     const { approved } = rank;
     const changed = new Map(directions.map((d) => [String(d.id), d.changedAt]));
@@ -819,6 +828,7 @@ export const saveFit = internalMutation({
     ),
   },
   handler: async (ctx, { workspaceId, worker, rubric: judgedBy, directions, results }) => {
+    await refuseCancelledWorker(ctx, worker);
     const rank = await ranker(ctx, workspaceId);
     const { approved } = rank;
     const changed = new Map(directions.map((d) => [String(d.id), d.changedAt]));
@@ -1110,7 +1120,7 @@ export const work = internalAction({
     while (Date.now() < until) {
       let got;
       try {
-        got = await ctx.runMutation(internal.roles.claim, { workspaceId: ws, since, worker });
+        got = await ctx.runMutation(internal.roles.claim, { workspaceId: ws, since, worker, jobId });
       } catch (e) {
         if (!conflicted(e)) throw e;
         await sleep(Math.random() * WAIT_MS);
@@ -1137,6 +1147,11 @@ export const work = internalAction({
           done += left.length - caught.left.length;
           left = caught.left;
         }
+        // Its job was cancelled from Activity: what this worker holds is let go, and it stops.
+        if (wasCancelled(e)) {
+          await release(left);
+          break;
+        }
         if (budgetStop(e)) {
           await refusedBy(left, e);
           continue;
@@ -1155,6 +1170,10 @@ export const work = internalAction({
       const failed = alone.flatMap((r, i) => (r.status === "rejected" ? [{ id: left[i], e: r.reason as unknown }] : []));
       await release(alone.flatMap((r) => (r.status === "fulfilled" ? r.value : [])));
       done += alone.length - failed.length;
+      if (failed.some((f) => wasCancelled(f.e))) {
+        await release(failed.map((f) => f.id));
+        break;
+      }
       const refused = failed.find((f) => budgetStop(f.e));
       if (refused) {
         await refusedBy(failed.map((f) => f.id), refused.e);
@@ -1175,15 +1194,23 @@ async function queueRun(ctx: MutationCtx, { workspaceId, since, boards, only, or
   await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId });
 }
 
-export const next = internalMutation({ args: runArgs, handler: queueRun });
+// The next run, after the run `after`; none when that one was cancelled from Activity.
+export const next = internalMutation({
+  args: { ...runArgs, after: v.id("jobs") },
+  handler: async (ctx, { after, ...run }) => {
+    if ((await ctx.db.get(after))?.status !== "cancelled") await queueRun(ctx, run);
+  },
+});
 
 // The end of a pass whose work is done. A company someone asked to check again after the pass read the boards gets
 // another run of this pass that reads it (same start, so only the boards asked for are read again). Otherwise the pass
 // is done here, in the same write that looked, so a request from here on starts a new pass; one already made for a
-// company outside a pass for some companies starts it now. Returns whether the pass goes on.
+// company outside a pass for some companies starts it now. Returns whether the pass goes on. A run cancelled from
+// Activity ends here, as cancelled.
 export const finish = internalMutation({
   args: { jobId: v.id("jobs"), ...runArgs },
   handler: async (ctx, { jobId, ...run }) => {
+    if ((await ctx.db.get(jobId))?.status === "cancelled") return false;
     if ((await boardsToRead(ctx, run.workspaceId, run.since, false, run.only)).left.length) {
       await queueRun(ctx, run);
       return true;
@@ -1709,8 +1736,11 @@ export async function runRoles(ctx: ActionCtx, job: Doc<"jobs">) {
     setSearchTitles(titles);
     const apolloJobs = useApollo ? apolloJobsFor(ctx, ws) : null;
     let read = 0;
-    for (let i = 0; i < batch.length; i += 5) read += (await Promise.all(batch.slice(i, i + 5).map((c) => readCompany(ctx, ws, c, apolloJobs)))).filter(Boolean).length;
-    await ctx.runMutation(internal.roles.next, { ...scope, boards, origin: job.origin });
+    for (let i = 0; i < batch.length; i += 5) {
+      await stopIfCancelled(ctx, job._id);
+      read += (await Promise.all(batch.slice(i, i + 5).map((c) => readCompany(ctx, ws, c, apolloJobs)))).filter(Boolean).length;
+    }
+    await ctx.runMutation(internal.roles.next, { ...scope, boards, origin: job.origin, after: job._id });
     return { companies: batch.length, read, companiesLeft: remaining - batch.length };
   }
   // Boards read: descriptions, sorting and judging go to the workers.
@@ -1729,7 +1759,7 @@ export async function runRoles(ctx: ActionCtx, job: Doc<"jobs">) {
   for (let i = 0; i < WORKERS; i++) await ctx.scheduler.runAfter(i * STAGGER_MS, internal.roles.work, { workspaceId: ws, since, worker: `${job._id}:${i}`, until: started + WORK_MS, jobId: job._id, origin: job.origin });
   while (Date.now() < started + WORK_MS) {
     await sleep(POLL_MS);
-    const left = await ctx.runQuery(internal.roles.progress, { workspaceId: ws, since });
+    const left = await ctx.runQuery(internal.roles.progress, { workspaceId: ws, since, jobId: job._id });
     if (left.stopped) return { stopped: true };
     if (!left.text && !left.sort && !left.judge) return end(ctx, job, scope, boards);
     // The budget refused an AI call: once the descriptions are in and no AI call is still running (what those cost is
@@ -1742,8 +1772,8 @@ export async function runRoles(ctx: ActionCtx, job: Doc<"jobs">) {
     }
   }
   // Time's up for this run and its workers; the next run starts fresh ones for what's left.
-  await ctx.runMutation(internal.roles.next, { ...scope, boards, origin: job.origin });
-  return { handedOver: true, ...(await ctx.runQuery(internal.roles.progress, { workspaceId: ws, since })) };
+  await ctx.runMutation(internal.roles.next, { ...scope, boards, origin: job.origin, after: job._id });
+  return { handedOver: true, ...(await ctx.runQuery(internal.roles.progress, { workspaceId: ws, since, jobId: job._id })) };
 }
 
 // A pass's work is done: what it did, unless a board someone asked to check meanwhile needs another run first.

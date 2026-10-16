@@ -9,7 +9,7 @@ sources:
   - convex/crons.ts
   - src/app/companies/Company.tsx
   - src/app/companies/Companies.tsx
-  - src/app/settings/Companies.tsx
+  - src/app/settings/Connections.tsx
 ---
 
 CareerBot reads roles straight from each company's own public job board, the same page you'd apply on. It needs no login and no account with the board.
@@ -50,7 +50,7 @@ When CareerBot fills in a company's details, it looks for the board in this orde
 2. A link on the company's website, or on its careers or jobs page. Some sites turn away automated visits; then the public page is read through a reader service, which is sent only the company's public address.
 3. Brave Search, if you've added a Brave Search key: a search for the company's careers page, counting only results that name the company or its website. See [Brave Search](/docs/integrations/brave).
 4. The usual board names, tried on Greenhouse, Ashby and Lever. A guessed board is kept only if it links back to the company's own website, so it can't be another company's.
-5. Apollo's job postings, as a last resort, only if you turned on **Job postings from Apollo** in Settings, **Companies** and automated Apollo work is on. About 1 Apollo credit per company. See [Apollo](/docs/integrations/apollo).
+5. Apollo's job postings, as a last resort, only if you turned on **Job postings from Apollo** in Settings, **Connections** and automated Apollo work is on. About 1 Apollo credit per company. See [Apollo](/docs/integrations/apollo).
 
 ## When roles are read
 

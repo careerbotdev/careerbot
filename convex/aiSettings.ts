@@ -181,6 +181,10 @@ export const RECOMMENDED: { id: string; description: string }[] = [
   { id: "anthropic/claude-sonnet-5.5", description: "The strongest writer here, for resumes, letters and outreach. Costs several times more." },
 ];
 
+// The model the web search for companies asks (webDiscovery.ts): it searches the web as it answers. CareerBot's own
+// choice for that one step, not a setting, so it's allowed on CareerBot's key too.
+export const WEB_SEARCH_MODEL = "perplexity/sonar-pro";
+
 const USAGE_DAYS = 30;
 const USAGE_PAGE = 2000;
 

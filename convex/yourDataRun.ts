@@ -13,6 +13,7 @@ import { fileName, readableFiles } from "./readableExport";
 import { toMarkdown } from "./resumeDoc";
 import { VERSION } from "./version";
 import { CARRIED, carried, copyRows, type Done, type Known, linksIn, namedIds, type Row, thisSchema } from "./workspaceCopy";
+import { SPENDING } from "./yourData";
 
 // The background half of Settings, Your data (yourData.ts): making an export's ZIP, checking a chosen file, and putting
 // one in. Node, for the memory a whole workspace's ZIP takes. None of it calls AI, Apollo or email.
@@ -220,12 +221,18 @@ export const checkImport = internalAction({
     const row = await ctx.runQuery(internal.yourData.importRow, { importId });
     if (row?.status !== "checking" || (!row.fileId && !row.chunks?.length)) return;
     try {
-      // Uploaded in pieces: joined into one file first.
+      // Uploaded in pieces: joined into one file first. A file that came in one piece is that piece, kept as it is.
       let fileId = row.fileId;
       if (!fileId) {
-        const blobs = await Promise.all(row.chunks!.map((id) => ctx.storage.get(id)));
-        if (blobs.some((b) => !b)) throw new Refusal("The upload was interrupted. Choose the file again.");
-        fileId = await ctx.storage.store(new Blob(blobs as Blob[], { type: "application/zip" }));
+        const chunks = row.chunks!;
+        if (chunks.length === 1) {
+          if (!(await ctx.storage.get(chunks[0]))) throw new Refusal("The upload was interrupted. Choose the file again.");
+          fileId = chunks[0];
+        } else {
+          const blobs = await Promise.all(chunks.map((id) => ctx.storage.get(id)));
+          if (blobs.some((b) => !b)) throw new Refusal("The upload was interrupted. Choose the file again.");
+          fileId = await ctx.storage.store(new Blob(blobs as Blob[], { type: "application/zip" }));
+        }
         await ctx.runMutation(internal.yourData.joined, { importId, fileId });
       }
       const { zip, file, from } = await openFile(ctx, fileId);
@@ -260,9 +267,11 @@ export const runImport = internalAction({
         if (p.done) break;
         cursor = p.cursor;
       }
-      if (!done.size) await ctx.runMutation(internal.yourData.clearSettings, { importId, tables: Object.keys(file.tables) });
+      const keepSpending = done.size ? !!row.keepSpending : await ctx.runMutation(internal.yourData.clearSettings, { importId, tables: Object.keys(file.tables) });
 
+      // A workspace that already has spending keeps it: the file's spending stays out.
       const plan = planOf(file, await namedHere(ctx, file));
+      if (keepSpending) for (const table of SPENDING) delete plan.tables[table];
       const known: Known = { map: new Map([[file.workspace._id, String(row.workspaceId)]]), pending: new Set(), outside: new Set() };
 
       let files = 0;

@@ -8,26 +8,42 @@ const meta = { title: "Patterns/Activity", component: Activity } satisfies Meta<
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const noop = () => {};
 const jobs: Job[] = [
-  { id: "rank", label: "Ranking 38 new roles", state: "running", progress: 24 / 38, detail: "24 of 38", brief: "Ranking 24 of 38" },
-  { id: "resume", label: "Writing your Solutions Consulting resume", state: "running", progress: 0.3, detail: "About a minute" },
-  { id: "kestrel", label: "Couldn’t read Kestrel Freight’s job board", state: "failed", detail: "The page didn’t load.", onRetry: () => {} },
-  { id: "story", label: "Read your Ironbridge story", state: "done", detail: "5 facts to review", time: "8:52" },
-  { id: "companies", label: "Found 12 companies for Supply Chain Product", state: "done", time: "8:14" },
+  { id: "find", label: "Finding companies", state: "running", detail: "3 steps done", time: "10:31", onCancel: noop },
+  { id: "resume", label: "Writing your Sales Engineering resume", state: "running", time: "10:42", onCancel: noop },
+  { id: "roles", label: "Checking roles", state: "running", detail: "Waiting to start", time: "10:44", waiting: true, onCancel: noop },
+  { id: "letter", label: "Couldn’t write a cover letter for Vercel", state: "failed", detail: "This kept getting interrupted. Try again.", time: "9:58", onRetry: noop, onClear: noop },
+  { id: "story", label: "Read your Side story", state: "done", time: "8:52", onClear: noop },
+  { id: "companies", label: "Found companies", state: "done", time: "8:14", onClear: noop },
 ];
-const spend = { period: "September", lines: ["AI $4.12 of $25", "Apollo 312 of 500"] };
+// After Cancel on Finding companies: it moves down with the failed work, with how many steps it finished.
+const cancelled: Job[] = [
+  ...jobs.slice(1, 4),
+  { id: "find", label: "Finding companies", state: "cancelled", detail: "Cancelled after 3 steps", time: "10:31", onRetry: noop, onClear: noop },
+  ...jobs.slice(4),
+];
+const spend = { period: "October", lines: ["AI $4.12 of $25", "Apollo 312 of 500"] };
 
-// The indicator at the foot of the sidebar, opened: running work with its progress, what failed with Try again, and
-// what finished, with this month's spending underneath. The panel is drawn in place, as on the board, so light and dark
-// both show it; click the indicator for the real one, which opens upward (Esc or a click outside closes it).
+// The panel drawn in place, as on the board, so light and dark both show it.
+function Panel({ jobs }: { jobs: Job[] }) {
+  return (
+    <div className="w-[380px] rounded-sm border bg-surface p-1 text-text shadow-raised dark:bg-subtle">
+      <ActivityList jobs={jobs} spend={spend} onClearFinished={noop} />
+    </div>
+  );
+}
+
+// The indicator at the foot of the sidebar, opened: running work, what failed or was cancelled with Try again, and what
+// finished, with this month's spending underneath. Hovering running work shows Cancel in place of its time; hovering
+// finished work shows × (Clear); Clear finished is in the header. Click the indicator for the real panel, which opens
+// upward (Esc or a click outside closes it).
 export const IndicatorOpened: Story = {
   name: "Indicator, opened",
-  args: { jobs, spend },
+  args: { jobs, spend, onClearFinished: noop },
   render: (args) => (
     <div className="flex flex-col items-start gap-1.5">
-      <div className="w-[360px] rounded-sm border bg-surface p-1 text-text shadow-raised dark:bg-subtle">
-        <ActivityList jobs={args.jobs} spend={args.spend} />
-      </div>
+      <Panel jobs={args.jobs} />
       <div className="flex w-60 flex-col gap-px border bg-subtle p-2">
         <Activity {...args} />
         <Link href="/settings" className="flex h-[30px] items-center gap-2.5 rounded-sm px-2 text-body-sm leading-body-sm font-medium text-text hover:bg-hover">
@@ -37,6 +53,18 @@ export const IndicatorOpened: Story = {
       </div>
     </div>
   ),
+};
+
+// Cancelled work shows as finished: a grey stop, its name, how many steps it finished, and Try again.
+export const Cancelled: Story = {
+  args: { jobs: cancelled },
+  render: (args) => <Panel jobs={args.jobs} />,
+};
+
+// After Clear finished: only what's still running is left, and Clear finished is dimmed until something finishes.
+export const Cleared: Story = {
+  args: { jobs: jobs.slice(1, 3) },
+  render: (args) => <Panel jobs={args.jobs} />,
 };
 
 // With nothing running, the indicator names what needs a look, or just opens the recent list.

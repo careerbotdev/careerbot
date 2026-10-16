@@ -27,9 +27,9 @@ import { type YourDataState, yourDataFixtures } from "./yourDataFixtures";
 
 type SelfHosted = { oauth?: boolean; owner?: boolean; updates?: UpdateState };
 
-function Fixture({ query = "", drive = true, selfHosted, yourData, allowance }: { query?: string; drive?: boolean; selfHosted?: SelfHosted; yourData?: YourDataState; allowance?: { spentUsd: number } }) {
+function Fixture({ query = "", drive = true, fresh = false, selfHosted, yourData, allowance }: { query?: string; drive?: boolean; fresh?: boolean; selfHosted?: SelfHosted; yourData?: YourDataState; allowance?: { spentUsd: number } }) {
   const [answers] = useState(() => ({
-    ...settingsFixtures({ drive, allowance }),
+    ...settingsFixtures({ fresh, drive, allowance }),
     ...compareFixtures(),
     ...(selfHosted ? accountFixtures(selfHosted) : {}),
     ...(selfHosted?.updates ? updateFixtures(selfHosted.updates) : {}),
@@ -173,12 +173,14 @@ export const Budgets: Story = { name: "Budgets and spending", render: () => <Fix
 export const BudgetsAllowance: Story = { name: "Budgets, CareerBot's AI", render: () => <Fixture query="section=budgets" allowance={{ spentUsd: 3.12 }} /> };
 export const BudgetsAllowanceUsedUp: Story = { name: "Budgets, allowance used up", render: () => <Fixture query="section=budgets" allowance={{ spentUsd: 5 }} /> };
 export const BudgetsAllowanceUsedUpPhone: Story = { name: "Budgets, allowance used up, phone", globals: { viewport: { value: "mobile2" } }, render: () => <Fixture query="section=budgets" allowance={{ spentUsd: 5 }} /> };
-export const KeysAllowance: Story = { name: "Keys, CareerBot's AI", render: () => <Fixture query="section=keys" allowance={{ spentUsd: 3.12 }} /> };
-export const Keys: Story = { render: () => <Fixture query="section=keys" /> };
+export const ConnectionsAllowance: Story = { name: "Connections, CareerBot's AI", render: () => <Fixture query="section=connections" allowance={{ spentUsd: 3.12 }} /> };
+export const Connections: Story = { render: () => <Fixture query="section=connections" /> };
+export const ConnectionsPhone: Story = { name: "Connections, phone", globals: { viewport: { value: "mobile2" } }, render: () => <Fixture query="section=connections" /> };
+export const ConnectionsNoKeys: Story = { name: "Connections, no keys yet", render: () => <Fixture query="section=connections" fresh drive={false} /> };
 
-export const KeysReplacing: Story = {
-  name: "Keys, replacing",
-  render: () => <Fixture query="section=keys" />,
+export const ConnectionsReplacing: Story = {
+  name: "Connections, replacing a key",
+  render: () => <Fixture query="section=connections" />,
   play: async () => {
     const openRouter = within(await page().findByRole("region", { name: "OpenRouter" }));
     await userEvent.click(openRouter.getByRole("button", { name: "Replace" }));
@@ -186,26 +188,22 @@ export const KeysReplacing: Story = {
   },
 };
 
-export const KeysRemove: Story = {
-  name: "Keys, remove",
-  render: () => <Fixture query="section=keys" />,
+export const ConnectionsRemove: Story = {
+  name: "Connections, remove a key",
+  render: () => <Fixture query="section=connections" />,
   play: async () => {
     const apollo = within(await page().findByRole("region", { name: "Apollo" }));
     await userEvent.click(apollo.getByRole("button", { name: "Remove" }));
   },
 };
 
-export const Companies: Story = { render: () => <Fixture query="section=companies" /> };
-export const Reminders: Story = { render: () => <Fixture query="section=reminders" /> };
-export const Contact: Story = { name: "Contact and GitHub", render: () => <Fixture query="section=contact" /> };
-export const Drive: Story = { name: "Google Drive", render: () => <Fixture query="section=drive" /> };
-export const DriveNotConnected: Story = { name: "Google Drive, not connected", render: () => <Fixture query="section=drive" drive={false} /> };
+export const ConnectionsDriveNotConnected: Story = { name: "Connections, Google Drive not connected", render: () => <Fixture query="section=connections" drive={false} /> };
 
-export const DriveDisconnect: Story = {
-  name: "Google Drive, disconnect",
-  render: () => <Fixture query="section=drive" />,
+export const ConnectionsDriveMenu: Story = {
+  name: "Connections, Google Drive ⋯",
+  render: () => <Fixture query="section=connections" />,
   play: async () => {
-    await userEvent.click(await page().findByRole("button", { name: "Disconnect" }));
+    await userEvent.click(await page().findByRole("button", { name: "More for Google Drive" }));
   },
 };
 
@@ -232,6 +230,16 @@ export const YourDataTooLarge: Story = { name: "Your data, file too large", rend
 export const YourDataReadyPhone: Story = { name: "Your data, export, phone", globals: phone, render: () => yourData("ready") };
 export const YourDataPreviewPhone: Story = { name: "Your data, import preview, phone", globals: phone, render: () => yourData("preview") };
 export const YourDataImportingPhone: Story = { name: "Your data, importing, phone", globals: phone, render: () => yourData("importing") };
+
+// Reset account (the Reset account boards): the dialog with the name typed, the reset running, and just done.
+const askToReset = async () => {
+  await userEvent.click(await page().findByRole("button", { name: "Reset my account" }));
+  await userEvent.type(await page().findByLabelText("Type wren@example.com to confirm"), "wren@example.com");
+};
+export const YourDataReset: Story = { name: "Your data, reset account", render: () => yourData("ready"), play: askToReset };
+export const YourDataResetting: Story = { name: "Your data, resetting account", render: () => yourData("resetting") };
+export const YourDataResetDone: Story = { name: "Your data, reset account, done", render: () => yourData("reset") };
+export const YourDataResetPhone: Story = { name: "Your data, reset account, phone", globals: phone, render: () => yourData("ready"), play: askToReset };
 
 // Delete account (the Delete account boards): the dialog with the name typed, the deletion running and stopped partway,
 // and a self-hosted copy's owner held back while others use it.

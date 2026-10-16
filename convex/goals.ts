@@ -13,6 +13,7 @@ import { yearlyUsd } from "./roleDetails";
 import { counted, sourceCheck } from "./recordContext";
 import { fillWhenApproved } from "./directionFill";
 import { PLAIN_LANGUAGE } from "./writingGuides";
+import { refuseCancelled } from "./cancel";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
 
 // Reads the one goals narrative into directions they're drawn to and hard limits,
@@ -118,18 +119,19 @@ export const inputs = internalQuery({
 export const save = internalMutation({
   args: { workspaceId: v.id("workspaces"), runId: v.id("jobs"), narrativeId: v.id("narratives"), version: v.number(), out: v.any() },
   handler: async (ctx, { workspaceId, runId, narrativeId, version, out }) => {
+    await refuseCancelled(ctx, runId);
     // A retried run (after an interruption) that already saved its results saves nothing twice.
     if (await ctx.db.query("items").withIndex("by_run", (q) => q.eq("runId", runId)).first()) return { alreadySaved: true } as never;
     // Only a read of the narrative as it is now, by the latest-started read, saves. A read of an older version (the story
     // was edited while it ran) saves nothing, and neither does a run that finishes after a newer one started (queued,
-    // running or done; a failed newer run doesn't count), so an older read never replaces newer proposals.
+    // running or done; a failed or cancelled newer run doesn't count), so an older read never replaces newer proposals.
     const none = { directions: 0, limits: 0 };
     const narrative = await getInWorkspace(ctx, workspaceId, narrativeId);
     if (!narrative || narrative.version !== version) return none;
     const run = await ctx.db.get(runId);
     for await (const j of ctx.db.query("jobs").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).order("desc")) {
       if (j._creationTime <= (run?._creationTime ?? 0)) break;
-      if (j.kind === "goals" && j.status !== "failed") return none;
+      if (j.kind === "goals" && j.status !== "failed" && j.status !== "cancelled") return none;
     }
     const o = out as Out;
     // A new read replaces earlier unreviewed proposals; what they approved or edited stays.

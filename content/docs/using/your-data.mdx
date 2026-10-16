@@ -1,6 +1,6 @@
 ---
 title: Your data
-description: Export everything in your workspace as one ZIP, to keep or to bring into another copy of CareerBot, import such a ZIP into an empty workspace, and delete your account. What the file holds, what it leaves out, its limits, and what deleting takes.
+description: Export everything in your workspace as one ZIP, to keep or to bring into another copy of CareerBot, import such a ZIP into an empty workspace, reset your account to start over, and delete your account. What the file holds, what it leaves out, its limits, and what resetting and deleting take.
 sources:
   - src/app/settings/YourData.tsx
   - convex/yourData.ts
@@ -10,6 +10,7 @@ sources:
   - convex/readableExport.ts
   - convex/workspaceCopy.ts
   - convex/accountDelete.ts
+  - convex/accountReset.ts
 ---
 
 Your workspace is yours to take with you. **Settings**, **Your data** makes one ZIP of everything in it, to keep, to
@@ -118,6 +119,31 @@ anything in twice.
   export."
 - Only into an empty workspace. To bring two workspaces together, there's no merge: import into a fresh account.
 - The demo can't export or import, like any change there.
+
+## Resetting your account
+
+**Reset account**, above **Delete account** on **Your data**, clears everything in your workspace so you can start over,
+and keeps you signed in. Export first, and download the ZIP, if you want a copy: nothing can bring it back, and past
+exports are cleared too.
+
+1. Choose **Reset my account**. The dialog lists what it clears, with how many of each, and what it keeps, and asks you
+   to type your account's name, as deleting does. **Export first** there closes it and starts an export.
+2. **Reset my account** in that dialog starts it. It runs in the background; **Your data** and the activity list show
+   **Resetting your account** with how many items have gone, and you can leave the page.
+3. When it's done, **Get started** takes you to **Today**, where Getting started begins again from its first step.
+
+It clears your stories and their versions, your record, what's waiting in **Review**, your directions and limits,
+companies and the roles found at them, your seed companies, pursuits with their people, letters and follow-ups,
+resumes, notes, past exports, work in progress and activity, and the files stored with them.
+
+It keeps your sign-in, your other settings (models, budgets, contact details, reminders, resume lengths), the Google
+Drive and GitHub connections, and your spending history, so this month's AI budget still counts what you've already
+spent. Your keys stay too, unless you tick **Also remove my keys**. Afterwards **Import** works again, as the workspace
+is empty. An import never replaces spending: the spending kept here stays, and the file's spending history stays out.
+Only a workspace that has never spent anything takes the file's.
+
+If it stops partway, **Reset my account** again picks it up where it stopped. Only rows that belong to your workspace
+are touched. The demo can't be reset, like any change there.
 
 ## Deleting your account
 

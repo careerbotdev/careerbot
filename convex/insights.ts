@@ -13,6 +13,7 @@ import type { ItemOf } from "./itemShapes";
 import { INSIGHT_STYLE, PLAIN_LANGUAGE } from "./writingGuides";
 import type { FreshLookOpen } from "./freshLook";
 import { queueGather } from "./skills";
+import { refuseCancelled } from "./cancel";
 import { requireWorkspace } from "./workspaces";
 
 // Reads across the whole approved record like a career editor and proposes insights: things true of the person across
@@ -112,6 +113,7 @@ const norm = (t: string) => t.trim().toLowerCase().replace(/\s+/g, " ");
 export const save = internalMutation({
   args: { workspaceId: v.id("workspaces"), runId: v.id("jobs"), out: v.any() },
   handler: async (ctx, { workspaceId, runId, out }) => {
+    await refuseCancelled(ctx, runId);
     // A retried run (after an interruption) that already saved its results saves nothing twice.
     if (await ctx.db.query("items").withIndex("by_run", (q) => q.eq("runId", runId)).first()) return { alreadySaved: true } as never;
     const approvedFacts = new Map((await counted(ctx, workspaceId, "fact")).map((f) => [String(f._id), f]));

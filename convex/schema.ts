@@ -269,6 +269,8 @@ export default defineSchema({
     maxTokens: v.optional(v.number()),
     context: v.optional(v.number()),
     structured: v.optional(v.boolean()),
+    // No provider of it takes JSON mode (response_format json_object; Perplexity refuses it): asked for JSON in words only.
+    noJsonMode: v.optional(v.boolean()),
     target: v.optional(v.string()),
     at: v.number(),
   }).index("by_model", ["model"]),
@@ -282,12 +284,13 @@ export default defineSchema({
     apolloMode: v.union(v.literal("on"), v.literal("onRequest"), v.literal("paused")),
   }).index("by_workspace", ["workspaceId"]),
 
-  // Background work. A job that hits a budget is paused, not failed, and resumes where it left off.
+  // Background work. A job that hits a budget is paused, not failed, and resumes where it left off. Cancelled: stopped
+  // from Activity (jobs.cancel); a running one stops at its next step, and what it already finished stays.
   jobs: defineTable({
     workspaceId: v.id("workspaces"),
     kind: v.union(v.literal("firstCall"), v.literal("extract"), v.literal("rework"), v.literal("compare"), v.literal("goals"), v.literal("check"), v.literal("limitRule"), v.literal("insights"), v.literal("followups"), v.literal("resume"), v.literal("directions"), v.literal("duplicates"), v.literal("discover"), v.literal("enrich"), v.literal("roles"), v.literal("project"), v.literal("skills"), v.literal("sameWork"), v.literal("letter"), v.literal("ask"), v.literal("outreach"), v.literal("followUp"), v.literal("driveSync"), v.literal("lineCheck"), v.literal("lineUpdate")),
     args: v.any(),
-    status: v.union(v.literal("queued"), v.literal("running"), v.literal("paused"), v.literal("done"), v.literal("failed")),
+    status: v.union(v.literal("queued"), v.literal("running"), v.literal("paused"), v.literal("done"), v.literal("failed"), v.literal("cancelled")),
     pausedFor: v.optional(v.union(v.literal("openrouter"), v.literal("apollo"))),
     result: v.optional(v.any()),
     error: v.optional(v.string()),
@@ -300,6 +303,8 @@ export default defineSchema({
     tallied: v.optional(v.boolean()),
     // Who started it (unset: from before it was kept).
     origin: v.optional(origin),
+    // When it was cleared off Activity's list (activity.clear); the job itself stays.
+    clearedAt: v.optional(v.number()),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_status", ["status"]),
@@ -389,7 +394,7 @@ export default defineSchema({
     links: v.array(v.string()),
   }).index("by_workspace", ["workspaceId"]),
 
-  // Companies found for the workspace, from Apollo searches or added by hand. One row per company.
+  // Companies found for the workspace, from Apollo searches, the web search or added by hand. One row per company.
   companies: defineTable({
     workspaceId: v.id("workspaces"),
     apolloId: v.optional(v.string()),
@@ -428,15 +433,27 @@ export default defineSchema({
     rating: v.optional(v.object({ value: v.union(v.literal("excited"), v.literal("maybe"), v.literal("no")), reason: v.optional(v.string()), at: v.number() })),
     // Not a place to work (a recruiter, job board, association…). Kept and shown, so it can be restored.
     screened: v.optional(v.object({ employer: v.boolean(), kind: v.string(), by: v.union(v.literal("rule"), v.literal("ai"), v.literal("you")), at: v.number() })),
-    // Every way it was found: which direction, by its criteria or as a lookalike of seed companies.
-    found: v.array(v.object({ directionId: v.optional(v.id("items")), via: v.union(v.literal("criteria"), v.literal("lookalike"), v.literal("hiring"), v.literal("large"), v.literal("hand")), runId: v.optional(v.id("jobs")), at: v.number() })),
+    // Every way it was found: which direction, by its criteria or as a lookalike of seed companies (Apollo), or by the
+    // web search (findCompanies.ts): "relevant" fits the direction, hiring or not; "hiringNow" has an open role for it.
+    // A web find says where it came from (source: a web search, or a job-board search) and the page it was seen on.
+    found: v.array(
+      v.object({
+        directionId: v.optional(v.id("items")),
+        via: v.union(v.literal("criteria"), v.literal("lookalike"), v.literal("hiring"), v.literal("large"), v.literal("hand"), v.literal("relevant"), v.literal("hiringNow")),
+        source: v.optional(v.union(v.literal("aiSearch"), v.literal("jobBoards"))),
+        evidence: v.optional(v.string()),
+        runId: v.optional(v.id("jobs")),
+        at: v.number(),
+      }),
+    ),
     // In the reports' counts: of companies found (tallies companies), and of targets while it is one (targets).
     talliedFound: v.optional(v.boolean()),
     talliedTarget: v.optional(v.boolean()),
     at: v.number(),
   })
     .index("by_workspace", ["workspaceId", "at"])
-    .index("by_workspace_apollo", ["workspaceId", "apolloId"]),
+    .index("by_workspace_apollo", ["workspaceId", "apolloId"])
+    .index("by_workspace_domain", ["workspaceId", "domain"]),
 
   // Every role read from the job boards of Targets and Maybe companies. One row per role at a company: a role listed
   // twice (same board id, or same title and location) is one row. closedAt: gone from a complete read of the board.
@@ -577,7 +594,7 @@ export default defineSchema({
     .index("by_posting", ["postingId"])
     .index("by_workspace", ["workspaceId"]),
 
-  // Company search settings: default seed companies (by website), and what Apollo knows them as.
+  // Company search settings: seed companies for every direction (by website), and what Apollo knows them as.
   discovery: defineTable({
     workspaceId: v.id("workspaces"),
     seeds: v.array(v.string()),
@@ -585,6 +602,9 @@ export default defineSchema({
     named: v.optional(v.array(v.string())),
     // Last resort when no public job board is found: Apollo's job postings (1 credit per company). Off unless they turn it on.
     apolloJobs: v.optional(v.boolean()),
+    // How companies are found (findCompanies.ts): Apollo, Apollo plus the web search, or the web search alone. Unset:
+    // Apollo when they've added an Apollo key, else the web search.
+    finding: v.optional(v.union(v.literal("apollo"), v.literal("apolloWeb"), v.literal("web"))),
     // Roles passes started before this are stopped at their next step.
     rolesStoppedAt: v.optional(v.number()),
     // Failures in the roles pass started at `since` that weren't about any one role (a bug, a limit, OpenRouter down):
@@ -1095,6 +1115,9 @@ export default defineSchema({
     total: v.number(),
     error: v.optional(v.string()),
     result: v.optional(v.object({ rows: v.number(), files: v.number(), left: v.number(), omitted: v.array(v.object({ kind: v.string(), n: v.number() })) })),
+    // The workspace already had spending when the import began (a reset keeps it): the file's spending stays out, so
+    // spending already counted is never rolled back. Unset: the file's spending goes in.
+    keepSpending: v.optional(v.boolean()),
     beat: v.number(),
     at: v.number(),
   }).index("by_workspace", ["workspaceId"]),
@@ -1188,4 +1211,23 @@ export default defineSchema({
     deleted: v.number(),
     beat: v.number(),
   }).index("by_user", ["userId"]),
+
+  // A workspace being reset from Settings, Your data (accountReset.ts): everything in it cleared but the sign-in,
+  // settings, spending, connections and (unless keys) the keys; one row per workspace, started again by the next reset.
+  // workspace: named so, not workspaceId, so the row isn't one of the workspace's own. keys: the keys go too. step:
+  // counting (total, the rows to clear), clearing (a page of one table at a time; table, the place in its tables), done.
+  // cleared: rows so far. beat: the last sign it was running.
+  accountResets: defineTable({
+    workspace: v.id("workspaces"),
+    userId: v.id("users"),
+    keys: v.boolean(),
+    step: v.union(v.literal("counting"), v.literal("clearing"), v.literal("done")),
+    table: v.number(),
+    cursor: v.optional(v.string()),
+    total: v.number(),
+    cleared: v.number(),
+    beat: v.number(),
+  })
+    .index("by_workspace", ["workspace"])
+    .index("by_user", ["userId"]),
 });

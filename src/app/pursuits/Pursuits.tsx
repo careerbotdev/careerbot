@@ -47,6 +47,11 @@ const VIEWS: Record<string, Tab> = { roles: "all", shortlist: "interested", purs
 const TABS: Tab[] = ["all", "interested", "pursuing", "closed"];
 const TAB_LABELS: Record<Tab, string> = { all: "All roles", interested: "Interested", pursuing: "Pursuing", closed: "Closed" };
 const REMINDER_WORDS: Record<ReminderRule, string> = { followUp: "Follow up when it goes quiet", prepare: "Prepare before an interview", stale: "Check on a stalled pursuit" };
+const REMINDER_DETAIL: Record<ReminderRule, string> = {
+  followUp: "A reminder after 7 days without a reply; for outreach, then the next contact.",
+  prepare: "A reminder the day before.",
+  stale: "After 3 weeks with no change, asks whether it’s still on.",
+};
 const SORT_WORDS = {
   sortBy: { detail: "The order of All roles and Interested. Change it back any time.", note: "Free" },
   best: { hint: "Highest score first", detail: "Highest fit score first; roles against a preference after the rest; newest first within a score.", note: "Free" },
@@ -210,11 +215,34 @@ export function Pursuits() {
       ...(busy ? { disabled: true, reason: "Checking now" } : !overview?.coverage.length ? { disabled: true, reason: "No companies watched" } : {}),
     },
     "separator",
-    { label: "Count how big a stretch a role is", checked: overview?.stretch ?? true, onSelect: () => void setStretch({ on: !(overview?.stretch ?? true) }).catch((e: unknown) => failed(e, "Couldn’t save that.")) },
+    {
+      label: "Count how big a stretch a role is",
+      checked: overview?.stretch ?? true,
+      detail: "Scores take points off for each gap between a role and your record: more years asked, a post above yours, a core requirement your record lacks. Levels never change.",
+      note: "Free · roles judged from now on; Rank again judges the rest · Undo with U",
+      onSelect: () => {
+        const on = !(overview?.stretch ?? true);
+        void setStretch({ on })
+          .then(() => toast({ message: on ? "Counting how big a stretch a role is" : "Not counting how big a stretch a role is", action: { label: "Undo", key: "U", run: () => void setStretch({ on: !on }) } }))
+          .catch((e: unknown) => failed(e, "Couldn’t save that."));
+      },
+    },
     {
       label: "Reminders",
       icon: "reminder",
-      items: REMINDER_RULES.map((r) => ({ label: REMINDER_WORDS[r], checked: data?.rules[r] ?? true, onSelect: () => void setRule({ rule: r, on: !(data?.rules[r] ?? true) }).catch((e: unknown) => failed(e, "Couldn’t save that.")) })),
+      items: REMINDER_RULES.map((r) => {
+        const on = !(data?.rules[r] ?? true);
+        return {
+          label: REMINDER_WORDS[r],
+          checked: !on,
+          detail: REMINDER_DETAIL[r],
+          note: "Free · Undo with U",
+          onSelect: () =>
+            void setRule({ rule: r, on })
+              .then(() => toast({ message: `${REMINDER_WORDS[r]}: ${on ? "on" : "off"}`, action: { label: "Undo", key: "U", run: () => void setRule({ rule: r, on: !on }) } }))
+              .catch((e: unknown) => failed(e, "Couldn’t save that.")),
+        };
+      }),
     },
     "separator",
     tour.menu,

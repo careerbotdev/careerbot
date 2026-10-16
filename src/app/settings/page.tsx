@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { useSignOut } from "../localDrafts";
 import { Settings } from "./Settings";
 
-// Settings: Account, AI, Budgets and spending, Keys, Companies, Reminders, Contact and GitHub (?section=).
+// Settings: Account, AI, Budgets and spending, Connections, Updates and Your data (?section=).
 export default function SettingsPage() {
   const signOut = useSignOut();
   return (

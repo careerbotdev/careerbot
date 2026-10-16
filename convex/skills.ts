@@ -10,6 +10,7 @@ import { replyOf, strictObject, string, strings } from "./replyJson";
 import { counted, sourceCheck } from "./recordContext";
 import { postingName, updatesOf } from "./resume";
 import { skillKey } from "./resumeDoc";
+import { refuseCancelled } from "./cancel";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
 
 // Skills, tools and certifications as reviewed items. "Gather skills" reads the approved record (roles' skills and tools,
@@ -123,6 +124,7 @@ export const inputs = internalQuery({
 export const save = internalMutation({
   args: { workspaceId: v.id("workspaces"), jobId: v.id("jobs"), out: v.any() },
   handler: async (ctx, { workspaceId, jobId, out }) => {
+    await refuseCancelled(ctx, jobId);
     const job = await ctx.db.get(jobId);
     if (!job || (job.done ?? []).some((d) => d.step === "saved")) return { added: 0, updated: 0 };
     const stands = await sourceCheck(ctx, workspaceId);

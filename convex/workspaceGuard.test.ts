@@ -22,6 +22,7 @@ const WITHOUT_A_WORKSPACE: Record<string, string> = {
   "updates:sawVersion": "the caller's own user row",
   "accountDelete:status": "the caller's own account and its deletion, found from their own user",
   "accountDelete:start": "deletes the caller's own account and workspace, found from their own user",
+  "accountReset:status": "the caller's own workspace's reset, found from their own membership; null once the account is gone",
   "updates:status": "copy-wide update check, for a self-hosted copy's owner only (ownerOfThisCopy)",
   "updates:setCheck": "copy-wide update check, for a self-hosted copy's owner only (ownerOfThisCopy)",
   "account:ownerNeeded": "whether a self-hosted copy has its owner yet: a yes or no, for the sign-in screen",

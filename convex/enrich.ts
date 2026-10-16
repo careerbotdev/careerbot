@@ -8,6 +8,7 @@ import { activeLimits, itemsOf } from "./itemShapes";
 import { chatJson } from "./metering";
 import { listOf, orNull, type ReplySchema, replyOf, strictObject, string } from "./replyJson";
 import { braveKeyFor } from "./braveKey";
+import { stopIfCancelled } from "./cancel";
 import { boardsIn, get, interleave, type Job, NOT_READ, pageText, publicHost, type Read, readBoard, setSearchTitles, viaReader } from "./boards";
 import { countryCode, countryName, countryNameList } from "./limitBuckets";
 import { DEFAULT_LENS } from "./lens";
@@ -103,8 +104,9 @@ export const todo = internalQuery({
     const titles = (await itemsOf(ctx, workspaceId, "direction", "approved"))
       .filter((d) => d.data.criteriaStatus === "approved")
       .map((d) => ({ direction: d.data.name, titles: d.data.criteria?.titles ?? [] }));
-    // Strongest signals first: your list, hiring now, lookalikes, large companies, then plain criteria matches.
-    const rank = (c: Doc<"companies">) => Math.min(...c.found.map((f) => ({ hand: 0, hiring: 1, lookalike: 2, large: 3, criteria: 4 })[f.via]));
+    // Strongest signals first: your list, hiring now, lookalikes, large companies, then plain criteria matches and
+    // companies the web search found fit.
+    const rank = (c: Doc<"companies">) => Math.min(...c.found.map((f) => ({ hand: 0, hiring: 1, hiringNow: 1, lookalike: 2, large: 3, criteria: 4, relevant: 4 })[f.via]));
     // What they asked to check again goes first, then strongest source.
     const order = (a: Doc<"companies">, b: Doc<"companies">) => (b.recheckAt ?? 0) - (a.recheckAt ?? 0) || rank(a) - rank(b);
     const left = all.filter((c) => !c.details && c.screened?.employer !== false && c.domain).sort(order);
@@ -141,10 +143,12 @@ export const save = internalMutation({
   },
 });
 
-// The next batch of a pass, as the one before it was started (origin).
+// The next batch of a pass, as the one before it (`after`) was started (origin); none when that one was cancelled from
+// Activity.
 export const next = internalMutation({
-  args: { workspaceId: v.id("workspaces"), origin: v.optional(origin) },
-  handler: async (ctx, { workspaceId, origin }) => {
+  args: { workspaceId: v.id("workspaces"), origin: v.optional(origin), after: v.id("jobs") },
+  handler: async (ctx, { workspaceId, origin, after }) => {
+    if ((await ctx.db.get(after))?.status === "cancelled") return;
     const jobId = await ctx.db.insert("jobs", { workspaceId, kind: "enrich", args: {}, status: "queued", origin });
     await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId });
   },
@@ -333,9 +337,9 @@ export async function runEnrich(ctx: ActionCtx, job: Doc<"jobs">) {
   if (!batch.length) {
     // Details are all in; judge fit for the ones that don't have it yet, a batch at a time.
     if (!fit.companies.length || !fit.directions.length) return { done: 0, remaining: 0, fitLeft: 0 };
-    const judged = await judgeFit(ctx, ws, fit);
+    const judged = await judgeFit(ctx, ws, fit, job._id);
     // Always look again: companies sent back for checking during this pass are picked up by the next one.
-    await ctx.runMutation(internal.enrich.next, { workspaceId: ws, origin: job.origin });
+    await ctx.runMutation(internal.enrich.next, { workspaceId: ws, origin: job.origin, after: job._id });
     return { done: 0, remaining: 0, judged: judged.n, fitLeft: fit.fitLeft - fit.companies.length, costUsd: judged.costUsd };
   }
   const braveKey = await braveKeyFor(ctx, ws);
@@ -343,6 +347,7 @@ export async function runEnrich(ctx: ActionCtx, job: Doc<"jobs">) {
   const apolloJobs: ApolloJobs = useApollo ? apolloJobsFor(ctx, ws) : null;
   const results: { id: Id<"companies">; name: string; text: string; details: Record<string, unknown> }[] = [];
   for (let i = 0; i < batch.length; i += 8) {
+    await stopIfCancelled(ctx, job._id);
     const got = await Promise.all(batch.slice(i, i + 8).map(async (c) => ({ id: c.id, name: c.name, ...(await one(c, titles, braveKey, apolloJobs, area)) })));
     results.push(...got);
   }
@@ -386,12 +391,14 @@ export async function runEnrich(ctx: ActionCtx, job: Doc<"jobs">) {
     for (const x of reply.out.companies ?? [])
       if (x.id && x.summary?.trim()) summaries.set(x.id, `From general knowledge: ${x.summary.trim().replace(/^From general knowledge:\s*/i, "")}`);
   }
+  // Cancelled from Activity while this batch was read: what it found isn't saved.
+  await stopIfCancelled(ctx, job._id);
   for (const r of results) {
     const summary = summaries.get(String(r.id));
     await ctx.runMutation(internal.enrich.save, { workspaceId: ws, id: r.id, details: { ...r.details, ...(summary ? { summary } : {}) } });
   }
   // Keep going until details are in; the batches after that judge fit.
-  await ctx.runMutation(internal.enrich.next, { workspaceId: ws, origin: job.origin });
+  await ctx.runMutation(internal.enrich.next, { workspaceId: ws, origin: job.origin, after: job._id });
   return { done: results.length, remaining: remaining - batch.length, costUsd };
 }
 
@@ -413,7 +420,7 @@ const FIT = `You judge how well each company fits each of a job seeker's directi
 const TURNED_DOWN = `"Companies they turned down, and why" are companies the seeker rated Not for me, with the reason when they gave one. They are the seeker's own preferences, not facts about other companies: a company that is clearly like one they turned down, in the way their reason names, fits them less, and its reason says so. Never assume a company shares something its summary and roles don't show.`;
 
 type FitInput = { companies: { id: Id<"companies"> }[]; directions: { id: Id<"items"> }[]; limits: unknown[]; judge: boolean; companyGoals: unknown[]; turnedDown: unknown[] };
-async function judgeFit(ctx: ActionCtx, ws: Id<"workspaces">, fit: FitInput) {
+async function judgeFit(ctx: ActionCtx, ws: Id<"workspaces">, fit: FitInput, jobId: Id<"jobs">) {
   const choice = await modelFor(ctx, ws, "companies");
   const { out, costUsd } = await chatJson<{ companies?: { id?: string; fit?: { directionId?: string; level?: string; reason?: string }[]; goals?: { level?: string; reason?: string } }[] }>(ctx, {
     workspaceId: ws,
@@ -433,6 +440,7 @@ async function judgeFit(ctx: ActionCtx, ws: Id<"workspaces">, fit: FitInput) {
   const levels = ["strong", "some", "weak", "none"];
   const byId = new Map((out.companies ?? []).map((c) => [String(c.id), c.fit ?? []]));
   const goalsById = new Map((out.companies ?? []).map((c) => [String(c.id), c.goals]));
+  await stopIfCancelled(ctx, jobId);
   let n = 0;
   for (const c of fit.companies) {
     const f = (byId.get(String(c.id)) ?? [])

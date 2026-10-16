@@ -2,7 +2,7 @@
 
 import { useQuery } from "convex/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { api } from "../../../convex/_generated/api";
 import { List, ListRow } from "@/components/ListRow";
 import { PaneHeader, PaneLayout, useScreenSize } from "@/components/Panes";
@@ -13,11 +13,9 @@ import { Account } from "./Account";
 import { Ai } from "./Ai";
 import { Compare } from "./Compare";
 import { Budgets, usd } from "./Budgets";
-import { Companies } from "./Companies";
-import { Contact } from "./Contact";
-import { Drive } from "./Drive";
-import { Keys } from "./Keys";
-import { Reminders } from "./Reminders";
+import { Connections } from "./Connections";
+import { FINDING_LABEL } from "./finding";
+import { movedTo } from "./moved";
 import { Updates, updatesLine } from "./Updates";
 import { YourData } from "./YourData";
 
@@ -29,19 +27,13 @@ const SECTIONS = [
   { key: "account", title: "Account" },
   { key: "ai", title: "AI" },
   { key: "budgets", title: "Budgets and spending" },
-  { key: "keys", title: "Keys" },
-  { key: "companies", title: "Companies" },
-  { key: "reminders", title: "Reminders" },
-  { key: "contact", title: "Contact and GitHub" },
-  { key: "drive", title: "Google Drive" },
+  { key: "connections", title: "Connections" },
   { key: "updates", title: "Updates" },
   { key: "yourdata", title: "Your data" },
 ] as const;
 type Section = (typeof SECTIONS)[number]["key"];
 
 const listWords = (names: string[]) => (names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
-const INDUSTRY_WORDS = { steer: "Steer by industry", only: "Only your industries", ignore: "Any industry" };
-const JUDGE_WORDS = { off: "goals not checked", rank: "rank by goals", hide: "hide misfits" };
 
 // selfHosted: a self-hosted copy's Account (mode.ts); stories set it.
 export function Settings({ signOut, selfHosted }: { signOut: () => void; selfHosted?: boolean }) {
@@ -51,6 +43,11 @@ export function Settings({ signOut, selfHosted }: { signOut: () => void; selfHos
   const router = useRouter();
   const path = usePathname();
   const asked = params.get("section");
+  // An old section's address (Keys, Google Drive, Companies, Reminders, Contact and GitHub) goes to where it lives now.
+  const moved = movedTo(params);
+  useEffect(() => {
+    if (moved) router.replace(moved, { scroll: false });
+  }, [moved, router]);
   const updates = useQuery(api.updates.status);
   const sections = useMemo(() => SECTIONS.filter((s) => s.key !== "updates" || !!updates), [updates]);
   const chosen: Section | null = sections.some((s) => s.key === asked) ? (asked as Section) : small ? null : "account";
@@ -85,11 +82,7 @@ export function Settings({ signOut, selfHosted }: { signOut: () => void; selfHos
     account: <Account size={size} signOut={signOut} selfHosted={selfHosted} />,
     ai: comparing ? <Compare size={size} recommended={recommended} /> : <Ai size={size} recommended={recommended} />,
     budgets: <Budgets size={size} />,
-    keys: <Keys size={size} />,
-    companies: <Companies size={size} />,
-    reminders: <Reminders size={size} />,
-    contact: <Contact size={size} />,
-    drive: <Drive size={size} />,
+    connections: <Connections size={size} />,
     updates: <Updates size={size} />,
     yourdata: <YourData size={size} />,
   };
@@ -113,26 +106,21 @@ function useLines(recommended?: { id: string; name: string }[]): Partial<Record<
   const openrouter = useQuery(api.openrouterKey.status);
   const apollo = useQuery(api.apolloKey.status);
   const brave = useQuery(api.braveKey.status);
-  const companies = useQuery(api.discovery.companySettings);
-  const reminders = useQuery(api.pursuits.reminderRules);
   const drive = useQuery(api.drive.status);
   const updates = useQuery(api.updates.status);
   const demo = useDemo();
 
   const own = tasks?.filter((t) => !t.decision && t.own).length ?? 0;
   const keys = [openrouter?.set && "OpenRouter", apollo?.set && "Apollo", brave?.set && "Brave"].filter((k): k is string => !!k);
-  const on = reminders ? Object.values(reminders).filter(Boolean).length : 0;
-  const total = reminders ? Object.keys(reminders).length : 0;
+  const finding = useQuery(api.findCompanies.settings);
+  const keysLine = demo ? "No keys in the demo" : keys.length ? (finding ? FINDING_LABEL[finding.finding] : listWords(keys)) : "No keys yet";
+  const driveLine = drive?.connected && (drive.connected.broken ? "Drive needs connecting again" : "Drive connected");
   return {
     account: me?.username ?? me?.email ?? undefined,
     ai: main === undefined ? undefined : !main ? "No model chosen yet" : `${modelName(main.model, undefined, recommended)} ${own ? `· ${own} ${own === 1 ? "task" : "tasks"} with their own` : "for every task"}`,
     budgets: budgets && (budgets.aiMonthlyUsd > 0 ? `${usd(budgets.aiSpentUsd)} of ${usd(budgets.aiMonthlyUsd)} this month` : "No AI budget set"),
-    keys: demo ? "None in the demo" : openrouter && apollo && brave ? (keys.length ? `${listWords(keys)} added` : "No keys yet") : undefined,
-    reminders: reminders && (on === total ? `All ${total} on` : on === 0 ? "All off" : `${on} of ${total} on`),
-    contact: "In your base resume and Projects",
-    drive: drive && (!drive.connected ? "Not connected" : drive.connected.broken ? "Needs connecting again" : drive.connected.failed ? `${drive.connected.failed} not synced` : `Connected as ${drive.connected.account}`),
-    companies: companies && `${INDUSTRY_WORDS[companies.lens.industries]} · ${JUDGE_WORDS[companies.lens.judge]}`,
+    connections: (demo || (openrouter && apollo && brave)) && drive ? [keysLine, driveLine].filter(Boolean).join(" · ") : undefined,
     updates: updates ? updatesLine(updates) : undefined,
-    yourdata: "Export, import or delete everything",
+    yourdata: "Export, import, reset or delete everything",
   };
 }

@@ -2,6 +2,9 @@ import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { query, type MutationCtx } from "./_generated/server";
 import { mutation } from "./functions";
+import { checkOverlaps } from "./conflicts";
+import { factsInResumes, plan, removalInputs, summary } from "./storyRemoval";
+import { tallyApproval } from "./tallies";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
 
 const kind = v.union(v.literal("career"), v.literal("goals"), v.literal("note"));
@@ -121,25 +124,51 @@ export const link = mutation({
   },
 });
 
-// Deleting a narrative removes it and its versions. Facts that came from it stay, flagged, so the person decides;
-// they may have moved that story into another narrative. What was set aside with it alone (it was rejected) goes with it.
-// Its passages go from every item that quoted it (insights and questions carry their facts' sources), and so do the
-// comparisons that read it. An item it leaves with no source counts as one added by hand (recordContext.sourceCheck).
-export const remove = mutation({
+// What deleting a narrative would take with it, for the Delete story… dialog: its versions and notes, then what only it
+// backs (storyRemoval.plan), what's waiting for review and what's approved (with how many of those approved facts are
+// in resume lines), and what stays either way because another story or a project backs it too.
+export const removal = query({
   args: { id: v.id("narratives") },
   handler: async (ctx, { id }) => {
     const { workspaceId } = await requireWorkspace(ctx);
     const n = await getInWorkspace(ctx, workspaceId, id);
+    if (!n) return null;
+    const versions = (await ctx.db.query("narrativeVersions").withIndex("by_narrative", (q) => q.eq("narrativeId", id)).collect()).length;
+    const notes = (await ctx.db.query("notes").withIndex("by_subject", (q) => q.eq("workspaceId", workspaceId).eq("subject.kind", "narrative").eq("subject.id", id)).collect()).length;
+    const { items, projectKeys } = await removalInputs(ctx, workspaceId);
+    const titles = new Map((await ctx.db.query("narratives").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect()).map((x) => [x._id, `${x.title} ${x.kind === "note" ? "note" : "story"}`]));
+    return { versions, notes, ...summary(items, id, projectKeys, await factsInResumes(ctx, workspaceId), (o) => titles.get(o)) };
+  },
+});
+
+// Deleting a narrative removes it and its versions, and, as they choose (storyRemoval.plan), what only it backs: what's
+// waiting for review (`unreviewed`) and approved facts (`approved`). What they keep stays flagged, so they decide; they
+// may have moved that story into another narrative. What was set aside or rejected with it alone goes with it, whatever
+// they tick, with its reason and notes: a rejection steers later reads and shouldn't outlive its source.
+// Its passages go from every item that quoted it (insights and questions carry their facts' sources), and so do the
+// comparisons that read it. An item it leaves with no source counts as one added by hand (recordContext.sourceCheck).
+// Returns how many facts went (rejected ones aside).
+export const remove = mutation({
+  args: { id: v.id("narratives"), unreviewed: v.boolean(), approved: v.boolean() },
+  handler: async (ctx, { id, unreviewed, approved }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const n = await getInWorkspace(ctx, workspaceId, id);
     if (!n) throw new Error("Narrative not found.");
     for (const x of await ctx.db.query("narrativeVersions").withIndex("by_narrative", (q) => q.eq("narrativeId", id)).collect()) await ctx.db.delete(x._id);
-    const items = await ctx.db.query("items").withIndex("by_workspace_kind_status", (q) => q.eq("workspaceId", workspaceId)).collect();
+    const { items, projectKeys } = await removalInputs(ctx, workspaceId);
+    const { gone } = plan(items, id, projectKeys, { unreviewed, approved });
+    let facts = 0;
     for (const i of items) {
-      if (!i.sources.some((src) => src.narrativeId === id)) continue;
-      // Background from the narrative goes with it; notes kept for a fact stay with that fact. Facts are flagged.
-      if ((i.status === "setAside" && i.sources.every((src) => src.narrativeId === id)) || (i.kind === "context" && !i.data.factId)) {
+      // Background from the narrative goes with it; notes kept for a fact stay with that fact unless the fact goes.
+      const cites = i.sources.some((src) => src.narrativeId === id);
+      if (gone.has(i._id) || (cites && ((i.status === "setAside" && i.sources.every((src) => src.narrativeId === id)) || (i.kind === "context" && !i.data.factId)))) {
+        if (gone.has(i._id) && i.kind === "fact" && i.status !== "rejected") facts++;
+        await tallyApproval(ctx, i, null);
+        for (const x of await ctx.db.query("notes").withIndex("by_subject", (q) => q.eq("workspaceId", workspaceId).eq("subject.kind", "item").eq("subject.id", i._id)).collect()) await ctx.db.delete(x._id);
         await ctx.db.delete(i._id);
         continue;
       }
+      if (!cites) continue;
       const sources = i.sources.filter((src) => src.narrativeId !== id);
       if (i.kind === "fact") await ctx.db.patch(i._id, { sources, data: { ...i.data, sourceDeleted: n.title } });
       else await ctx.db.patch(i._id, { sources });
@@ -147,5 +176,7 @@ export const remove = mutation({
     for (const c of await ctx.db.query("comparisons").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect()) if (c.narrativeId === id) await ctx.db.delete(c._id);
     for (const x of await ctx.db.query("notes").withIndex("by_subject", (q) => q.eq("workspaceId", workspaceId).eq("subject.kind", "narrative").eq("subject.id", id)).collect()) await ctx.db.delete(x._id);
     await ctx.db.delete(id);
+    if (gone.size) await checkOverlaps(ctx, workspaceId);
+    return { facts };
   },
 });

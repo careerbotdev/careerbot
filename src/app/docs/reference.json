@@ -566,6 +566,38 @@
       ]
     },
     {
+      "id": "webDiscovery",
+      "name": "Find companies on the web",
+      "stage": "companies",
+      "starts": "When you choose Find companies without an Apollo key, or with Finding companies set to Apollo + AI.",
+      "reads": [
+        {
+          "text": "Your directions and limits",
+          "filter": "approved"
+        },
+        {
+          "text": "Companies you turned down, so they aren’t found again",
+          "filter": "public"
+        },
+        {
+          "text": "Public job boards, searched for your directions’ titles",
+          "filter": "public"
+        },
+        {
+          "text": "A job board’s page, for the company’s website",
+          "filter": "public"
+        },
+        {
+          "text": "The website of a company you named, for its name",
+          "filter": "public"
+        }
+      ],
+      "may": "Find up to 15 companies for each direction that fit it, hiring or not, and up to 15 hiring for its titles now, each with the page it was seen on.",
+      "mayNot": "Keep anything it says about a company beyond its name and website, or bring back a past employer or a company you turned down.",
+      "tasks": [],
+      "screens": []
+    },
+    {
       "id": "sortRoles",
       "name": "Sort roles",
       "stage": "roles",
@@ -992,7 +1024,7 @@
     {
       "screen": "today",
       "label": "Skip",
-      "detail": "Leaves Google Drive out of Getting started. Connect it any time in Settings, Google Drive.",
+      "detail": "Leaves Google Drive out of Getting started. Connect it any time in Settings, Connections.",
       "note": "Free · Undo with U"
     },
     {
@@ -1010,7 +1042,7 @@
     {
       "screen": "today",
       "label": "Skip",
-      "detail": "Leaves Apollo out of Getting started. Add a key any time in Settings, Keys, to find companies and people.",
+      "detail": "Leaves Apollo out of Getting started. Add a key any time in Settings, Connections, to find companies and people.",
       "note": "Free · Undo with U"
     },
     {
@@ -1261,24 +1293,6 @@
     },
     {
       "screen": "companies",
-      "label": "Companies you’d name",
-      "detail": "Lists companies you already want, added to every search.",
-      "note": "Free"
-    },
-    {
-      "screen": "companies",
-      "label": "Seed companies",
-      "detail": "Lists companies you’d love to work at, so searches find ones like them.",
-      "note": "Free"
-    },
-    {
-      "screen": "companies",
-      "label": "Lens settings",
-      "detail": "Sets how your goals shape searches and what Found shows.",
-      "note": "Free"
-    },
-    {
-      "screen": "companies",
       "label": "Let it be set aside",
       "detail": "Moves it back to Doesn’t fit your goals.",
       "note": "Free · Undo with U"
@@ -1311,6 +1325,12 @@
       "screen": "companies",
       "label": "Start outreach",
       "detail": "Starts a pursuit at this company without an open role, to write to the people who hire there.",
+      "note": "Free"
+    },
+    {
+      "screen": "companies",
+      "label": "Change",
+      "detail": "Opens the seed companies, companies you’d name, industries, goals check and ratings these searches use.",
       "note": "Free"
     },
     {
@@ -1867,15 +1887,21 @@
     },
     {
       "screen": "settings",
-      "label": "Disconnect",
-      "detail": "Stops syncing and ends CareerBot’s access to your Drive. Your CareerBot folder and its Docs stay in Drive.",
-      "note": "Free · Asks first · Connect again any time"
+      "label": "Open folder",
+      "detail": "Opens your CareerBot folder in Google Drive.",
+      "note": "Free"
     },
     {
       "screen": "settings",
       "label": "Choose a folder",
       "detail": "Opens Google’s folder picker to choose where the CareerBot folder lives. It moves there with everything in it.",
       "note": "Free · Undo with U"
+    },
+    {
+      "screen": "settings",
+      "label": "Disconnect",
+      "detail": "Stops syncing and ends CareerBot’s access to your Drive. Your CareerBot folder and its Docs stay in Drive.",
+      "note": "Free · Asks first · Connect again any time"
     },
     {
       "screen": "settings",
@@ -1906,6 +1932,30 @@
       "label": "Continue",
       "detail": "Picks the import up where it stopped.",
       "note": "Free"
+    },
+    {
+      "screen": "settings",
+      "label": "Continue",
+      "detail": "Picks the reset up where it stopped.",
+      "note": "Free · Can’t be undone"
+    },
+    {
+      "screen": "settings",
+      "label": "Reset my account",
+      "detail": "Clears your stories, record, goals, companies, seed companies, pursuits, resumes, notes, exports and activity. Keeps your sign-in, settings, spending and, unless you choose, your keys.",
+      "note": "Free · Can’t be undone"
+    },
+    {
+      "screen": "settings",
+      "label": "Export first",
+      "detail": "Closes this and makes a .zip of everything in this workspace. Download it before you reset: a reset clears past exports too.",
+      "note": "Free"
+    },
+    {
+      "screen": "settings",
+      "label": "Reset my account",
+      "detail": "Clears everything in this workspace. You stay signed in.",
+      "note": "Free · Can’t be undone"
     },
     {
       "screen": "settings",

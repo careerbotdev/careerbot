@@ -13,6 +13,6 @@ export const COMPANIES_TOUR: TourDef = {
     { target: "companies.fit", title: "Directions", body: "How well the company fits each of your directions, and why." },
     { target: "companies.roles", title: "Open roles", body: "Its best open roles for your directions, ranked. Open one to see it in Pursuits, or all of them from the link below." },
     { target: "companies.details", side: "left", title: "Details", body: "Its website and job board, which you can edit with E, how much of the board has been read, and the people you know there. Check again reads its board afresh and says what it costs first." },
-    { target: "companies.more", side: "bottom", title: "More for Companies", body: "Find companies shows each search and its Apollo credits before you start one. Here too: Fill in details, Select several, the companies you’d name, seed companies and Lens settings." },
+    { target: "companies.more", side: "bottom", title: "More for Companies", body: "Find companies shows each search and its Apollo credits before you start one. Here too: Fill in details, Select several and Search settings: seed companies, companies you’d name, industries, your goals and your ratings." },
   ],
 };

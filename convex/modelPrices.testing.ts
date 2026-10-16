@@ -14,6 +14,7 @@ export const JEV_PRICE = { prompt: 4.2e-8, completion: 0, request: 0, fixed: tru
 // The model ids the tests use.
 const TEST_MODELS = [
   "m/x",
+  "perplexity/sonar-pro",
   "test/cheap",
   "test/model",
   "test/other",

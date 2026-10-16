@@ -10,6 +10,7 @@
 
 import type * as account from "../account.js";
 import type * as accountDelete from "../accountDelete.js";
+import type * as accountReset from "../accountReset.js";
 import type * as activity from "../activity.js";
 import type * as admin from "../admin.js";
 import type * as adminPeople from "../adminPeople.js";
@@ -52,6 +53,7 @@ import type * as exportRules from "../exportRules.js";
 import type * as extract from "../extract.js";
 import type * as factChanges from "../factChanges.js";
 import type * as factPairs from "../factPairs.js";
+import type * as findCompanies from "../findCompanies.js";
 import type * as followUpEmails from "../followUpEmails.js";
 import type * as followups from "../followups.js";
 import type * as functions from "../functions.js";
@@ -112,6 +114,7 @@ import type * as updates from "../updates.js";
 import type * as users from "../users.js";
 import type * as version from "../version.js";
 import type * as waitlist from "../waitlist.js";
+import type * as webDiscovery from "../webDiscovery.js";
 import type * as workspaceCopy from "../workspaceCopy.js";
 import type * as workspaceRows from "../workspaceRows.js";
 import type * as workspaces from "../workspaces.js";
@@ -128,6 +131,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   account: typeof account;
   accountDelete: typeof accountDelete;
+  accountReset: typeof accountReset;
   activity: typeof activity;
   admin: typeof admin;
   adminPeople: typeof adminPeople;
@@ -170,6 +174,7 @@ declare const fullApi: ApiFromModules<{
   extract: typeof extract;
   factChanges: typeof factChanges;
   factPairs: typeof factPairs;
+  findCompanies: typeof findCompanies;
   followUpEmails: typeof followUpEmails;
   followups: typeof followups;
   functions: typeof functions;
@@ -230,6 +235,7 @@ declare const fullApi: ApiFromModules<{
   users: typeof users;
   version: typeof version;
   waitlist: typeof waitlist;
+  webDiscovery: typeof webDiscovery;
   workspaceCopy: typeof workspaceCopy;
   workspaceRows: typeof workspaceRows;
   workspaces: typeof workspaces;

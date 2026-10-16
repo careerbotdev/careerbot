@@ -1,0 +1,472 @@
+{
+ "calls": [
+  {
+   "path": "/api/v1/mixed_companies/search",
+   "params": [
+    [
+     "page",
+     [
+      "1"
+     ]
+    ],
+    [
+     "per_page",
+     [
+      "100"
+     ]
+    ],
+    [
+     "q_organization_domains_list[]",
+     [
+      "copperline.io",
+      "notreal.example",
+      "loadstar.io"
+     ]
+    ]
+   ]
+  },
+  {
+   "path": "/api/v1/mixed_companies/search",
+   "params": [
+    [
+     "page",
+     [
+      "1"
+     ]
+    ],
+    [
+     "per_page",
+     [
+      "100"
+     ]
+    ],
+    [
+     "q_organization_domains_list[]",
+     [
+      "nvidia.com",
+      "nope.example"
+     ]
+    ]
+   ]
+  },
+  {
+   "path": "/api/v1/mixed_companies/search",
+   "params": [
+    [
+     "organization_num_employees_ranges[]",
+     [
+      "51,200",
+      "5001,1000000"
+     ]
+    ],
+    [
+     "page",
+     [
+      "1"
+     ]
+    ],
+    [
+     "per_page",
+     [
+      "100"
+     ]
+    ],
+    [
+     "q_organization_keyword_tags[]",
+     [
+      "supply chain",
+      "logistics"
+     ]
+    ]
+   ]
+  },
+  {
+   "path": "/api/v1/mixed_companies/search",
+   "params": [
+    [
+     "organization_num_employees_ranges[]",
+     [
+      "1001,5000",
+      "5001,1000000"
+     ]
+    ],
+    [
+     "page",
+     [
+      "1"
+     ]
+    ],
+    [
+     "per_page",
+     [
+      "100"
+     ]
+    ],
+    [
+     "q_organization_keyword_tags[]",
+     [
+      "supply chain",
+      "logistics"
+     ]
+    ]
+   ]
+  },
+  {
+   "path": "/api/v1/mixed_companies/search",
+   "params": [
+    [
+     "page",
+     [
+      "1"
+     ]
+    ],
+    [
+     "per_page",
+     [
+      "100"
+     ]
+    ],
+    [
+     "q_organization_job_titles[]",
+     [
+      "Product Manager",
+      "Group Product Manager"
+     ]
+    ],
+    [
+     "q_organization_keyword_tags[]",
+     [
+      "supply chain"
+     ]
+    ]
+   ]
+  },
+  {
+   "path": "/api/v1/mixed_companies/search",
+   "params": [
+    [
+     "lookalike_organization_ids[]",
+     [
+      "A1"
+     ]
+    ],
+    [
+     "page",
+     [
+      "1"
+     ]
+    ],
+    [
+     "per_page",
+     [
+      "100"
+     ]
+    ]
+   ]
+  },
+  {
+   "path": "/api/v1/mixed_companies/search",
+   "params": [
+    [
+     "lookalike_organization_ids[]",
+     [
+      "T1"
+     ]
+    ],
+    [
+     "page",
+     [
+      "1"
+     ]
+    ],
+    [
+     "per_page",
+     [
+      "100"
+     ]
+    ]
+   ]
+  },
+  {
+   "path": "/api/v1/mixed_companies/search",
+   "params": [
+    [
+     "page",
+     [
+      "1"
+     ]
+    ],
+    [
+     "per_page",
+     [
+      "100"
+     ]
+    ],
+    [
+     "q_organization_keyword_tags[]",
+     [
+      "supply chain",
+      "software"
+     ]
+    ]
+   ]
+  },
+  {
+   "path": "/api/v1/mixed_companies/search",
+   "params": [
+    [
+     "organization_num_employees_ranges[]",
+     [
+      "1001,5000",
+      "5001,1000000"
+     ]
+    ],
+    [
+     "page",
+     [
+      "1"
+     ]
+    ],
+    [
+     "per_page",
+     [
+      "100"
+     ]
+    ],
+    [
+     "q_organization_keyword_tags[]",
+     [
+      "supply chain",
+      "software"
+     ]
+    ]
+   ]
+  },
+  {
+   "path": "/api/v1/mixed_companies/search",
+   "params": [
+    [
+     "lookalike_organization_ids[]",
+     [
+      "V1"
+     ]
+    ],
+    [
+     "page",
+     [
+      "1"
+     ]
+    ],
+    [
+     "per_page",
+     [
+      "100"
+     ]
+    ]
+   ]
+  }
+ ],
+ "companies": [
+  {
+   "name": "Ashgrove Manufacturing",
+   "apolloId": "X1",
+   "domain": "ashgrove.com",
+   "websiteUrl": null,
+   "linkedinUrl": null,
+   "foundedYear": null,
+   "found": [
+    "Solutions Consulting: lookalike (this run)",
+    "Supply Chain Product: lookalike (this run)"
+   ],
+   "screened": null
+  },
+  {
+   "name": "Bigco Logistics",
+   "apolloId": "L1",
+   "domain": "bigco.com",
+   "websiteUrl": null,
+   "linkedinUrl": null,
+   "foundedYear": 1950,
+   "found": [
+    "Solutions Consulting: large (this run)",
+    "Supply Chain Product: large (this run)"
+   ],
+   "screened": null
+  },
+  {
+   "name": "Bramblewood Home",
+   "apolloId": "Z1",
+   "domain": null,
+   "websiteUrl": null,
+   "linkedinUrl": null,
+   "foundedYear": null,
+   "found": [
+    "-: criteria"
+   ],
+   "screened": null
+  },
+  {
+   "name": "Fernhill Foods",
+   "apolloId": "G1",
+   "domain": "fernhill.io",
+   "websiteUrl": "http://fernhill.io",
+   "linkedinUrl": "http://linkedin.com/company/fernhill",
+   "foundedYear": 2011,
+   "found": [
+    "Solutions Consulting: criteria (this run)",
+    "Supply Chain Product: criteria (this run)"
+   ],
+   "screened": null
+  },
+  {
+   "name": "Hiring Co",
+   "apolloId": "H1",
+   "domain": "hiring.co",
+   "websiteUrl": "https://hiring.co",
+   "linkedinUrl": null,
+   "foundedYear": null,
+   "found": [
+    "Supply Chain Product: hiring (this run)"
+   ],
+   "screened": null
+  },
+  {
+   "name": "Kestrel Freight",
+   "apolloId": "K1",
+   "domain": "kestrelfreight.com",
+   "websiteUrl": null,
+   "linkedinUrl": "http://www.linkedin.com/company/kestrel",
+   "foundedYear": null,
+   "found": [
+    "Supply Chain Product: lookalike (this run)"
+   ],
+   "screened": null
+  },
+  {
+   "name": "Meridian Coldchain",
+   "apolloId": "T1",
+   "domain": "meridian.io",
+   "websiteUrl": null,
+   "linkedinUrl": null,
+   "foundedYear": null,
+   "found": [
+    "-: criteria"
+   ],
+   "screened": null
+  },
+  {
+   "name": "NVIDIA",
+   "apolloId": "N1",
+   "domain": "nvidia.com",
+   "websiteUrl": "http://www.nvidia.com",
+   "linkedinUrl": null,
+   "foundedYear": 1993,
+   "found": [
+    "-: hand (this run)"
+   ],
+   "screened": null
+  },
+  {
+   "name": "Rivertown Recruitment",
+   "apolloId": "R1",
+   "domain": null,
+   "websiteUrl": null,
+   "linkedinUrl": null,
+   "foundedYear": null,
+   "found": [
+    "Supply Chain Product: hiring (this run)"
+   ],
+   "screened": "staffing or recruiting by rule"
+  }
+ ],
+ "spent": [
+  "companies you named: 1 (mixed_companies/search)",
+  "find companies: Solutions Consulting: 1 (mixed_companies/search)",
+  "find companies: Supply Chain Product: 1 (mixed_companies/search)",
+  "find seed companies: 1 (mixed_companies/search)",
+  "hiring now: Supply Chain Product: 1 (mixed_companies/search)",
+  "large companies: Solutions Consulting: 1 (mixed_companies/search)",
+  "large companies: Supply Chain Product: 1 (mixed_companies/search)",
+  "lookalike companies: Solutions Consulting: 1 (mixed_companies/search)",
+  "lookalike companies: Supply Chain Product: 1 (mixed_companies/search)",
+  "lookalike companies: Supply Chain Product: 1 (mixed_companies/search)"
+ ],
+ "result": {
+  "report": [
+   {
+    "criteria": {
+     "added": 1,
+     "found": 1,
+     "total": 3
+    },
+    "direction": "Supply Chain Product",
+    "hiring": {
+     "added": 2,
+     "found": 2,
+     "total": 2
+    },
+    "large": {
+     "added": 1,
+     "found": 1
+    },
+    "lookalikes": [
+     {
+      "added": 1,
+      "found": 1,
+      "seeds": [
+       "Copperline Robotics"
+      ]
+     },
+     {
+      "added": 1,
+      "found": 1,
+      "seeds": [
+       "Meridian Coldchain"
+      ]
+     }
+    ],
+    "ownSeeds": false
+   },
+   {
+    "criteria": {
+     "added": 0,
+     "found": 1,
+     "total": 3
+    },
+    "direction": "Solutions Consulting",
+    "hiring": null,
+    "large": {
+     "added": 0,
+     "found": 1
+    },
+    "lookalikes": [
+     {
+      "added": 0,
+      "found": 1,
+      "seeds": [
+       "Copperline Robotics"
+      ]
+     },
+     {
+      "added": 0,
+      "found": 0,
+      "seeds": [
+       "Loadstar Systems"
+      ]
+     }
+    ],
+    "ownSeeds": true
+   }
+  ],
+  "named": {
+   "added": 1,
+   "found": 1,
+   "missing": [
+    "nope.example"
+   ]
+  },
+  "seedsNotInApollo": [
+   "notreal.example"
+  ]
+ }
+}

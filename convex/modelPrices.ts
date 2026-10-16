@@ -12,7 +12,7 @@ import { openrouterHeaders } from "./openrouterApp";
 // An alias ("~anthropic/claude-haiku-latest") has no providers of its own: it's priced as the model it points at when
 // read (target), and calls go to that model, so what a call reserves is always the price of the model it reaches.
 
-export type Price = Pick<Doc<"modelPrices">, "prompt" | "completion" | "request" | "fixed" | "maxTokens" | "context" | "structured" | "target">;
+export type Price = Pick<Doc<"modelPrices">, "prompt" | "completion" | "request" | "fixed" | "maxTokens" | "context" | "structured" | "noJsonMode" | "target">;
 
 // A price this old is read again before a call uses it, and one that can't be read again isn't used: the call is
 // refused. Reserving at an hour-old price with a margin (MARGIN) covers a provider raising its price since; an older
@@ -32,7 +32,8 @@ const COMPLETION = ["completion", "internal_reasoning"];
 // A model's highest prices across its providers, from OpenRouter's list of them: "unlisted" when OpenRouter has no such
 // model, "none" when it lists no providers for it (an alias or a router), null when the list can't be read. A negative
 // price is OpenRouter's mark for a router whose price depends on the model it picks. structured: some provider of it
-// keeps a reply to a JSON schema (OpenRouter's structured_outputs).
+// keeps a reply to a JSON schema (OpenRouter's structured_outputs). noJsonMode: none of its providers takes JSON mode
+// (response_format).
 async function readEndpoints(model: string): Promise<Price | "unlisted" | "none" | null> {
   const path = model.split("/").map(encodeURIComponent).join("/");
   const res = await fetch(`https://openrouter.ai/api/v1/models/${path}/endpoints`, { headers: openrouterHeaders() }).catch(() => null);
@@ -47,17 +48,20 @@ async function readEndpoints(model: string): Promise<Price | "unlisted" | "none"
   const prompt = prices(PROMPT);
   const completion = prices(COMPLETION);
   if (!prompt.length || !completion.length) return null;
+  // A model that searches the web charges for each search on top of its tokens (web_search), once a request.
   const request = prices(["request"]);
+  const search = prices(["web_search"]);
   const caps = endpoints.map((e) => e.max_completion_tokens).filter((n): n is number => typeof n === "number" && n > 0);
   const contexts = endpoints.map((e) => e.context_length).filter((n): n is number => typeof n === "number" && n > 0);
   return {
     prompt: Math.max(...prompt),
     completion: Math.max(...completion),
-    request: Math.max(0, ...request),
-    fixed: ![...prompt, ...completion, ...request].some((n) => n < 0),
+    request: Math.max(0, ...request) + Math.max(0, ...search),
+    fixed: ![...prompt, ...completion, ...request, ...search].some((n) => n < 0),
     ...(caps.length ? { maxTokens: Math.max(...caps) } : {}),
     ...(contexts.length ? { context: Math.max(...contexts) } : {}),
     ...(endpoints.some((e) => e.supported_parameters?.includes("structured_outputs")) ? { structured: true } : {}),
+    ...(endpoints.every((e) => Array.isArray(e.supported_parameters) && !e.supported_parameters.includes("response_format")) ? { noJsonMode: true } : {}),
   };
 }
 
@@ -106,6 +110,7 @@ export const save = internalMutation({
         maxTokens: v.optional(v.number()),
         context: v.optional(v.number()),
         structured: v.optional(v.boolean()),
+        noJsonMode: v.optional(v.boolean()),
         target: v.optional(v.string()),
       }),
     ),

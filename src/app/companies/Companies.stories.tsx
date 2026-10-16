@@ -8,6 +8,7 @@ import { useScreenSize } from "@/components/Panes";
 import { ShellProvider, useShellState } from "../shell/ShellContext";
 import { Companies } from "./Companies";
 import { type Act, type CompaniesData, type CompaniesEnv, CompaniesEnvContext, type Company, type Coverage, type OpenRoles, type Person, type Tab } from "./env";
+import type { FindSetup } from "./findPlan";
 
 // The Companies screen with fixture data. Rating, keeping, restoring, editing a website or board and notes change the
 // fixtures as the real mutations would. Resize the window for medium and the phone.
@@ -28,7 +29,6 @@ function company(key: string, s: Seed): Company {
     domain: `${key}.example.com`,
     websiteUrl: `https://${key}.example.com`,
     linkedinUrl: undefined,
-    foundedYear: undefined,
     screened: { employer: true, kind: "employer", by: "ai", at: now - 20 * DAY },
     details: null,
     fit: [],
@@ -36,6 +36,8 @@ function company(key: string, s: Seed): Company {
     ratingReason: null,
     goals: null,
     named: false,
+    evidence: [],
+    ways: [],
     boardUrl: null,
     checking: false,
     found: ["Supply Chain Product (criteria)"],
@@ -61,7 +63,6 @@ const goals = (level: "fits" | "partly" | "doesnt" | "unknown", reason: string) 
 const companies: Company[] = [
   company("loadstar", {
     name: "Loadstar Systems",
-    foundedYear: 2016,
     rating: "excited",
     details: details("Transportation management software for shippers and their carriers: load planning, tendering and freight audit, sold to mid-size manufacturers and distributors.", "loadstar"),
     goals: goals("fits", "Builds the software freight runs on."),
@@ -84,7 +85,6 @@ const companies: Company[] = [
   company("northgate", { name: "Northgate Grocers", rating: "maybe", details: details("A regional grocery chain with 180 stores in Ohio and Pennsylvania.", "northgate"), fit: [fit(product, "some", "One small team builds the stores’ replenishment system.")] }),
   company("orchard", {
     name: "Orchard Forecasting",
-    foundedYear: 2021,
     details: details("Demand-planning software for food and beverage brands, sold to their planning teams.", "orchardforecasting", { open: 12, remote: 9, matching: ["Solutions Consultant, Demand Planning", "Implementation Consultant", "Senior Solutions Consultant", "Solutions Consultant, Beverage"] }),
     goals: goals("fits", "Builds planning software for food brands."),
     fit: [fit(solutions, "strong", "Deals turn on a pilot forecast built from the customer’s own sales history."), fit(product, "some", "Product roles exist, but the whole team is four people.")],
@@ -104,6 +104,23 @@ const companies: Company[] = [
     fit: [fit(planning, "strong", "Runs a large supply planning team across both plants."), fit(product, "some", "An internal planning-systems team of three.")],
   }),
   company("larder", { name: "Larder & Co.", details: details("A recipe and meal-planning app for home cooks.", "larder"), goals: goals("doesnt", "A consumer app; it doesn’t make, move or plan food.") }),
+  // Found by the web search, not filled in yet: their rows say how.
+  company("brinewell", {
+    name: "Brinewell",
+    details: null,
+    found: ["Supply Chain Product (fits, web search)"],
+    ways: ["fits, web search"],
+    evidence: ["https://news.example.com/brinewell-raises-series-b"],
+    foundAt: now - 2 * DAY,
+  }),
+  company("tallyroute", {
+    name: "Tallyroute",
+    details: null,
+    found: ["Solutions Consulting (hiring now, job boards)"],
+    ways: ["hiring now, job boards"],
+    evidence: ["https://jobs.lever.co/tallyroute/4f1c"],
+    foundAt: now - 2 * DAY,
+  }),
   company("keelstaffing", { name: "Keel Staffing Partners", screened: { employer: false, kind: "staffing or recruiting", by: "rule", at: now - 20 * DAY } }),
   company("haulhire", { name: "HaulHire", screened: { employer: false, kind: "job board", by: "you", at: now - 10 * DAY } }),
 ];
@@ -161,6 +178,7 @@ const base: CompaniesData = {
   apolloJobs: true,
   lens: { industries: "steer", judge: "hide" },
   learn: true,
+  filledIn: 112,
   companyGoals: [
     { id: did("g1"), text: "Works on food, freight or the software behind them" },
     { id: did("g2"), text: "Skip tobacco companies" },
@@ -170,9 +188,9 @@ const base: CompaniesData = {
     { domain: "orchard.example.com", lookup: null },
   ],
   searchable: [
-    { id: product, name: "Supply Chain Product", ownSeeds: null, hasTitles: true, targets: ["Loadstar Systems", "Meridian Coldchain"] },
-    { id: solutions, name: "Solutions Consulting", ownSeeds: null, hasTitles: true, targets: ["Loadstar Systems"] },
-    { id: startupOps, name: "Startup Operations", ownSeeds: null, hasTitles: false, targets: ["Parcelpoint"] },
+    { id: product, name: "Supply Chain Product", ownSeeds: null, hasTitles: true, boardQueries: 2, targets: ["Loadstar Systems", "Meridian Coldchain"] },
+    { id: solutions, name: "Solutions Consulting", ownSeeds: null, hasTitles: true, boardQueries: 2, targets: ["Loadstar Systems"] },
+    { id: startupOps, name: "Startup Operations", ownSeeds: null, hasTitles: false, boardQueries: 0, targets: ["Parcelpoint"] },
   ],
   needCriteria: { filling: null, rows: [{ id: planning, name: "Supply Planning", state: "review" as const }] },
   last: {
@@ -191,7 +209,7 @@ const base: CompaniesData = {
   companies,
 };
 
-function createStore(initial: CompaniesData, initialParams: { tab: Tab | null; company: string | null }) {
+function createStore(initial: CompaniesData, initialParams: { tab: Tab | null; company: string | null; settings: boolean }) {
   let data = initial;
   let params = initialParams;
   let notes: Record<string, Note[]> = { loadstar: [{ id: "n1", text: "Rafael built a carrier app before joining. Ask how shipper requests make it onto the roadmap.", at: now - DAY }] };
@@ -245,6 +263,11 @@ function createStore(initial: CompaniesData, initialParams: { tab: Tab | null; c
       emit();
       return null;
     },
+    setLearn: async ({ on }: { on: boolean }) => {
+      data = { ...data, learn: on };
+      emit();
+      return null;
+    },
   } as unknown as Act;
   return {
     subscribe: (l: () => void) => {
@@ -254,16 +277,36 @@ function createStore(initial: CompaniesData, initialParams: { tab: Tab | null; c
     data: () => data,
     notes: () => notes,
     params: () => params,
-    setParams: (next: { tab?: Tab | null; company?: string | null }) => {
-      params = { tab: next.tab === undefined ? params.tab : next.tab, company: next.company === undefined ? params.company : next.company };
+    setParams: (next: { tab?: Tab | null; company?: string | null; settings?: "search" | null }) => {
+      params = { tab: next.tab === undefined ? params.tab : next.tab, company: next.company === undefined ? params.company : next.company, settings: next.settings === undefined ? params.settings : next.settings === "search" };
       emit();
     },
     act,
   };
 }
 
-function Fixture({ data = base, tab = null, company = null }: { data?: CompaniesData; tab?: Tab | null; company?: string | null }) {
-  const [store] = useState(() => createStore(data, { tab, company }));
+const apolloSetup: FindSetup = { finding: "apollo", braveKey: true, relevantUsd: 0.028, hiringNowUsd: 0.014, aiLeft: { left: 18.6, monthly: 25 } };
+
+// The last search on the web: Apollo + AI adds to Apollo's report; AI only has the web search's alone. Brave refused
+// partway, so job boards weren't searched for every direction.
+const webReport = [
+  { direction: "Supply Chain Product", relevant: { found: 15, added: 9 }, hiringNow: { found: 7, added: 4, fromJobBoards: 3 } },
+  { direction: "Solutions Consulting", relevant: { found: 14, added: 6 }, hiringNow: { found: 5, added: 3, fromJobBoards: 0 } },
+];
+const braveNote = "Job boards weren’t searched for every direction: your Brave Search key reached its limit. Hiring now comes from web search alone.";
+const apolloWebLast: CompaniesData["last"] = {
+  status: "done",
+  error: undefined,
+  result: { ...(base.last?.result as object), finding: "apolloWeb", web: { report: webReport, named: null, notes: [braveNote], boardQueries: 4, costUsd: 0.09 } },
+};
+const webLast: CompaniesData["last"] = {
+  status: "done",
+  error: undefined,
+  result: { finding: "web", report: [], named: { found: 1, added: 1, missing: ["harborline.example.com"] }, web: { report: webReport, named: { found: 1, added: 1, missing: ["harborline.example.com"] }, notes: [braveNote], boardQueries: 4, costUsd: 0.09 } },
+};
+
+function Fixture({ data = base, tab = null, company = null, settings = false, setup = apolloSetup }: { data?: CompaniesData; tab?: Tab | null; company?: string | null; settings?: boolean; setup?: FindSetup }) {
+  const [store] = useState(() => createStore(data, { tab, company, settings }));
   const env = useMemo((): CompaniesEnv => {
     const useData = () => useSyncExternalStore(store.subscribe, store.data, store.data);
     return {
@@ -276,8 +319,9 @@ function Fixture({ data = base, tab = null, company = null }: { data?: Companies
       useAct: () => store.act,
       useBalance: () => async () => ({ left: 312, limit: 500, consumed: 188 }),
       useDemo: () => false,
+      useFindSetup: () => setup,
     };
-  }, [store]);
+  }, [store, setup]);
   return (
     <ShellProvider>
       <CompaniesEnvContext.Provider value={env}>
@@ -323,11 +367,14 @@ export const EditingTheJobBoard: Story = {
     await userEvent.keyboard("e");
   },
 };
+// In Storybook's "both" view the screen renders twice (light, then dark): plays act on the first one.
+const firstPane = (canvas: HTMLElement) => canvas.querySelector<HTMLElement>("[data-theme]") ?? canvas;
+
 export const FindCompanies: Story = {
   name: "Find companies",
   render: () => <Fixture tab="targets" company="loadstar" />,
   play: async ({ canvasElement }) => {
-    await userEvent.click(await within(canvasElement).findByRole("button", { name: "More for Companies" }));
+    await userEvent.click(await within(firstPane(canvasElement)).findByRole("button", { name: "More for Companies" }));
     await userEvent.click(await within(document.body).findByRole("menuitem", { name: /Find companies/ }));
   },
 };
@@ -336,13 +383,35 @@ export const FindCompaniesNotLearning: Story = {
   render: () => <Fixture data={{ ...base, learn: false, searchable: base.searchable.map((d) => ({ ...d, targets: [] })) }} tab="targets" company="loadstar" />,
   play: FindCompanies.play,
 };
-export const LensSettings: Story = {
-  name: "Lens settings",
+export const FindCompaniesApolloAndAi: Story = {
+  name: "Find companies, Apollo + AI",
+  render: () => <Fixture data={{ ...base, last: apolloWebLast }} setup={{ ...apolloSetup, finding: "apolloWeb" }} tab="targets" company="loadstar" />,
+  play: FindCompanies.play,
+};
+export const FindCompaniesAiOnly: Story = {
+  name: "Find companies, AI only",
+  render: () => <Fixture data={{ ...base, last: webLast }} setup={{ ...apolloSetup, finding: "web" }} tab="targets" company="loadstar" />,
+  play: FindCompanies.play,
+};
+export const FindCompaniesAiOnlyNoBrave: Story = {
+  name: "Find companies, AI only, no Brave key, before the first search",
+  render: () => <Fixture data={{ ...base, last: null }} setup={{ finding: "web", braveKey: false, relevantUsd: null, hiringNowUsd: null, aiLeft: null }} tab="targets" company="loadstar" />,
+  play: FindCompanies.play,
+};
+export const FoundByWebSearch: Story = { name: "Found by web search", render: () => <Fixture tab="found" company="brinewell" /> };
+export const SearchSettings: Story = {
+  name: "Search settings",
   render: () => <Fixture tab="targets" company="loadstar" />,
   play: async ({ canvasElement }) => {
-    await userEvent.click(await within(canvasElement).findByRole("button", { name: "More for Companies" }));
-    await userEvent.click(await within(document.body).findByRole("menuitem", { name: /Lens settings/ }));
+    await userEvent.click(await within(firstPane(canvasElement)).findByRole("button", { name: "More for Companies" }));
+    await userEvent.click(await within(document.body).findByRole("menuitem", { name: /Search settings/ }));
   },
+};
+// On a phone: full screen, with Back to Companies.
+export const SearchSettingsPhone: Story = {
+  name: "Search settings, phone",
+  globals: { viewport: { value: "mobile2" } },
+  render: () => <Fixture tab="targets" settings />,
 };
 export const Empty: Story = { render: () => <Fixture data={{ ...base, companies: [], last: null }} /> };
 // Nothing chosen: on a phone, the list; beside it, the first company opens.

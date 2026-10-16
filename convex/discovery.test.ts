@@ -83,7 +83,7 @@ test("a cap they set lower than the plan holds within Apollo's billing cycle; a 
   expect(await t2.run((ctx) => ctx.db.query("usage").collect())).toMatchObject([{ credits: 0, ok: false, state: "settled" }]);
 });
 
-test("discovery searches approved-criteria directions, resolves seeds to Apollo ids, uses a direction's own seeds over the default, and drops past employers", async () => {
+test("discovery searches approved-criteria directions, resolves seeds to Apollo ids, adds a direction's own seeds to the workspace's, and drops past employers", async () => {
   const { t, w, as } = await setup();
   vi.setSystemTime(Date.parse("2026-09-24T12:00:00Z"));
   const dir = (name: string, criteria: Record<string, unknown> | undefined, status: "approved" | "proposed") =>
@@ -111,10 +111,12 @@ test("discovery searches approved-criteria directions, resolves seeds to Apollo 
   const criteriaCall = calls.find((q) => q.getAll("q_organization_keyword_tags[]").length)!;
   expect(criteriaCall.getAll("q_organization_keyword_tags[]")).toEqual(["ai"]);
   expect(criteriaCall.getAll("organization_num_employees_ranges[]")).toEqual(["51,200", "5001,1000000"]);
-  expect(calls.find((q) => q.getAll("lookalike_organization_ids[]").includes("A1"))!.getAll("lookalike_organization_ids[]")).toEqual(["A1", "S1"]);
+  // The workspace's seeds are one batch, searched once for every direction; a direction's own come on top, in a batch of their own.
+  const lookalikeCalls = calls.filter((q) => q.getAll("lookalike_organization_ids[]").length).map((q) => q.getAll("lookalike_organization_ids[]"));
+  expect(lookalikeCalls).toEqual([["A1", "S1"], ["V1"]]);
   expect(job.result.seedsNotInApollo).toEqual(["notreal.example"]);
   const seReport = job.result.report.find((r: { direction: string }) => r.direction === "Solutions Consulting");
-  expect(seReport).toMatchObject({ ownSeeds: true, lookalikes: [{ seeds: ["Loadstar Systems"], found: 0 }] });
+  expect(seReport).toMatchObject({ ownSeeds: true, lookalikes: [{ seeds: ["Copperline Robotics", "Kestrel Freight"], found: 1 }, { seeds: ["Loadstar Systems"], found: 0 }] });
   const { companies } = await as.query(api.discovery.list, {});
   expect(companies.map((c) => c.name).sort()).toEqual(["Ashgrove Manufacturing", "Fernhill Foods"]);
   expect(companies.find((c) => c.name === "Fernhill Foods")!.found.sort()).toEqual(["Solutions Consulting (criteria)", "Solutions Consulting (large companies)", "Supply Chain Product (criteria)", "Supply Chain Product (large companies)"]);

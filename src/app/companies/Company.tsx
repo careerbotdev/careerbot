@@ -52,7 +52,8 @@ export const WORDS = {
   restore: { detail: "Counts it as a place to work again; it goes back to Found.", note: FREE_UNDO },
   notEmployer: { detail: "Sets it aside as not a place to work and stops listing its roles.", note: FREE_UNDO },
   check: "Reads its website and job board afresh, then how it fits your directions.",
-  find: { detail: "Shows each search and its credits before you start one.", note: "Free" },
+  find: { detail: "Shows each search and what it costs before you start one.", note: "Free" },
+  settings: { detail: "Sets what searches look for and how found companies are sorted: seed companies, companies you’d name, industries, your goals and your ratings.", note: "Free" },
 } as const;
 
 export const RATINGS = [
@@ -147,7 +148,7 @@ export function CompanyItem({
   const out = c.screened?.employer === false;
   const theirsOut = out && c.screened?.by === "you";
   const sources: BuiltOnSource[] = data.companyGoals.map((g) => ({ kind: "fact", text: g.text, source: "Limits · Companies", approved: true, href: `/goals/limits?limit=${g.id}` }));
-  const line = [c.domain, c.foundedYear ? `Founded ${c.foundedYear}` : null, c.checking ? "Checking again" : null].filter(Boolean).join(" · ") || "No website yet";
+  const line = [c.domain, c.checking ? "Checking again" : null].filter(Boolean).join(" · ") || "No website yet";
 
   const rating = (
     <RatingControl
@@ -245,7 +246,15 @@ export function CompanyItem({
           ))}
         </Property>
       )}
-      <Property label="Found">{`${c.found.join(", ").replace(/^./, (x) => x.toUpperCase())} · ${when(c.foundAt)}`}</Property>
+      <Property label="Found">
+        <span>{`${c.found.join(", ").replace(/^./, (x) => x.toUpperCase())} · ${when(c.foundAt)}`}</span>
+        {/* The pages the web search saw it on. */}
+        {c.evidence.map((url, i) => (
+          <PropertyLink key={url} href={url}>
+            {c.evidence.length > 1 ? `Where it was seen (${i + 1})` : "Where it was seen"}
+          </PropertyLink>
+        ))}
+      </Property>
       {people && people.length > 0 && (
         <Property label="Contacts">
           {people.map((p) => (

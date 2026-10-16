@@ -24,6 +24,10 @@ concurrency:
 # 429. Without them (a pull request from a fork) the steps sign in to nothing and pull anonymously.
 env:
   DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+  # The node base image for the release images. Signed in to Docker Hub, it comes from there (the account's own limit);
+  # without, from AWS's public mirror, the Dockerfile's default. AWS's mirror also limits anonymous pulls (429) on
+  # shared runners, so a signed-in build doesn't use it. Same tag as the Dockerfile's NODE_IMAGE.
+  NODE_IMAGE: ${{ secrets.DOCKERHUB_TOKEN != '' && 'docker.io/library/node:22-bookworm-slim' || 'public.ecr.aws/docker/library/node:22-bookworm-slim' }}
 
 jobs:
   check:
@@ -128,6 +132,7 @@ jobs:
           target: web
           load: true
           tags: ${{ steps.version.outputs.web }}:${{ steps.version.outputs.version }}
+          build-args: NODE_IMAGE=${{ env.NODE_IMAGE }}
       - name: Build careerbot-setup
         uses: docker/build-push-action@v7
         with:
@@ -135,5 +140,6 @@ jobs:
           target: convex-setup
           load: true
           tags: ${{ steps.version.outputs.setup }}:${{ steps.version.outputs.version }}
+          build-args: NODE_IMAGE=${{ env.NODE_IMAGE }}
       - name: The previous release updates to this one with its data and sign-in
         run: pnpm upgrade:check

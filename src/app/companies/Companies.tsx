@@ -24,7 +24,9 @@ import { COMPANIES_TOUR } from "../tours/companies";
 import { checkNote, COMPANY_REASONS, CompanyItem, coverageText, type EditField, editFieldFor, failed, type Rating, WORDS } from "./Company";
 import { type CompaniesData, type Company, type Tab, TABS, useCompaniesEnv } from "./env";
 import { ASIDE, type AsideKind, asideKind, companySets, tabOf } from "./sets";
-import { FindCompanies, findEstimate, LensDialog, NamedDialog, SeedsDialog } from "./Tools";
+import { findEstimate, rowLine, totalCost } from "./findPlan";
+import { SearchSettingsDialog, SearchSettingsScreen } from "./SearchSettings";
+import { FindCompanies } from "./Tools";
 
 const TAB_LABEL: Record<Tab, string> = { targets: "Targets", maybe: "Maybe", found: "Found", aside: "Set aside" };
 const KINDS = Object.keys(ASIDE) as AsideKind[];
@@ -44,7 +46,7 @@ export function Companies() {
 
 function Screen({ data }: { data: CompaniesData }) {
   const env = useCompaniesEnv();
-  const { tab: tabParam, company: companyParam, set } = env.useParams();
+  const { tab: tabParam, company: companyParam, settings: searchSettings, set } = env.useParams();
   const act = env.useAct();
   const size = useScreenSize();
   const small = size === "small";
@@ -63,7 +65,7 @@ function Screen({ data }: { data: CompaniesData }) {
   const [folds, setFolds] = useState<Record<AsideKind, boolean>>({ goals: true, no: true, out: true });
   const [why, setWhy] = useState<{ id: string; where: "row" | "item" } | null>(null);
   const sel = useSelection();
-  const [dialog, setDialog] = useState<"find" | "named" | "seeds" | "lens" | null>(null);
+  const [dialog, setDialog] = useState<"find" | null>(null);
   const [editing, setEditing] = useState<{ id: string; field: EditField } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -145,7 +147,8 @@ function Screen({ data }: { data: CompaniesData }) {
   const fillNote = checkNote(unfilled, data.apolloJobs);
   const filling = data.enriching?.status === "queued" || data.enriching?.status === "running";
   const fillIn = () => void act.fillIn({}).then(() => toast({ message: "Filling in details", icon: "running" }), failed);
-  const estimate = findEstimate(data).total;
+  const setup = env.useFindSetup();
+  const estimate = setup ? totalCost(findEstimate(data, setup)) : undefined;
 
   // The row under the keyboard's focus, else the pointer.
   const rowAt = (el: Element | null) => {
@@ -200,7 +203,7 @@ function Screen({ data }: { data: CompaniesData }) {
   }, []);
 
   const listMenu: MenuEntry[] = [
-    { label: "Find companies", icon: "search", hint: `About ${estimate} Apollo ${estimate === 1 ? "credit" : "credits"}`, detail: WORDS.find.detail, note: WORDS.find.note, onSelect: openFind },
+    { label: "Find companies", icon: "search", hint: estimate, detail: WORDS.find.detail, note: WORDS.find.note, onSelect: openFind },
     {
       label: filling ? "Filling in details" : `Fill in details${unfilled.length ? ` for ${unfilled.length}` : ""}`,
       icon: "tryAgain",
@@ -212,9 +215,7 @@ function Screen({ data }: { data: CompaniesData }) {
     },
     ...selectEntries(sel, rendered.map((c) => c.id), "companies"),
     "separator",
-    { label: "Companies you’d name", icon: "companies", count: data.named.length || undefined, detail: "Lists companies you already want, added to every search.", note: "Free", onSelect: () => setDialog("named") },
-    { label: "Seed companies", icon: "companies", count: data.seeds.length || undefined, detail: "Lists companies you’d love to work at, so searches find ones like them.", note: "Free", onSelect: () => setDialog("seeds") },
-    { label: "Lens settings", icon: "filter", detail: "Sets how your goals shape searches and what Found shows.", note: "Free", onSelect: () => setDialog("lens") },
+    { label: "Search settings", icon: "filter", detail: WORDS.settings.detail, note: WORDS.settings.note, onSelect: () => set({ settings: "search" }) },
     "separator",
     tour.menu,
   ];
@@ -271,13 +272,11 @@ function Screen({ data }: { data: CompaniesData }) {
   const commands = useMemo(
     (): Command[] => [
       ...TABS.map((t): Command => ({ id: `companies-${t}`, group: "Companies", label: TAB_LABEL[t], icon: "companies", onSelect: () => set({ tab: t, company: null }) })),
-      { id: "companies-find", group: "Companies", label: "Find companies", detail: `About ${estimate} Apollo credits`, icon: "search", onSelect: openFind },
+      { id: "companies-find", group: "Companies", label: "Find companies", detail: estimate, icon: "search", onSelect: openFind },
       { id: "companies-fill", group: "Companies", label: "Fill in details", detail: fillNote, icon: "tryAgain", onSelect: () => void act.fillIn({}).catch(failed) },
-      { id: "companies-named", group: "Companies", label: "Companies you’d name", icon: "companies", onSelect: () => setDialog("named") },
-      { id: "companies-seeds", group: "Companies", label: "Seed companies", icon: "companies", onSelect: () => setDialog("seeds") },
-      { id: "companies-lens", group: "Companies", label: "Lens settings", icon: "filter", onSelect: () => setDialog("lens") },
+      { id: "companies-search-settings", group: "Companies", label: "Search settings", detail: WORDS.settings.detail, icon: "filter", onSelect: () => set({ settings: "search" }) },
     ],
-    [set, estimate, act, setDialog, openFind, fillNote],
+    [set, estimate, act, openFind, fillNote],
   );
   useCommands(commands);
 
@@ -348,7 +347,7 @@ function Screen({ data }: { data: CompaniesData }) {
           : asideKind(sets, c.id) === "no"
             ? (c.ratingReason ?? "No reason given")
             : c.screened?.kind && c.screened.kind[0].toUpperCase() + c.screened.kind.slice(1)
-        : (c.details?.summary ?? c.domain ?? "No website yet");
+        : rowLine(c);
     const tag =
       tab === "found" ? (
         fit ? (
@@ -437,7 +436,13 @@ function Screen({ data }: { data: CompaniesData }) {
       width={360}
       trigger={<span aria-hidden className="pointer-events-none absolute inset-0" />}
     >
-      <FindCompanies data={data} />
+      <FindCompanies
+        data={data}
+        onSettings={() => {
+          setDialog(null);
+          set({ settings: "search" });
+        }}
+      />
     </Popover>
   );
 
@@ -522,13 +527,11 @@ function Screen({ data }: { data: CompaniesData }) {
     <div className="flex h-full min-h-0 flex-col">
       <PaneLayout
         list={list}
-        item={small ? (opened ? item : undefined) : item}
+        item={small ? (searchSettings ? <SearchSettingsScreen data={data} /> : opened ? item : undefined) : item}
         empty={<EmptyState icon="companies" title="Nothing open">Choose a company to see it here.</EmptyState>}
-        back={{ label: TAB_LABEL[tab], onBack: () => open(null) }}
+        back={searchSettings ? { label: "Companies", onBack: () => set({ settings: null }) } : { label: TAB_LABEL[tab], onBack: () => open(null) }}
       />
-      <NamedDialog data={data} open={dialog === "named"} onOpenChange={(o) => setDialog(o ? "named" : null)} />
-      <SeedsDialog data={data} open={dialog === "seeds"} onOpenChange={(o) => setDialog(o ? "seeds" : null)} />
-      <LensDialog data={data} open={dialog === "lens"} onOpenChange={(o) => setDialog(o ? "lens" : null)} />
+      {!small && <SearchSettingsDialog data={data} open={searchSettings} onOpenChange={(o) => set({ settings: o ? "search" : null }, true)} />}
     </div>
   );
 }

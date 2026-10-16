@@ -1,6 +1,7 @@
 "use client";
 
 import * as RadioGroup from "@radix-ui/react-radio-group";
+import { Tooltip } from "./Tooltip";
 
 // The track and its segments, shared with ToggleGroup: a `subtle` track 2px in, 32px tall (44px on a phone); segments
 // are muted until chosen, when they rise onto the surface with a 1px border. Focus rings the whole track (important,
@@ -16,7 +17,10 @@ export const segmentOn = "bg-surface text-text shadow-[0_0_0_1px_var(--color-bor
 // Pick one of two to four short options that apply at once (a setting, or which view a list shows). A radio group
 // underneath: one tab stop, arrow keys move and choose. null: none chosen (the value is set some other way, such as a
 // number typed next to it). hideLabel: the label is only read out, for a control whose options say what it is. wide:
-// the track fills its row and the segments share it (a phone's period switch).
+// the track fills its row and the segments share it (a phone's period switch). An option can carry its explainer
+// (`detail`, `note`) in a tooltip, like an action; one with a `reason` can't be chosen right now and its tooltip says
+// why (it stays focusable so the tooltip can).
+export type Segment<T extends string> = { value: T; label: string; detail?: string; note?: string; reason?: string };
 export function SegmentedControl<T extends string>({
   label,
   value,
@@ -29,7 +33,7 @@ export function SegmentedControl<T extends string>({
   label: string;
   value: T | null;
   onChange: (value: T) => void;
-  options: readonly { value: T; label: string }[];
+  options: readonly Segment<T>[];
   hideLabel?: boolean;
   disabled?: boolean;
   wide?: boolean;
@@ -38,20 +42,32 @@ export function SegmentedControl<T extends string>({
     <RadioGroup.Root
       aria-label={label}
       value={value ?? ""}
-      onValueChange={(v) => onChange(v as T)}
+      onValueChange={(v) => {
+        if (!options.find((o) => o.value === v)?.reason) onChange(v as T);
+      }}
       orientation="horizontal"
       disabled={disabled}
       className={`${segmentTrack} data-disabled:opacity-50 ${wide ? "w-full" : ""}`}
     >
-      {options.map((o) => (
-        <RadioGroup.Item
-          key={o.value}
-          value={o.value}
-          className={`${segment} ${wide ? "flex-1 justify-center" : ""} data-[state=checked]:bg-surface data-[state=checked]:text-text data-[state=checked]:shadow-[0_0_0_1px_var(--color-border)] data-[state=checked]:hover:bg-surface`}
-        >
-          {o.label}
-        </RadioGroup.Item>
-      ))}
+      {options.map((o) => {
+        const item = (
+          <RadioGroup.Item
+            key={o.value}
+            value={o.value}
+            aria-disabled={o.reason ? true : undefined}
+            className={`${segment} ${wide ? "flex-1 justify-center" : ""} aria-checked:bg-surface aria-checked:text-text aria-checked:shadow-[0_0_0_1px_var(--color-border)] aria-checked:hover:bg-surface aria-disabled:opacity-50 aria-disabled:enabled:hover:bg-transparent`}
+          >
+            {o.label}
+          </RadioGroup.Item>
+        );
+        return o.detail !== undefined || o.note !== undefined || o.reason ? (
+          <Tooltip key={o.value} content={o.label} detail={o.reason ?? o.detail} note={o.reason ? undefined : o.note}>
+            {item}
+          </Tooltip>
+        ) : (
+          item
+        );
+      })}
     </RadioGroup.Root>
   );
   if (hideLabel) return control;

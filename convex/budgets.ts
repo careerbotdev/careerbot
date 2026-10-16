@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, query, type QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
+import { refuseCancelled } from "./cancel";
 import { allowanceOf, type Plan, platformMonth, PLATFORM_USED_UP, reservePlatform } from "./plan";
 import { origin } from "./schema";
 import { clockOf, requireWorkspace } from "./workspaces";
@@ -173,6 +174,8 @@ export const reserve = internalMutation({
   },
   handler: async (ctx, { workspaceId, service, automated, amount, purpose, model, endpoint, accountLeft, cycleStart, jobId, origin, pursuitId, platform }) => {
     const reached = (message: string): BudgetReached => ({ code: BUDGET_REACHED, service, message });
+    // Nothing new is reserved for a job cancelled from Activity (cancel.ts).
+    await refuseCancelled(ctx, jobId);
     if (service === "openrouter") {
       const { capUsd, byPlan } = await aiCap(ctx, workspaceId, platform);
       if (capUsd <= 0) throw new ConvexError(reached(noBudget(byPlan)));

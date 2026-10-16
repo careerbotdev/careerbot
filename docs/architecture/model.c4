@@ -53,7 +53,7 @@ model {
         }
       }
       settingsScreen = screen 'Settings' {
-        description 'Sections, each with its current state: Account (sign out; on a self-hosted copy also the username, Change password, and for the owner People: everyone who can sign in, Add a person, Reset password and Remove, with the temporary password to give them, and who may use Google and GitHub), AI (one model for every task from a few recommended ones with their monthly cost; Try it; Advanced: a task\u2019s own model, the model for sorting roles, a model not listed, Compare models), Budgets and spending (meters, the AI budget, Apollo credits, automated Apollo work, to Reports), Keys (OpenRouter, Apollo with its balance, Brave: masked, Replace, Remove asks first), Companies (industries, checking companies against goals with Check all again and its cost, job postings from Apollo), Reminders, Contact and GitHub (to the base resume and Projects), Your data (Export: one ZIP of the whole workspace, what is in it and what isn\u2019t, its progress, Download for an hour and Export again; Import, only into an empty workspace: choose or drop a ZIP, its preview (which CareerBot, when, how many of each kind), Import with its progress, Continue when it stopped partway, the result with keys and connections to add again; a file too large, from a newer CareerBot or not an export is refused in plain words). Every change saves as made, with Undo.'
+        description 'Sections, each with its current state: Account (sign out; on a self-hosted copy also the username, Change password, and for the owner People: everyone who can sign in, Add a person, Reset password and Remove, with the temporary password to give them, and who may use Google and GitHub), AI (one model for every task from a few recommended ones with their monthly cost; Try it; Advanced: a task\u2019s own model, the model for sorting roles, a model not listed, Compare models), Budgets and spending (meters, the AI budget, Apollo credits, automated Apollo work, to Reports), Account also has Contact details (to the base resume). Connections (AI: the OpenRouter key; Companies: the Finding companies path, the Apollo key with its balance, the Brave key (masked, Replace, Remove asks first) and job postings from Apollo; Resumes and projects: Google Drive in one row with Sync now and \u22ef Open folder, Choose a folder, Disconnect, and GitHub to Projects), Your data (Export: one ZIP of the whole workspace, what is in it and what isn\u2019t, its progress, Download for an hour and Export again; Import, only into an empty workspace: choose or drop a ZIP, its preview (which CareerBot, when, how many of each kind), Import with its progress, Continue when it stopped partway, the result with keys and connections to add again; a file too large, from a newer CareerBot or not an export is refused in plain words). Every change saves as made, with Undo. Old sections\u2019 addresses (?section=keys, drive, contact, companies, reminders) go to where those controls live now.'
         metadata {
           path '/settings (?section=)'
         }
@@ -89,7 +89,7 @@ model {
         }
       }
       companiesScreen = screen 'Companies' {
-        description 'One list with tabs Targets, Maybe, Found and Set aside (Doesn\u2019t fit your goals, Not for me with its reason, Not a place to work, each with a line saying why; nothing is deleted: Keep anyway, Restore). Rating in place: Target T, Maybe M, Not for me R with Why?, saved together. The item: about, how it fits their company goals (Built on), fit per direction, open roles into Pursuits, Start outreach (a pursuit there with no open role, for the direction it fits best, opened at People), people found there, website and job board edited in place, coverage with Check again and its cost, how it was found, Notes. The list \u22ef: Find companies (its Apollo estimate and credits left), Fill in details, Select several (bulk Check again), companies they\u2019d name, seed companies, lens settings.'
+        description 'One list with tabs Targets, Maybe, Found and Set aside (Doesn\u2019t fit your goals, Not for me with its reason, Not a place to work, each with a line saying why; nothing is deleted: Keep anyway, Restore). Rating in place: Target T, Maybe M, Not for me R with Why?, saved together. The item: about, how it fits their company goals (Built on), fit per direction, open roles into Pursuits, Start outreach (a pursuit there with no open role, for the direction it fits best, opened at People), people found there, website and job board edited in place, coverage with Check again and its cost, how it was found (with Where it was seen, the page a web search saw it on; a row not filled in says how the web search found it), Notes. The list \u22ef: Find companies on the way companies are found (each search with its Apollo credits, its dollars from the AI budget a direction, or both; Brave job-board searches; the total and what\u2019s left; the last search, with what the web search couldn\u2019t do), Fill in details, Select several (bulk Check again), Search settings (also from Find companies\u2019 Change and the palette; a dialog, full screen with Back on a phone): seed companies for every direction, companies they\u2019d name, industries, checking companies against goals with Check all again, learning from ratings; each change saved at once with Undo.'
         metadata {
           path '/companies'
         }
@@ -397,9 +397,9 @@ model {
         }
       }
       narrativesApi = service 'Narratives' {
-        description 'Create, save (new version), restore, delete (facts stay, flagged; its passages leave every item that quoted it; comparisons that read it go).'
+        description 'Create, save (new version), restore, delete. Before deleting, removal counts what only this story backs (storyRemoval.plan: an item another story or an approved project also backs stays), waiting for review and approved, and approved facts in resume lines. Delete takes, as chosen, the unreviewed ones (default) and approved facts (kept, flagged, by default), a role once nothing that stays rests on it; its passages leave every other item; comparisons that read it go.'
         metadata {
-          functions 'narratives:list, narratives:get, narratives:create, narratives:save, narratives:restore, narratives:remove, narratives:link'
+          functions 'narratives:list, narratives:get, narratives:create, narratives:save, narratives:restore, narratives:removal, narratives:remove, narratives:link'
         }
       }
       limitSchema = service 'Limit schema' {
@@ -440,16 +440,16 @@ model {
         }
       }
       toursApi = service 'Guided tours' {
-        description 'A short tour of each dense screen (Today with the shell, Review, Pursuits, Companies, Resumes, Record, Goals, Settings > Google Drive), in src/app/tours, run by driver.js in the design system\u2019s look (a bottom card on a phone): each step lights up one part by its data-tour name, steps whose part isn\u2019t on screen drop out, and tours never click, spend or change anything. Every screen has Take the tour in \u2318K and its \u22ef menu; the first visit offers it once. offered lists the screens whose tour was offered for the workspace (workspaces.toursOffered); markOffered adds one. scripts/tour-check.mjs (lint) fails when a step points at a part no screen has.'
+        description 'A short tour of each dense screen (Today with the shell, Review, Pursuits, Companies, Resumes, Record, Goals, Settings, Connections, Google Drive), in src/app/tours, run by driver.js in the design system\u2019s look (a bottom card on a phone): each step lights up one part by its data-tour name, steps whose part isn\u2019t on screen drop out, and tours never click, spend or change anything. Every screen has Take the tour in \u2318K and its \u22ef menu; the first visit offers it once. offered lists the screens whose tour was offered for the workspace (workspaces.toursOffered); markOffered adds one. scripts/tour-check.mjs (lint) fails when a step points at a part no screen has.'
         metadata {
           functions 'tours:offered, tours:markOffered'
           files 'convex/tours.ts, src/components/Tour.ts, src/app/shell/useTour.ts, src/app/tours'
         }
       }
       activityApi = service 'Activity' {
-        description 'list: the workspace\u2019s work that is queued, running or paused, and what finished or failed in the last 24 hours, each in plain words with its progress, and a way to try failed work again.'
+        description 'list: the workspace\u2019s work that is queued, running or paused, and what finished, failed or was cancelled in the last 24 hours (less what was cleared), each in plain words with its progress, and a way to try failed or cancelled work again. clear (\u00d7 on one finished item) and clearFinished (all of them) take finished work off the list by setting jobs.clearedAt, never deleting the job (reports and busy checks still read it); restore is their Undo.'
         metadata {
-          functions 'activity:list'
+          functions 'activity:list, activity:clear, activity:clearFinished, activity:restore'
         }
       }
       resumeApi = service 'Resumes' {
@@ -499,9 +499,9 @@ model {
 
     platform = area 'Platform' {
       jobs = service 'Jobs' {
-        description 'Runs background work by kind; a job that hits a budget pauses and resumes. A run cut off by a deploy is picked up again every 5 minutes (up to three tries).'
+        description 'Runs background work by kind; a job that hits a budget pauses and resumes. A run cut off by a deploy is picked up again every 5 minutes (up to three tries). cancel (Activity): a queued or paused job is cancelled before it runs again; a running one is marked cancelled and stops at the step it is on (cancel.ts): Metering refuses every new paid call for it and throws away the answer of a call that comes back after it (the call is still charged), the mutations that save a step\u2019s result refuse it (checkpoint, the companies a search found, roles workers\u2019 descriptions, sorts and verdicts, direction fill-ins, skills, insights, story and goals reads), its loops check between steps (discovery and the web search before each search, enrich between batches, the directions fill-in before each direction, Drive sync before each write), and a pass queues no next run. Steps finished before stay; its own end leaves it cancelled.'
         metadata {
-          functions 'jobs:get, jobs:setState, jobs:markStarted, jobs:run, jobs:resumePaused, jobs:recoverStuck, jobs:checkpoint, jobs:latestTestCall, jobs:pursuitOf'
+          functions 'jobs:get, jobs:setState, jobs:markStarted, jobs:run, jobs:resumePaused, jobs:recoverStuck, jobs:checkpoint, jobs:latestTestCall, jobs:pursuitOf, jobs:cancel'
         }
       }
       metering = service 'Metering' {
@@ -588,9 +588,23 @@ model {
         }
       }
       discovery = service 'Company discovery' {
-        description 'One run: look up the companies they named and any new seed websites; then per direction with approved criteria, four Apollo searches: criteria (keywords and sizes), large companies (1,001+), hiring now (active postings for its target titles, steered into the goals’ wanted industries, added alongside, never narrowing) and lookalikes of its seeds (the default seeds or its own; identical seed batches shared). Past employers dropped; avoided industries never searched. Each finished search is checkpointed so a resumed run never repays. Ends by screening new companies. Every call goes through the Apollo credit guard: never past the account balance, fails closed if it cannot be read. The lens (workspace setting on Home): industries Steer (goals’ wanted industries added to each search; default) / Only (wanted industries alone, lookalikes too) / Ignore (no industry filter); avoided industries and past employers always excluded.'
+        description 'One run: look up the companies they named and any new seed websites; then per direction with approved criteria, four Apollo searches: criteria (keywords and sizes), large companies (1,001+), hiring now (active postings for its target titles, steered into the goals’ wanted industries, added alongside, never narrowing) and lookalikes of its seeds (the workspace\u2019s, for every direction, plus its own on top, each batched on its own; identical seed batches shared). Past employers dropped; avoided industries never searched. Each finished search is checkpointed so a resumed run never repays. Ends by screening new companies. Every call goes through the Apollo credit guard: never past the account balance, fails closed if it cannot be read. The lens (workspace setting on Home): industries Steer (goals’ wanted industries added to each search; default) / Only (wanted industries alone, lookalikes too) / Ignore (no industry filter); avoided industries and past employers always excluded.'
         metadata {
-          functions 'discovery:companySettings, discovery:setNamed, discovery:setSeeds, discovery:setDirectionSeeds, discovery:start, discovery:inputs, discovery:saveSeeds, discovery:saveCompanies, discovery:list, discovery:setLens, discovery:setLearn'
+          functions 'discovery:companySettings, discovery:seeds, discovery:setNamed, discovery:setSeeds, discovery:setDirectionSeeds, discovery:start, discovery:inputs, discovery:saveSeeds, discovery:saveCompanies, discovery:list, discovery:setLens, discovery:setLearn'
+        }
+      }
+      findCompanies = service 'Finding companies' {
+        description 'How companies are found, chosen per workspace (the Finding companies choice; its Settings section is still to be placed): Apollo (Company discovery, unchanged; the default with an Apollo key), Apollo + AI (Apollo first, then the web search for companies hiring now and ones that fit that Apollo missed, added to Apollo\u2019s rows by website) or AI only (the web search alone; the only way without an Apollo key, and then people at a company are added by hand: no people search). The Apollo ways need an Apollo key. The run\u2019s result says which way ran.'
+        metadata {
+          functions 'findCompanies:settings, findCompanies:finding, findCompanies:set'
+          files 'convex/findCompanies.ts'
+        }
+      }
+      webDiscovery = aiStep 'Find companies on the web' {
+        description 'Per direction with approved criteria, up to 15 companies of each kind: ones that fit the direction, hiring or not (one web-searching model call, Perplexity Sonar Pro through OpenRouter, CareerBot\u2019s own choice and allowed on its key); and ones hiring now (the same model asked for open roles, and, with the workspace\u2019s Brave key, Brave site searches of the public job boards CareerBot reads for its first two titles where they can work, each board\u2019s company website read from its board page). Each candidate is a name, a website and the page it was seen on; nothing else it says is kept. A company is saved only under a name it was given (by the model, its board\u2019s page title or, for a company they named by its website, its own site\u2019s name or title), never under a website; one without a trustworthy name and website is left out (and a named one reported as not found). One row per website: a company already found gets another found entry. Past employers and companies they turned down are left out; job sites and agencies are set aside by Screen companies. When Brave refuses (its limit or the key), the run goes on with the web search alone and says so in Activity. Metered as \u201crelevant companies\u201d and \u201ccompanies hiring now\u201d; checkpointed like Apollo\u2019s searches.'
+        metadata {
+          functions 'webDiscovery:inputs, webDiscovery:known, webDiscovery:saveCompanies, webDiscovery:lookUp'
+          files 'convex/webDiscovery.ts'
         }
       }
       githubApp = service 'GitHub App' {
@@ -690,6 +704,13 @@ model {
         metadata {
           functions 'accountDelete:status, accountDelete:start, accountDelete:remove, accountDelete:resume, accountDelete:connections, accountDelete:revoke, accountDelete:revoked, accountDelete:purge, accountDelete:finish, accountDelete:forget'
           files 'convex/accountDelete.ts, convex/workspaceCopy.ts'
+        }
+      }
+      accountReset = service 'Account reset' {
+        description 'Resetting an account, from Settings, Your data (start: the person types its name; refused in the demo): clears every table with a workspaceId except a kept list (memberships, plans, spending: usage, spendTotals, aiSpend; settings: aiDefaults, aiSettings, budgets, profiles, reminderSettings, resumeSettings, discovery; apiKeys unless Also remove my keys; Google Drive and GitHub connections), with the stored files the rows name, seed companies and exports included. One row per workspace, run in the background a page at a time (step: count, then clear, through accountDelete\u2019s page purge, jobs first), checked once through and gone round again if anything was written meanwhile. Seed companies and the resume layout\u2019s choices about cleared rows are taken out of the kept settings, and Getting started shows again from its first step. counts: what the dialog lists, by group.'
+        metadata {
+          functions 'accountReset:status, accountReset:counts, accountReset:start, accountReset:step'
+          files 'convex/accountReset.ts, convex/accountDelete.ts'
         }
       }
       crons = service 'Schedules' {
@@ -1088,6 +1109,12 @@ model {
           table 'adminLog'
         }
       }
+      tAccountResets = table 'accountResets' {
+        description 'A workspace being reset: who started it, whether the keys go too, the step (counting, clearing, done), where it is in the tables, rows to clear and cleared so far, and a last sign of life. Not one of the workspace\u2019s own tables; started again by the next reset, deleted with the account.'
+        metadata {
+          table 'accountResets'
+        }
+      }
       tAccountDeletions = table 'accountDeletions' {
         description 'An account being deleted, by the person or a self-hosted copy\u2019s owner: the workspace it deletes (the one only they use), the step (revoking, deleting, signingOut, done), where it is in the workspace\u2019s tables, rows deleted so far, and a last sign of life. Not one of the workspace\u2019s own tables, so it outlives it; forgotten an hour after it is done.'
         metadata {
@@ -1339,6 +1366,11 @@ model {
   careerbot.ui.settingsScreen -[calls]-> careerbot.platform.accountDelete 'Your data: Delete account (status, Delete my account, Continue)'
   careerbot.ui.shell -[calls]-> careerbot.platform.accountDelete 'status: Deleting your account in Activity; signs out once it is done'
   careerbot.platform.accountDelete -[writes]-> careerbot.data.tAccountDeletions
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.accountReset 'Your data: Reset account (status, counts, Reset my account, Continue)'
+  careerbot.ui.shell -[calls]-> careerbot.platform.accountReset 'status: Resetting your account in Activity'
+  careerbot.platform.accountReset -[writes]-> careerbot.data.tAccountResets
+  careerbot.platform.accountReset -[writes]-> careerbot.data.tWorkspaces 'deletes every row with its id but the kept tables, with their stored files; Getting started shows again'
+  careerbot.platform.accountReset -[writes]-> careerbot.data.tDiscovery 'clears seed companies'
   careerbot.platform.accountDelete -[writes]-> careerbot.data.tWorkspaces 'deletes the workspace and every row with its id (every table with a workspaceId), with their stored files'
   careerbot.platform.accountDelete -[writes]-> careerbot.data.tMemberships 'deletes the person\u2019s membership'
   careerbot.platform.accountDelete -[writes]-> careerbot.data.tUsers 'deletes the person, their sign-in accounts and sessions'
@@ -1572,6 +1604,8 @@ model {
   }
   careerbot.platform.discovery -[calls]-> careerbot.platform.enrich 'after each run'
   careerbot.ui.companiesScreen -[calls]-> careerbot.platform.enrich 'Fill in details'
+  careerbot.ui.companiesScreen -[calls]-> careerbot.platform.enrich 'Search settings: Check all again'
+  careerbot.ui.goalsScreen -[calls]-> careerbot.platform.discovery 'a direction\u2019s Criteria: the seeds from Search settings'
   careerbot.ui.companiesScreen -[calls]-> careerbot.ai.directionsStep 'Fill in a direction not filled in (Find companies)'
   careerbot.platform.enrich -[calls]-> companyWebsites 'public hostnames only; every redirect re-checked'
   jinaReader = external 'Jina Reader' {
@@ -1585,6 +1619,32 @@ model {
   }
   careerbot.platform.enrich -[writes]-> careerbot.data.tCompanies 'details with sources'
   careerbot.platform.enrich -[uses]-> careerbot.platform.metering 'AI call; Apollo job postings if turned on'
+
+  // ---- Finding companies: Apollo, Apollo + AI, or AI only ----
+  braveSearch = external 'Brave Search' {
+    description 'Web search API, billed to the workspace\u2019s own Brave key.'
+  }
+  careerbot.ui.companiesScreen -[calls]-> careerbot.platform.findCompanies 'Find companies: how companies are found, and the Brave key'
+  careerbot.ui.companiesScreen -[calls]-> careerbot.pursue.estimatesApi 'Find companies: what the web search costs a direction'
+  careerbot.ui.companiesScreen -[calls]-> careerbot.platform.budgetsApi 'Find companies: the AI budget left'
+  careerbot.platform.findCompanies -[reads]-> careerbot.data.tDiscovery 'their choice'
+  careerbot.platform.findCompanies -[writes]-> careerbot.data.tDiscovery 'their choice'
+  careerbot.platform.findCompanies -[calls]-> careerbot.platform.discovery 'Apollo and Apollo + AI'
+  careerbot.platform.findCompanies -[calls]-> careerbot.platform.webDiscovery 'Apollo + AI and AI only'
+  careerbot.platform.webDiscovery -[reads]-> careerbot.data.tItems.directions 'approved directions (name, positioning, titles, industries, sizes) and approved limits (seniority, location, companies, work they avoid)' {
+    #approvedOnly
+  }
+  careerbot.platform.webDiscovery -[reads]-> careerbot.data.tCompanies 'companies they turned down, never found again (while Learn from your ratings is on)'
+  careerbot.platform.webDiscovery -[writes]-> careerbot.data.tCompanies 'name, website, how it was found and where it was seen'
+  careerbot.platform.webDiscovery -[uses]-> careerbot.platform.metering 'AI call with web search'
+  careerbot.platform.webDiscovery -[uses]-> careerbot.platform.braveKey 'job-board search'
+  careerbot.platform.webDiscovery -[calls]-> braveSearch 'job-board site searches for a direction\u2019s titles'
+  careerbot.platform.webDiscovery -[calls]-> companyWebsites 'a board\u2019s page, for the company\u2019s website'
+  careerbot.platform.webDiscovery -[calls]-> companyWebsites 'a named company\u2019s own site, for its name'
+  careerbot.platform.webDiscovery -[calls]-> jinaReader 'a named company\u2019s site that turns away direct requests; public URL only'
+  careerbot.platform.webDiscovery -[calls]-> careerbot.platform.screening 'after each run'
+  careerbot.platform.webDiscovery -[calls]-> careerbot.platform.enrich 'after each run, unless a pass is running'
+  careerbot.pursue.peopleApi -[reads]-> careerbot.platform.findCompanies 'AI only: no people search, people added by hand'
 
   // ---- Finding roles ----
   careerbot.platform.watchRoles -[uses]-> careerbot.platform.jobs 'runs as a job'
@@ -1714,9 +1774,7 @@ model {
   careerbot.ai.ask -[writes]-> careerbot.data.tNarratives 'a message that told something new about them, as a note in their words'
   careerbot.ai.ask -[calls]-> careerbot.ai.extract 'reads that note: proposals to review'
   careerbot.ai.ask -[uses]-> careerbot.platform.metering 'AI call'
-  careerbot.ui.settingsScreen -[calls]-> careerbot.pursue.pursuitsApi 'reminderRules, setReminderRule'
-  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.discovery 'company settings: setLens'
-  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.enrich 'company settings: setApolloJobs, rejudge'
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.discovery 'Connections: companySettings'
   careerbot.ui.settingsScreen -[calls]-> careerbot.platform.auth 'Signed in as, workspace, Sign out'
   careerbot.ui.settingsScreen -[calls]-> careerbot.platform.accounts 'People, Add a person, Reset password, Remove, Change password'
   careerbot.ui.today -[calls]-> careerbot.platform.auth 'Sign in'
@@ -1766,7 +1824,8 @@ model {
   careerbot.platform.adminPeople -[reads]-> careerbot.data.tAdminLog 'the log'
   careerbot.ui.shell -[calls]-> careerbot.pursue.pursuitsApi 'list: how many pursuits have a reminder due'
   careerbot.ui.shell -[calls]-> careerbot.core.reviewQueue 'summary: how many decisions wait'
-  careerbot.ui.shell -[calls]-> careerbot.core.activityApi 'list: Activity'
+  careerbot.ui.shell -[calls]-> careerbot.core.activityApi 'list, clear, clearFinished, restore: Activity'
+  careerbot.ui.shell -[calls]-> careerbot.platform.jobs 'cancel: Cancel in Activity'
   careerbot.ui.shell -[calls]-> careerbot.platform.auth 'Sign out'
   careerbot.ui.shell -[calls]-> careerbot.platform.auth 'workspaces.current: whether it is the demo (the banner, and actions refused before they are sent), and the moment it is held at (the app\u2019s clock); Leave the demo'
   careerbot.ui.demoEntry -[calls]-> careerbot.platform.auth 'Open the demo: the demo sign-in'
@@ -1812,6 +1871,7 @@ model {
   careerbot.core.todayApi -[reads]-> careerbot.data.tContacts 'Getting started: the first pursuit\u2019s contacts and the outreach messages sent to them'
   careerbot.core.todayApi -[writes]-> careerbot.data.tWorkspaces 'Getting started put away; steps skipped'
   careerbot.core.activityApi -[reads]-> careerbot.data.tJobs 'recent work'
+  careerbot.core.activityApi -[writes]-> careerbot.data.tJobs 'clearedAt: cleared off the list, and back on with Undo'
   careerbot.ui.pursuitScreen -[calls]-> careerbot.pursue.pursuitsApi 'setInterview, done'
   careerbot.pursue.pursuitsApi -[reads]-> careerbot.data.tReminderSettings 'which reminders are on'
   careerbot.pursue.pursuitsApi -[reads]-> careerbot.data.tContacts 'outreach reminders: each contact in group order, when they were last written to and whether they replied'
@@ -1872,7 +1932,7 @@ model {
   careerbot.platform.crons -[calls]-> careerbot.platform.metering 'nightly: settle uncertain calls'
   careerbot.platform.aiSettings -[reads]-> careerbot.data.tAiDefaults
   careerbot.platform.aiSettings -[reads]-> careerbot.data.tUsage 'last 30 days, for a model\u2019s monthly cost'
-  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.enrich 'Companies: lens, Check all again, job postings from Apollo'
+  careerbot.ui.settingsScreen -[calls]-> careerbot.platform.enrich 'Connections: job postings from Apollo'
   careerbot.ui.today -[calls]-> careerbot.platform.aiSettings 'Getting started: the main model'
 
   // ---- Google Drive and ratings (M6 finish) ----

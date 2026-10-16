@@ -41,7 +41,7 @@ export const SETUP_STEPS: SetupDef[] = [
     why: "CareerBot’s AI runs on your own OpenRouter account, so you see and control every cent. It never spends past the budget you set here.",
     unlocks: "Reading your stories, and everything written from them.",
     learn: { label: "OpenRouter keys and your AI budget", path: "start/openrouter" },
-    go: { href: "/settings?section=keys", label: "Open Settings", detail: "Opens Settings, Keys: your OpenRouter key, to replace or remove it.", note: "Free" },
+    go: { href: "/settings?section=connections", label: "Open Settings", detail: "Opens Settings, Connections: your OpenRouter key, to replace or remove it.", note: "Free" },
   },
   {
     key: "story",
@@ -103,7 +103,7 @@ export const SETUP_STEPS: SetupDef[] = [
     why: "Keeps a Google Doc of each resume in your CareerBot folder, updated when you keep a new version. CareerBot can only see the files it makes. On a copy you run yourself, the Google setup for Drive also lets you sign in with Google, if you want to. GitHub sign-in is optional too.",
     unlocks: "Your resumes in Drive, ready to share or print.",
     learn: { label: "Google Drive", path: "start/google-drive" },
-    go: { href: "/settings?section=drive", label: "Open Settings", detail: "Opens Settings, Google Drive: the account, the CareerBot folder and how syncing went.", note: "Free" },
+    go: { href: "/settings?section=connections", label: "Open Settings", detail: "Opens Settings, Connections: Google Drive’s account, the CareerBot folder and how syncing went.", note: "Free" },
     optional: true,
   },
 ];

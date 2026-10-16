@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState, type ReactNode } from "react";
-import { SegmentedControl } from "./SegmentedControl";
+import { type Segment, SegmentedControl } from "./SegmentedControl";
 
-function Pick<T extends string>({ label, options, initial, disabled }: { label: string; options: readonly { value: T; label: string }[]; initial: T; disabled?: boolean }) {
+function Pick<T extends string>({ label, options, initial, disabled }: { label: string; options: readonly Segment<T>[]; initial: T; disabled?: boolean }) {
   const [value, setValue] = useState<T>(initial);
   return <SegmentedControl label={label} hideLabel value={value} onChange={setValue} options={options} disabled={disabled} />;
 }
@@ -55,6 +55,17 @@ export const States: Story = {
             { value: "closed", label: "Closed" },
           ]}
           initial="pursuing"
+        />
+      </State>
+      <State note="Explained, one unavailable">
+        <Pick
+          label="Size"
+          options={[
+            { value: "small", label: "Small", detail: "Fits a phone.", note: "Free · Undo with U" },
+            { value: "large", label: "Large", detail: "Fits a desk.", note: "Free · Undo with U" },
+            { value: "huge", label: "Huge", reason: "Needs a bigger screen first." },
+          ]}
+          initial="small"
         />
       </State>
     </div>

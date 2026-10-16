@@ -4,7 +4,7 @@ description: How your goals story becomes directions and limits, and every setti
 nav: Goals, directions and limits
 sources:
   - src/app/goals
-  - src/app/settings/Companies.tsx
+  - src/app/companies/SearchSettings.tsx
   - src/app/settings/Ai.tsx
   - src/app/companies/Tools.tsx
   - src/app/companies/sets.ts
@@ -83,8 +83,8 @@ approved.
 ### Criteria
 
 The criteria are what company search looks for in this direction: **Titles**, **Industries**, **Company sizes**,
-**Stages**, **Keywords** and **Own seed companies** (websites of companies like the ones you want; empty uses your
-defaults). Approving them opens company search for the direction. If the criteria name an industry your limits avoid,
+**Stages**, **Keywords** and **Own seed companies** (websites of companies like the ones you want; these add to the seed
+companies in Search settings, which are for every direction). Approving them opens company search for the direction. If the criteria name an industry your limits avoid,
 the form says so: take it out, or search won't look there.
 
 Once approved, positioning and criteria are never overwritten. **Fill in again** proposes new ones only for the parts you
@@ -144,7 +144,7 @@ These are all the switches that change what you see or the order you see it in.
 
 ### Industries you want
 
-In <Screen id="settings" />, under **Companies**, and in Companies under **Lens settings**.
+In Companies, ⋯ > **Search settings**.
 
 | Choice | What it does |
 |---|---|
@@ -156,7 +156,7 @@ Industries you avoid, and your past employers, are excluded whichever you choose
 
 ### Check companies against your goals
 
-The same two places (Lens settings calls it **Judge companies against your goals**). When it's on, filling in a company
+Also in Search settings. When it's on, filling in a company
 also judges it against your approved company goals: fits, partly, doesn't, or can't tell, with a reason. For well-known
 companies it may use general knowledge, labelled as such.
 
@@ -172,13 +172,13 @@ every company again, at about a cent for every 40 companies.
 
 ### Learn from your ratings
 
-A switch in Settings, under Companies. When on, Targets seed searches for the directions they fit, and companies you said
+A switch in Search settings. When on, Targets seed searches for the directions they fit, and companies you said
 **Not for me** aren't found again. What you turned down, and why, weighs against similar companies and roles, never as a
 limit. It costs about 1 Apollo credit a search for every 5 targets, from the next search and check.
 
 ### Job postings from Apollo
 
-A switch in Settings, under Companies. When a company has no public job board, CareerBot asks Apollo for its postings:
+A switch in Settings, **Connections**, under Companies. When a company has no public job board, CareerBot asks Apollo for its postings:
 about 1 Apollo credit per company, while **Automated Apollo work** is on.
 
 ### Sorting roles

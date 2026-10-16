@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { type ActionCtx, internalMutation, internalQuery, type QueryCtx, query } from "./_generated/server";
 import { mutation } from "./functions";
+import { refuseCancelled, stopIfCancelled } from "./cancel";
 import { activeLimits, itemsOf } from "./itemShapes";
 import { apollo } from "./metering";
 import { DEFAULT_LENS } from "./lens";
@@ -12,12 +13,14 @@ import { getInWorkspace, requireWorkspace } from "./workspaces";
 import { searchReadiness } from "./directionFill";
 
 // Finds companies with Apollo for each direction whose search criteria are approved: one search from the criteria, and
-// lookalike searches from seed companies (the workspace's default seeds, or the direction's own when set). Seeds are
+// lookalike searches from seed companies (the workspace's seeds, for every direction, plus the direction's own). Seeds are
 // websites; Apollo's lookalike filter needs its own ids, so seeds are looked up first. Past employers never come back.
 // Learning from their ratings (on unless they turn it off): their targets seed lookalike searches too, for each
 // direction the target fits, and companies they turned down are never found again.
 
 const LOOKALIKE_MAX = 5;
+// Job-board searches the web search makes for a direction (webDiscovery.ts): one for each of its first titles.
+export const BOARD_QUERIES = 2;
 
 // A website, URL or email reduced to its domain; null if it doesn't look like one.
 export function toDomain(raw: string): string | null {
@@ -28,7 +31,7 @@ export function toDomain(raw: string): string | null {
 
 // "51-200" -> "51,200"; "5001+" -> "5001,1000000".
 const sizeRange = (s: string) => (s.endsWith("+") ? `${s.slice(0, -1)},1000000` : s.replace("-", ","));
-const normName = (n: string) => n.toLowerCase().replace(/\b(llc|inc|corp|corporation|co|ltd|the)\b/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+export const normName = (n: string) => n.toLowerCase().replace(/\b(llc|inc|corp|corporation|co|ltd|the)\b/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 
 async function settings(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
   return ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
@@ -58,7 +61,6 @@ export const setSeeds = mutation({
   },
 });
 
-// A direction's own seeds, replacing the default. An empty list goes back to the default.
 export const setNamed = mutation({
   args: { named: v.array(v.string()) },
   handler: async (ctx, { named }) => {
@@ -72,6 +74,7 @@ export const setNamed = mutation({
   },
 });
 
+// A direction's own seeds, added to the workspace's. An empty list leaves it with the workspace's alone.
 export const setDirectionSeeds = mutation({
   args: { id: v.id("items"), seeds: v.array(v.string()) },
   handler: async (ctx, { id, seeds }) => {
@@ -157,6 +160,7 @@ export const saveCompanies = internalMutation({
     orgs: v.array(v.object({ apolloId: v.string(), name: v.string(), domain: v.optional(v.string()), websiteUrl: v.optional(v.string()), linkedinUrl: v.optional(v.string()), foundedYear: v.optional(v.number()) })),
   },
   handler: async (ctx, { workspaceId, runId, directionId, via, orgs }) => {
+    await refuseCancelled(ctx, runId);
     let added = 0;
     const at = Date.now();
     for (const o of orgs) {
@@ -176,10 +180,12 @@ export const saveCompanies = internalMutation({
 
 export async function runDiscover(ctx: ActionCtx, job: Doc<"jobs">) {
   const ws = job.workspaceId;
-  // A paused or interrupted run picks up after the last finished search instead of paying for it again.
+  // A paused or interrupted run picks up after the last finished search instead of paying for it again; a cancelled one
+  // stops before its next search, and the search it was on is paid but its companies aren't saved (cancel.ts).
   const finished = new Map((job.done ?? []).map((d) => [d.step, d.result]));
   const once = async <T,>(step: string, run: () => Promise<T>): Promise<T> => {
     if (finished.has(step)) return finished.get(step) as T;
+    await stopIfCancelled(ctx, job._id);
     const r = await run();
     await ctx.runMutation(internal.jobs.checkpoint, { jobId: job._id, step, result: r });
     finished.set(step, r);
@@ -214,6 +220,7 @@ export async function runDiscover(ctx: ActionCtx, job: Doc<"jobs">) {
         const o = found.find((x) => (x.primary_domain ?? "").replace(/^www\./, "") === domain);
         return { domain, apolloId: o?.id ?? null, ...(o?.name ? { name: o.name } : {}) };
       });
+      await stopIfCancelled(ctx, job._id);
       await ctx.runMutation(internal.discovery.saveSeeds, { workspaceId: ws, resolved: r });
       return r;
     });
@@ -273,12 +280,15 @@ export async function runDiscover(ctx: ActionCtx, job: Doc<"jobs">) {
         })
       : null;
 
-    const seedDomains = c.seeds?.length ? c.seeds : inp.seeds;
-    const ids = seedDomains.map((s) => known.get(s)?.apolloId).filter((x): x is string => !!x);
-    // Targets that fit this direction, searched in batches of their own so the seeds' batches stay shared.
+    // The workspace's seeds, then the direction's additions, then the targets that fit it: each batched on its own,
+    // so the workspace's batches stay shared across directions and only the additions cost extra.
+    const idsOf = (domains: string[]) => domains.map((s) => known.get(s)?.apolloId).filter((x): x is string => !!x);
+    const global = idsOf(inp.seeds);
+    const own = idsOf(c.seeds ?? []).filter((id) => !global.includes(id));
+    const ids = [...global, ...own];
     const targets = inp.targets.filter((t) => t.directionIds.includes(d.id) && !ids.includes(t.apolloId));
     const batches: string[][] = [];
-    for (const set of [ids, targets.map((t) => t.apolloId)]) for (let i = 0; i < set.length; i += LOOKALIKE_MAX) batches.push(set.slice(i, i + LOOKALIKE_MAX));
+    for (const set of [global, own, targets.map((t) => t.apolloId)]) for (let i = 0; i < set.length; i += LOOKALIKE_MAX) batches.push(set.slice(i, i + LOOKALIKE_MAX));
     const lookalikes = [];
     for (const batch of batches) {
       // The same seeds give the same companies, so each batch is searched once per run and shared across directions.
@@ -296,10 +306,21 @@ export async function runDiscover(ctx: ActionCtx, job: Doc<"jobs">) {
     report.push({ direction: d.name, criteria: crit, large, hiring, lookalikes, ownSeeds: !!c.seeds?.length });
   }
   const missing = wanted.filter((dm) => known.get(dm)?.apolloId === null);
+  await stopIfCancelled(ctx, job._id);
   const screened = await screenCompanies(ctx, ws);
-  await ctx.runMutation(internal.enrich.next, { workspaceId: ws, origin: job.origin });
+  await ctx.runMutation(internal.enrich.next, { workspaceId: ws, origin: job.origin, after: job._id });
   return { report, named, seedsNotInApollo: missing, screened, costUsd: screened.costUsd };
 }
+
+// How each way of finding a company reads in its Found line.
+const FOUND_VIA: Record<Exclude<Doc<"companies">["found"][number]["via"], "hand">, string> = {
+  lookalike: "like your seeds",
+  criteria: "criteria",
+  hiring: "hiring now",
+  large: "large companies",
+  relevant: "fits",
+  hiringNow: "hiring now",
+};
 
 export const list = query({
   args: {},
@@ -322,15 +343,19 @@ export const list = query({
       lens: row?.lens ?? DEFAULT_LENS,
       // Learn from your ratings; when on, each direction lists the targets that seed its lookalike searches.
       learn,
+      // How many companies are filled in: what Check all again goes over.
+      filledIn: companies.filter((c) => c.fitAt !== undefined).length,
       companyGoals,
       seeds: (row?.seeds ?? []).map((domain) => ({ domain, lookup: row?.resolved.find((r) => r.domain === domain) ?? null })),
       // A target that's already one of the direction's seeds isn't searched twice.
       searchable: directions
         .filter((d) => d.data.criteriaStatus === "approved")
         .map((d) => {
-          const seedIds = (d.data.criteria?.seeds?.length ? d.data.criteria.seeds : (row?.seeds ?? [])).map((s) => row?.resolved.find((r) => r.domain === s)?.apolloId);
+          const seedIds = [...(row?.seeds ?? []), ...(d.data.criteria?.seeds ?? [])].map((s) => row?.resolved.find((r) => r.domain === s)?.apolloId);
           const seeding = targets.filter((t) => t.directionIds.includes(d._id) && !seedIds.includes(t.apolloId)).map((t) => t.name);
-          return { id: d._id, name: d.data.name, ownSeeds: d.data.criteria?.seeds ?? null, hasTitles: (d.data.criteria?.titles.length ?? 0) > 0, targets: seeding };
+          const titles = d.data.criteria?.titles.length ?? 0;
+          // boardQueries: the Brave searches of job boards it takes, with a Brave key, on a way that searches the web.
+          return { id: d._id, name: d.data.name, ownSeeds: d.data.criteria?.seeds ?? null, hasTitles: titles > 0, boardQueries: Math.min(titles, BOARD_QUERIES), targets: seeding };
         }),
       // Approved directions whose search criteria aren't approved yet, not searched until they are: each being filled
       // in, with criteria to review, or to fill in; and how far the fill-in underway has got.
@@ -343,7 +368,6 @@ export const list = query({
         domain: c.domain,
         websiteUrl: c.websiteUrl,
         linkedinUrl: c.linkedinUrl,
-        foundedYear: c.foundedYear,
         screened: c.screened ?? null,
         details: c.details ?? null,
         fit: (c.fit ?? []).map((f) => ({ ...f, direction: names.get(String(f.directionId)) ?? "a direction" })),
@@ -354,7 +378,11 @@ export const list = query({
         // Only while a pass is actually running; a failed pass leaves it free to try again.
         boardUrl: c.boardUrl ?? null,
         checking: !!c.recheckAt && (lastEnrich?.status === "queued" || lastEnrich?.status === "running"),
-        found: [...new Set(c.found.map((f) => (f.via === "hand" ? "your list" : `${f.directionId ? names.get(String(f.directionId)) ?? "a direction" : "a search"} (${f.via === "lookalike" ? "like your seeds" : f.via === "criteria" ? "criteria" : f.via === "hiring" ? "hiring now" : "large companies"})`)))],
+        found: [...new Set(c.found.map((f) => (f.via === "hand" ? "your list" : `${f.directionId ? names.get(String(f.directionId)) ?? "a direction" : "a search"} (${FOUND_VIA[f.via]}${f.source ? `, ${f.source === "jobBoards" ? "job boards" : "web search"}` : ""})`)))],
+        // How a web search found it, for its row while it has no summary ("fits, web search").
+        ways: [...new Set(c.found.flatMap((f) => (f.source ? [`${FOUND_VIA[f.via as keyof typeof FOUND_VIA]}, ${f.source === "jobBoards" ? "job boards" : "web search"}`] : [])))],
+        // The pages a web search saw it on.
+        evidence: [...new Set(c.found.flatMap((f) => f.evidence ?? []))],
         // When it was first found.
         foundAt: Math.min(...c.found.map((f) => f.at), c.at),
       })),
@@ -362,15 +390,22 @@ export const list = query({
   },
 });
 
-// Settings, Companies: the lens, whether Apollo is asked for job postings, whether they learn from ratings, and how
-// many companies are filled in (what Check all again goes over).
+// Settings, Connections: whether Apollo is asked for job postings a company doesn't publish.
 export const companySettings = query({
   args: {},
   handler: async (ctx) => {
     const { workspaceId } = await requireWorkspace(ctx);
     const row = await settings(ctx, workspaceId);
-    const companies = await ctx.db.query("companies").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect();
-    return { lens: row?.lens ?? DEFAULT_LENS, apolloJobs: !!row?.apolloJobs, learn: learns(row), filledIn: companies.filter((c) => c.fitAt !== undefined).length };
+    return { apolloJobs: !!row?.apolloJobs };
+  },
+});
+
+// The seed companies in Search settings, for every direction (what a direction's Criteria shows above its own).
+export const seeds = query({
+  args: {},
+  handler: async (ctx) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    return (await settings(ctx, workspaceId))?.seeds ?? [];
   },
 });
 

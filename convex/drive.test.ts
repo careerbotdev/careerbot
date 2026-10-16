@@ -227,7 +227,7 @@ test("connecting keeps the tokens sealed, for the workspace and browser that sta
     scope: `openid email ${DRIVE_SCOPE}`,
     access_type: "offline",
   });
-  expect(back).toBe("https://dev.example.com/settings?section=drive&drive=connected");
+  expect(back).toBe("https://dev.example.com/settings?section=connections&drive=connected");
   const conn = (await s.t.run((ctx) => ctx.db.query("driveConnections").collect()))[0];
   expect(conn).toMatchObject({ workspaceId: s.a.w, account: "a@example.com" });
   expect(conn.sealedRefresh).not.toContain("rt-secret");
@@ -239,12 +239,12 @@ test("connecting keeps the tokens sealed, for the workspace and browser that sta
   expect(JSON.stringify(status)).not.toMatch(/at-first|rt-secret|sealed/);
   expect(await s.asB.query(api.drive.status, {})).toMatchObject({ connected: null });
   // A link used, made up, or finished in another browser does nothing.
-  expect((await s.t.fetch("/google/drive/callback?code=c0de&state=guess")).headers.get("location")).toBe("https://dev.example.com/settings?section=drive&drive=failed");
-  expect((await connect(s.t, s.asB, { cookie: false })).back).toBe("https://dev.example.com/settings?section=drive&drive=failed");
+  expect((await s.t.fetch("/google/drive/callback?code=c0de&state=guess")).headers.get("location")).toBe("https://dev.example.com/settings?section=connections&drive=failed");
+  expect((await connect(s.t, s.asB, { cookie: false })).back).toBe("https://dev.example.com/settings?section=connections&drive=failed");
   expect(await s.asB.query(api.drive.status, {})).toMatchObject({ connected: null });
   // Drive access unticked on Google's screen: nothing kept, and what Google gave is revoked.
   const denied = fakeGoogle({ scope: "openid email" });
-  expect((await connect(s.t, s.asB)).back).toBe("https://dev.example.com/settings?section=drive&drive=denied");
+  expect((await connect(s.t, s.asB)).back).toBe("https://dev.example.com/settings?section=connections&drive=denied");
   expect(await s.asB.query(api.drive.status, {})).toMatchObject({ connected: null });
   expect(denied.calls.some((c) => c.url === "https://oauth2.googleapis.com/revoke")).toBe(true);
   expect(g.calls.some((c) => c.url === "https://oauth2.googleapis.com/revoke")).toBe(false);
@@ -260,7 +260,7 @@ test("a Drive connection is kept only for the person who started it, once, in ti
   const held = () => s.t.run((ctx) => ctx.db.query("pendingConnections").collect());
 
   const csrf = await connect(s.t, s.asB, { finisher: s.asA });
-  expect(csrf.back).toBe("https://dev.example.com/settings?section=drive&drive=connected");
+  expect(csrf.back).toBe("https://dev.example.com/settings?section=connections&drive=connected");
   expect(csrf.refused).toBe(STARTED_ELSEWHERE);
   for (const as of [s.asA, s.asB]) expect((await as.query(api.drive.status, {})).connected).toBeNull();
   expect(await held()).toEqual([]);

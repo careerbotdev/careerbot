@@ -7,6 +7,7 @@ import type { Doc, Id } from "../../../../convex/_generated/dataModel";
 import { answer } from "../../storyConvex";
 import { NOW, ROLE, recordFixture, type RecordState, storyId } from "../fixtures";
 import { RecordStory } from "../RecordStory";
+import { plan, summary } from "../../../../convex/storyRemoval";
 import { Story } from "./Story";
 
 // The Story screen with the fixture record, one story per board of the Story section: a story open (with its ⋯), its
@@ -47,12 +48,26 @@ function storyAnswers(state: RecordState) {
       snapshot(change(id, { title: old.title, body: old.body, version: n.version + 1, updatedAt: Date.now() }));
       return n.version + 1;
     }),
-    ...answer(api.narratives.remove, ({ id }) => {
+    // What deleting a story takes, from the same plan as narratives.removal and narratives.remove (storyRemoval.ts).
+    ...answer(api.narratives.removal, ({ id }) => {
+      const items = state.items as Doc<"items">[];
+      const projectKeys = new Set(items.filter((i) => i.kind === "project" && i.status === "approved").map((p) => p.projectKey));
+      const versions = state.versions.filter((v) => v.narrativeId === id).length;
+      const notes = state.notes.filter((x) => x.subject.kind === "narrative" && x.subject.id === id).length;
+      return { versions, notes, ...summary(items, id, projectKeys, new Set(), (o) => {
+        const x = find(o);
+        return x && `${x.title} ${x.kind === "note" ? "note" : "story"}`;
+      }) };
+    }),
+    ...answer(api.narratives.remove, ({ id, unreviewed, approved }) => {
       const n = find(id)!;
+      const { gone } = plan(state.items as Doc<"items">[], id, new Set(), { unreviewed, approved });
+      const facts = state.items.filter((i) => i.kind === "fact" && i.status !== "rejected" && gone.has(i._id)).length;
       state.narratives = state.narratives.filter((x) => x._id !== id);
       state.versions = state.versions.filter((v) => v.narrativeId !== id);
       state.notes = state.notes.filter((x) => !(x.subject.kind === "narrative" && x.subject.id === id));
-      state.items = state.items.map((i) => (i.kind === "fact" && i.sources.some((s) => s.narrativeId === id) ? { ...i, data: { ...i.data, sourceDeleted: n.title } } : i));
+      state.items = state.items.filter((i) => !gone.has(i._id)).map((i) => (i.kind === "fact" && i.sources.some((s) => s.narrativeId === id) ? { ...i, data: { ...i.data, sourceDeleted: n.title } } : i));
+      return { facts };
     }),
     ...answer(api.narratives.link, ({ id, roleKey }) => void change(id, { roleKey: roleKey ?? undefined })),
     ...answer(api.extract.start, ({ narrativeId }) => {
@@ -75,7 +90,7 @@ function storyAnswers(state: RecordState) {
 
 // The fixture record as the boards show it: a "The plant closure" note on the Brightwater role, and a note on the
 // Brightwater story. `unread`: Brightwater's version 3 not read yet (version 2 was).
-function boardState(state: RecordState, { unread = false }: { unread?: boolean } = {}) {
+function boardState(state: RecordState, { unread = false, shared = false }: { unread?: boolean; shared?: boolean } = {}) {
   if (!state.narratives.length) return;
   const closure = storyId("closure");
   const at = NOW - 2 * 86_400_000;
@@ -83,16 +98,22 @@ function boardState(state: RecordState, { unread = false }: { unread?: boolean }
   state.versions.push({ _id: "v-closure-1" as Id<"narrativeVersions">, _creationTime: at, workspaceId: WS, narrativeId: closure, version: 1, title: "The plant closure", body: "When our oldest plant closed, I moved its 120 SKUs to the two remaining plants and a co-packer over three weekends, and no retail order went out short.", at });
   state.notes.push({ _id: "note-bw-story" as Id<"notes">, _creationTime: NOW - 4 * 86_400_000, workspaceId: WS, subject: { kind: "narrative", id: storyId("bw") }, text: "The demand team reruns the forecast before every S&OP meeting now. Put that in.", at: NOW - 4 * 86_400_000 });
   state.narratives = state.narratives.map((n) => (n._id === storyId("linkedin") ? { ...n, rejectedBecause: "Not my words" } : n));
+  // `shared`: the Three Rivers Pantry Network story also tells Brightwater's role and its first three approved facts.
+  if (shared) {
+    const bwFacts = state.items.filter((i) => i.kind === "fact" && i.status === "approved" && i.sources.some((s) => s.narrativeId === storyId("bw"))).slice(0, 3).map((i) => i._id);
+    const also = { narrativeId: storyId("pantry"), version: 2, quotes: [] };
+    state.items = state.items.map((i) => ((i.kind === "role" && i.roleKey === ROLE.bw) || bwFacts.includes(i._id) ? { ...i, sources: [...i.sources, also] } : i));
+  }
   if (unread) {
     state.jobs = state.jobs.map((j) => (j.kind === "extract" && j.args.narrativeId === storyId("bw") ? { ...j, args: { ...j.args, version: 2 } } : j));
     state.items = state.items.map((i) => ({ ...i, sources: i.sources.map((s) => (s.narrativeId === storyId("bw") ? { ...s, version: 2 } : s)) }));
   }
 }
 
-function Screen({ query, empty = false, unread = false }: { query?: string; empty?: boolean; unread?: boolean }) {
+function Screen({ query, empty = false, unread = false, shared = false }: { query?: string; empty?: boolean; unread?: boolean; shared?: boolean }) {
   const [answers] = useState(() => {
     const fx = recordFixture({ empty });
-    boardState(fx.state, { unread });
+    boardState(fx.state, { unread, shared });
     return { ...fx.answers, ...storyAnswers(fx.state) };
   });
   return (
@@ -123,6 +144,16 @@ export const NarrativeMenu: S = {
   render: () => <Screen query={bw} unread />,
   play: async () => {
     await userEvent.click(await page().findByRole("button", { name: "More for Brightwater Provisions" }));
+  },
+};
+
+export const NarrativeDelete: S = {
+  name: "Narrative, delete",
+  render: () => <Screen query={bw} shared />,
+  play: async () => {
+    await userEvent.click(await page().findByRole("button", { name: "More for Brightwater Provisions" }));
+    await settle();
+    await userEvent.click(await page().findByRole("menuitem", { name: /Delete story/ }));
   },
 };
 
@@ -177,7 +208,7 @@ export const PhoneReadAgain: S = {
 export const PhoneDelete: S = {
   name: "Phone, delete",
   globals: phone,
-  render: () => <Screen query={bw} />,
+  render: () => <Screen query={bw} shared />,
   play: async () => {
     await userEvent.click(await page().findByRole("button", { name: "More for Brightwater Provisions" }));
     await settle();

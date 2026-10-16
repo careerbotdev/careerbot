@@ -2,8 +2,6 @@ import type { FunctionReturnType } from "convex/server";
 import { api } from "../../../convex/_generated/api";
 import type { CatalogModel, Reasoning } from "../../../convex/aiSettings";
 import { AI_TASKS, type AiTask, DECISION_TASKS } from "../../../convex/aiTasks";
-import type { Lens } from "../../../convex/lens";
-import type { ReminderRule } from "../../../convex/pursuitSteps";
 import { answer, type Answers } from "../storyConvex";
 
 // Fixture data for the Settings stories: Wren's workspace with all three keys, a $25 AI budget with $6.40 spent,
@@ -11,7 +9,7 @@ import { answer, type Answers } from "../storyConvex";
 // the recommended models priced against 30 days of use, and Google Drive connected with 14 Docs synced. Mutations and
 // actions change the fixtures as the real ones do. `fresh`: a new workspace (no keys, no budget, no model, no Drive), for
 // Getting started; `drive: false`: Drive not connected; `allowance`: on careerbot.dev with no OpenRouter key, CareerBot's
-// AI within a $5 allowance, with `spentUsd` of it spent this month (adding a key in Keys takes the allowance away).
+// AI within a $5 allowance, with `spentUsd` of it spent this month (adding a key in Connections takes the allowance away).
 
 type Choice = { model: string; reasoning?: Reasoning };
 type TestCall = FunctionReturnType<typeof api.jobs.latestTestCall>;
@@ -46,10 +44,8 @@ export function settingsFixtures({ fresh = false, drive: driveOn = !fresh, allow
     : { openrouter: { last4: "4f2a", setAt: at("2026-09-14T15:00:00") }, apollo: { last4: "9c1e", setAt: at("2026-09-16T15:00:00") }, brave: { last4: "b07d", setAt: at("2026-09-20T15:00:00") } };
   if (allowance) keys.openrouter = null;
   let budget = fresh ? { aiMonthlyUsd: 0, apolloMonthlyCredits: 0, apolloMode: "paused" as const } : { aiMonthlyUsd: allowance ? ALLOWANCE_USD : 25, apolloMonthlyCredits: 400, apolloMode: "on" as "on" | "onRequest" | "paused" };
-  let lens: Lens = { industries: "steer", judge: "hide" };
   let apolloJobs = true;
-  let learn = true;
-  const rules: Record<ReminderRule, boolean> = { followUp: true, prepare: true, stale: true };
+  let finding: "apollo" | "apolloWeb" | "web" = "apolloWeb";
   let drive: { parentName?: string; syncing: boolean } | null = driveOn ? { syncing: false } : null;
   let test: TestCall = fresh
     ? null
@@ -125,20 +121,13 @@ export function settingsFixtures({ fresh = false, drive: driveOn = !fresh, allow
     ...answer(api.apolloKey.remove, removeKey("apollo")),
     ...answer(api.braveKey.remove, removeKey("brave")),
     ...answer(api.apolloKey.balance, () => (keys.apollo ? { left: 788, limit: 1000, consumed: 212, cycleStart: at("2026-09-14T00:00:00"), cycleEnd: at("2026-10-14T00:00:00") } : null)),
-    ...answer(api.discovery.companySettings, () => ({ lens, apolloJobs, learn, filledIn: 112 })),
-    ...answer(api.discovery.setLearn, ({ on }) => {
-      learn = on;
-    }),
-    ...answer(api.discovery.setLens, (next) => {
-      lens = next;
+    ...answer(api.discovery.companySettings, () => ({ apolloJobs })),
+    ...answer(api.findCompanies.settings, () => ({ choice: finding, finding: keys.apollo ? finding : ("web" as const), apolloKey: !!keys.apollo, braveKey: !!keys.brave })),
+    ...answer(api.findCompanies.set, ({ finding: next }) => {
+      finding = next;
     }),
     ...answer(api.enrich.setApolloJobs, ({ on }) => {
       apolloJobs = on;
-    }),
-    ...answer(api.enrich.rejudge, () => undefined),
-    ...answer(api.pursuits.reminderRules, () => ({ ...rules })),
-    ...answer(api.pursuits.setReminderRule, ({ rule, on }) => {
-      rules[rule] = on;
     }),
     ...answer(api.profile.get, () => ({ name: "Wren Castellano", email: "wren@example.com", phone: "(412) 555-0137", location: "Pittsburgh, Pennsylvania", links: [] })),
     ...answer(api.github.status, () => ({ ready: true, connected: { account: "wrencastellano", selection: "selected" as const, settingsUrl: "https://github.com/settings/installations/1", at: Date.now() - 12 * DAY } })),

@@ -7,11 +7,12 @@ import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { DATA_FILE, type ExportFile, FORMAT, OTHER_HISTORY } from "./exportFormat";
 import { CHUNK_BYTES, EXPORT_TOO_MANY_FILES, MAX_DATA_BYTES, MAX_ENTRIES, MAX_IMPORT_BYTES, newer, NEWER_FORMAT, TOO_LARGE, TOO_MUCH_INSIDE, WRONG_FILE } from "./exportRules";
-import { IMPORT_PATH } from "./yourData";
+import { IMPORT_PATH, SPENDING } from "./yourData";
 import { directionMark } from "./resumeBasis";
 import schema from "./schema";
 import { VERSION } from "./version";
 import { copyRows, type Known, type Row, thisSchema } from "./workspaceCopy";
+import { inWorkspace } from "./workspaceRows";
 import { ensureWorkspace } from "./workspaces";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -149,6 +150,37 @@ test("a workspace exported and imported into a fresh one on another account hold
   expect(normalized(copy)).toEqual(normalized(source));
   // Importing again into the now full workspace is refused.
   await expect(choose(t, b.as, bytes)).rejects.toThrow(/only in an empty workspace/);
+}, 120_000);
+
+test("after a reset, importing an older export keeps this month's spending and the budget it counts against", async () => {
+  const t = convexTest(schema, modules);
+  const a = await person(t, "Renata Alvarez");
+  await seed(t, a.w);
+  const { bytes } = await exportOf(t, a.as);
+  // Spent since the export: the file doesn't have it.
+  const month = await t.run(async (ctx) => {
+    const row = (await ctx.db.query("aiSpend").withIndex("by_workspace_month", (q) => q.eq("workspaceId", a.w)).collect()).at(-1)!;
+    await ctx.db.patch(row._id, { usd: row.usd + 5 });
+    return row.month;
+  });
+  const spending = () => t.run(async (ctx) => Object.fromEntries(await Promise.all(SPENDING.map(async (table) => [table, await inWorkspace(ctx, table, a.w).collect()]))));
+  const spent = await spending();
+  const budget = await a.as.query(api.budgets.status, {});
+
+  await a.as.mutation(api.accountReset.start, { confirm: "Renata Alvarez", keys: false });
+  for (let i = 0; i < 500 && (await t.run(async (ctx) => (await ctx.db.query("accountResets").first())?.step)) !== "done"; i++) await settle(t);
+  expect(await spending()).toEqual(spent);
+
+  const preview = await choose(t, a.as, bytes);
+  await a.as.mutation(api.yourData.startImport, { importId: preview.id });
+  for (let i = 0; i < 10; i++) await settle(t);
+  expect((await a.as.query(api.yourData.status, {})).import).toMatchObject({ status: "done", error: null });
+  // The workspace's own spending stays, untouched, and the file's isn't added to it.
+  expect(await spending()).toEqual(spent);
+  expect(await a.as.query(api.budgets.status, {})).toEqual(budget);
+  expect(spent.aiSpend.some((r: { month?: number }) => r.month === month)).toBe(true);
+  // The rest of the file came in.
+  expect(await t.run(async (ctx) => (await inWorkspace(ctx, "narratives", a.w).collect()).length)).toBe(SNAPSHOT.tables.narratives.length);
 }, 120_000);
 
 test("a file from a newer CareerBot, a file that isn't an export, and a stopped import", async () => {

@@ -3,21 +3,24 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useAction, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
+import Link from "next/link";
 import { type FormEvent, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { Person } from "../../../convex/account";
 import { passwordProblem, type PasswordRefusal, usernameProblem } from "../../../convex/passwordRules";
-import { Button } from "@/components/Button";
+import { Button, buttonLook } from "@/components/Button";
 import { Dialog } from "@/components/Dialog";
 import { Field, Input } from "@/components/Field";
+import { Icons } from "@/components/icons";
 import { Menu } from "@/components/Menu";
 import type { ScreenSize } from "@/components/Panes";
 import { toast } from "@/components/Toast";
+import { Tooltip } from "@/components/Tooltip";
 import { SELF_HOSTED } from "../mode";
 import { day } from "../pursuits/dates";
 import { useConfirm } from "../shell/ShellContext";
-import { SettingsPane } from "./ui";
+import { Rows, SettingRow, SettingsPane } from "./ui";
 
 const PROVIDERS: Record<string, string> = { google: "Google", github: "GitHub", password: "Password" };
 
@@ -67,6 +70,20 @@ export function Account({ size, signOut, selfHosted = SELF_HOSTED }: { size: Scr
             </div>
           ))}
         </dl>
+        <Rows>
+          <SettingRow
+            title="Contact details"
+            line="At the top of your base resume. Every resume and letter uses them."
+            control={
+              <Tooltip content="Edit in base resume" detail="Opens the contact block at the top of your base resume, where you change your name, location, email, phone and links." note="Free">
+                <Link href="/resumes?resume=base" className={buttonLook("secondary", "", small ? "lg" : "sm")}>
+                  Edit in base resume
+                  <Icons.onward aria-hidden="true" />
+                </Link>
+              </Tooltip>
+            }
+          />
+        </Rows>
         {selfHosted ? (
           <div className="flex flex-wrap gap-2">
             {me?.provider === "password" && me.username && <ChangePassword username={me.username} size={size} />}

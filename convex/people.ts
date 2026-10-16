@@ -11,6 +11,7 @@ import { type ReplySchema, strictObject, string, strings } from "./replyJson";
 import { change, own } from "./pursuits";
 import { beforeConversation, PURSUIT_STATUSES } from "./pursuitSteps";
 import { OUTREACH_STYLE, PLAIN_LANGUAGE } from "./writingGuides";
+import { PEOPLE_BY_HAND } from "./findCompanies";
 import { requireWorkspace } from "./workspaces";
 
 // Contacts at a pursuit's company, only when they ask. Finding them is free Apollo searches, for all three groups
@@ -46,6 +47,8 @@ export const find = action({
   args: { pursuitId: v.id("pursuits") },
   handler: async (ctx, { pursuitId }): Promise<number> => {
     const t = await ctx.runQuery(internal.people.target, { pursuitId });
+    // Finding companies with AI only (findCompanies.ts) leaves people to be added by hand.
+    if ((await ctx.runQuery(internal.findCompanies.finding, { workspaceId: t.workspaceId })) === "web") throw new ConvexError(PEOPLE_BY_HAND);
     if (!t.company.apolloId && !t.company.domain) throw new ConvexError("Apollo can't look up this company: it has no website on file. Add a contact you know instead.");
     const org: Record<string, string[]> = t.company.apolloId ? { organization_ids: [t.company.apolloId] } : { q_organization_domains_list: [t.company.domain!] };
     const searches: Record<string, string[]>[] = [{ person_seniorities: SENIORITIES }, { person_titles: [teamTitle(t.title)] }, { person_titles: RECRUITING_TITLES }];

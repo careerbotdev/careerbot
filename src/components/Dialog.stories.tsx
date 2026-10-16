@@ -84,3 +84,37 @@ function AddCompany() {
   );
 }
 export const ShortForm: Story = { args: Confirm.args, render: () => <AddCompany /> };
+
+// Wide: a settings form of several sections, each under a rule (Search settings). 600 wide, a larger title, 24 at the
+// sides; on a phone it is the sheet like any form dialog.
+function Settings() {
+  const [open, setOpen] = useState(true);
+  return (
+    <div data-overlay-root style={{ height: 420 }} className="relative w-170 max-w-full overflow-hidden border p-4 [transform:translateZ(0)]">
+      <Button icon="settings" onClick={() => setOpen(true)}>
+        Search settings
+      </Button>
+      <Dialog
+        wide
+        open={open}
+        onOpenChange={setOpen}
+        title="Search settings"
+        footer={
+          <div className="flex w-full items-center gap-3">
+            <span className="min-w-0 flex-1 text-body-sm leading-body-sm text-muted">Searches use Apollo + AI.</span>
+            <Button onClick={() => setOpen(false)}>Done</Button>
+          </div>
+        }
+      >
+        {["Seed companies", "Companies you’d name"].map((label) => (
+          <div key={label} className="border-t py-4">
+            <Field label={label} hint="Add a website, like acme.com.">
+              {(props) => <Input {...props} />}
+            </Field>
+          </div>
+        ))}
+      </Dialog>
+    </div>
+  );
+}
+export const Wide: Story = { args: Confirm.args, render: () => <Settings /> };

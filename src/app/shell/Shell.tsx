@@ -144,7 +144,7 @@ function Frame({ children }: { children: ReactNode }) {
   // careerbot.dev's operators get Admin in the account menu and ⌘K.
   const operator = useQuery(api.operators.isOperator) === true;
   const today = useToday();
-  const { jobs, spend } = useActivity();
+  const { jobs, spend, onClearFinished } = useActivity();
   useSignOutWhenDeleted(signOut);
   useScrollToSection(path, hash);
   const push = useCallback((href: string) => router.push(href), [router]);
@@ -153,7 +153,7 @@ function Frame({ children }: { children: ReactNode }) {
 
   const reviewTotal = today?.review[0]?.kind === "review" ? today.review[0].summary.total : undefined;
   const counts = { today: today?.lines.length || undefined, review: reviewTotal, pursuits: today?.due || undefined };
-  const activity = { jobs: jobs ?? [], spend };
+  const activity = { jobs: jobs ?? [], spend, onClearFinished };
   const user = { name: me?.name ?? me?.email ?? "You" };
   const account: MenuEntry[] = useMemo(
     () => [

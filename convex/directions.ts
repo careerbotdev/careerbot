@@ -12,6 +12,7 @@ import { chatJson, LONG_REPLY_TOKENS } from "./metering";
 import { listOf, type ReplySchema, replyOf, strictObject, string, strings } from "./replyJson";
 import { approvedRecord, backgroundNarratives, counted } from "./recordContext";
 import { PLAIN_LANGUAGE } from "./writingGuides";
+import { refuseCancelled } from "./cancel";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
 import { fillIn, fillingNow, fillProgress, passDone, passIds, recentJobs, underway } from "./directionFill";
 
@@ -137,11 +138,12 @@ async function avoidedIndustries(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
 
 // The next direction a fill-in pass fills: the first it was asked for that it hasn't got to and that's still approved
 // (one that isn't is passed over). With none left the pass closes, so a direction asked for after this starts a new one.
+// None once the pass was cancelled from Activity.
 export const nextToFill = internalMutation({
   args: { jobId: v.id("jobs") },
   handler: async (ctx, { jobId }) => {
     const job = await ctx.db.get(jobId);
-    if (!job) return null;
+    if (!job || job.status === "cancelled") return null;
     const done = passDone(job);
     const skipped = [];
     let next = null;
@@ -165,6 +167,7 @@ export const nextToFill = internalMutation({
 export const saveFill = internalMutation({
   args: { jobId: v.id("jobs"), id: v.id("items"), out: v.any() },
   handler: async (ctx, { jobId, id, out }) => {
+    await refuseCancelled(ctx, jobId);
     const job = await ctx.db.get(jobId);
     if (!job || passDone(job).has(id)) return false;
     const rows: Raw[] = Array.isArray(out?.directions) ? out.directions : [];
@@ -190,6 +193,7 @@ export const saveFill = internalMutation({
 export const save = internalMutation({
   args: { workspaceId: v.id("workspaces"), runId: v.id("jobs"), out: v.any() },
   handler: async (ctx, { workspaceId, runId, out }) => {
+    await refuseCancelled(ctx, runId);
     if (await ctx.db.query("items").withIndex("by_run", (q) => q.eq("runId", runId)).first()) return { alreadySaved: true };
     const facts = new Set((await counted(ctx, workspaceId, "fact")).map((f) => String(f._id)));
     const avoid = await avoidedIndustries(ctx, workspaceId);
@@ -367,7 +371,7 @@ export const editCriteria = mutation({
       ...c.stages.filter((x) => !(STAGES as readonly string[]).includes(x)),
     ];
     if (bad.length) throw new ConvexError(`Not on the list: ${bad.join(", ")}.`);
-    // Own seeds are checked with everything else, so Save either keeps all of it or none. Omitted: unchanged; empty: back to the defaults.
+    // Own seeds are checked with everything else, so Save either keeps all of it or none. Omitted: unchanged; empty: none of its own.
     const badSeeds = (c.seeds ?? []).filter((x) => x.trim() && !toDomain(x));
     if (badSeeds.length) throw new ConvexError(`Use each company's website, like acme.com: ${badSeeds.join(", ")}`);
     const seeds = c.seeds === undefined ? d.data.criteria?.seeds : [...new Set(c.seeds.map(toDomain).filter((x): x is string => !!x))];

@@ -4,6 +4,8 @@ description: How CareerBot finds and screens companies, reads their job boards, 
 nav: Companies and roles
 sources:
   - convex/discovery.ts
+  - convex/findCompanies.ts
+  - convex/webDiscovery.ts
   - convex/screening.ts
   - convex/enrich.ts
   - convex/roles.ts
@@ -22,16 +24,17 @@ then read, sorted and ranked for each of your directions.
 
 ## Finding companies
 
-**Find companies** in <Screen id="companies" /> runs a search through Apollo, with an estimate of the credits it will
-use. It needs at least one direction with approved criteria ("Approve a direction’s search criteria first." otherwise).
+**Find companies** in <Screen id="companies" /> runs a search through Apollo when you've added an Apollo key, and a web
+search when you haven't, with an estimate of what it will cost. It needs at least one direction with approved criteria
+("Approve a direction’s search criteria first." otherwise).
 
-One search:
+One search through Apollo:
 
 1. Looks up the companies you listed under **Companies you’d name** (added to every search) and any new websites under
    **Seed companies**.
 2. For each direction with approved criteria, runs four Apollo searches: its criteria (keywords and company sizes),
    large companies (1,001 people or more), companies hiring now for its target titles, and companies like its seed
-   companies (the direction's own, or your defaults).
+   companies (the ones in Search settings, plus the direction's own).
 3. Drops your past employers and the employers you excluded, and never searches industries you avoid. With
    **Learn from your ratings** on, your Targets seed searches too, and companies you said **Not for me** aren't found
    again.
@@ -40,6 +43,16 @@ One search:
 A search never spends past your Apollo account's balance, and stops if it can't read it. Each finished part is saved, so
 a search that pauses and picks up again never pays twice. How your wanted industries shape these searches is a setting:
 see [Industries you want](/docs/how-it-works/goals-directions-limits#industries-you-want).
+
+Without an Apollo key, the web search does the same work for each direction with approved criteria: it asks an AI model
+that searches the web for companies that fit the direction, hiring or not, and (when the direction has titles) for
+companies hiring for them now; with a [Brave Search](/docs/integrations/brave) key, it also searches the public job
+boards for its first two titles. Each kind keeps up to 15 companies a direction. Only a company's name, its website
+and the page it was seen on are kept; a company found again, by another direction or an earlier search, keeps its one
+row. The companies you'd name take their name from their own website, and one whose name can't be found there is listed
+under the last search instead of saved. It costs about the same few cents a direction from your AI budget, shown
+before you start. If Brave refuses the key, the search goes on without job boards and says so. People at a company are
+then added by hand: finding people needs Apollo.
 
 ## Screening
 

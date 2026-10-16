@@ -9,6 +9,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { valuesOf, whereText } from "../../../convex/roleDetails";
 import type { Note } from "@/components/NoteBlock";
 import { useDemo } from "../demo/demo";
+import type { FindSetup } from "./findPlan";
 
 export type CompaniesData = FunctionReturnType<typeof api.discovery.list>;
 export type Company = CompaniesData["companies"][number];
@@ -21,8 +22,9 @@ export type OpenRoles = { top: { id: Id<"postings">; title: string; score: numbe
 
 export const TABS = ["targets", "maybe", "found", "aside"] as const;
 export type Tab = (typeof TABS)[number];
-export type SetParams = (next: { tab?: Tab | null; company?: string | null }, replace?: boolean) => void;
-export type CompaniesParams = { tab: Tab | null; company: string | null; set: SetParams };
+// settings: Search settings is open (?settings=search).
+export type SetParams = (next: { tab?: Tab | null; company?: string | null; settings?: "search" | null }, replace?: boolean) => void;
+export type CompaniesParams = { tab: Tab | null; company: string | null; settings: boolean; set: SetParams };
 
 // Everything the screen changes, by name. The app runs the Convex mutations; the stories run fixtures.
 export const MUTATIONS = {
@@ -39,6 +41,7 @@ export const MUTATIONS = {
   setNamed: api.discovery.setNamed,
   setSeeds: api.discovery.setSeeds,
   setLens: api.discovery.setLens,
+  setLearn: api.discovery.setLearn,
   addNote: api.notes.add,
   editNote: api.notes.edit,
   removeNote: api.notes.remove,
@@ -62,6 +65,8 @@ export type CompaniesEnv = {
   useBalance: () => () => Promise<Balance>;
   // Whether this is the demo, which reads no websites or boards (demo/demo.ts).
   useDemo: () => boolean;
+  // How companies are found and what the web search costs (findPlan.ts); undefined while it loads.
+  useFindSetup: () => FindSetup | undefined;
 };
 
 const TOP_ROLES = 3;
@@ -89,7 +94,26 @@ function useUrlParams(): CompaniesParams {
     [params, router, path],
   );
   const tab = params.get("tab");
-  return { tab: (TABS as readonly string[]).includes(tab ?? "") ? (tab as Tab) : null, company: params.get("company"), set };
+  return { tab: (TABS as readonly string[]).includes(tab ?? "") ? (tab as Tab) : null, company: params.get("company"), settings: params.get("settings") === "search", set };
+}
+
+function useConvexFindSetup(): FindSetup | undefined {
+  const finding = useQuery(api.findCompanies.settings);
+  const costs = useQuery(api.estimates.costs, {});
+  const budgets = useQuery(api.budgets.status);
+  return useMemo(
+    () =>
+      finding && costs && budgets
+        ? {
+            finding: finding.finding,
+            braveKey: finding.braveKey,
+            relevantUsd: costs.findRelevant,
+            hiringNowUsd: costs.findHiringNow,
+            aiLeft: budgets.aiMonthlyUsd > 0 ? { left: budgets.aiMonthlyUsd - budgets.aiSpentUsd, monthly: budgets.aiMonthlyUsd } : null,
+          }
+        : undefined,
+    [finding, costs, budgets],
+  );
 }
 
 // The demo has no Apollo key and reads nothing on its own: no balance there.
@@ -128,6 +152,7 @@ const convexEnv: CompaniesEnv = {
   useAct: useConvexAct,
   useBalance: useConvexBalance,
   useDemo,
+  useFindSetup: useConvexFindSetup,
 };
 
 export const CompaniesEnvContext = createContext<CompaniesEnv>(convexEnv);

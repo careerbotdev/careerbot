@@ -1,5 +1,7 @@
-import type { Doc } from "./_generated/dataModel";
-import { query, type QueryCtx } from "./_generated/server";
+import { ConvexError, v } from "convex/values";
+import type { Doc, Id } from "./_generated/dataModel";
+import { type MutationCtx, query, type QueryCtx } from "./_generated/server";
+import { mutation } from "./functions";
 import { clockOf, getInWorkspace, requireWorkspace } from "./workspaces";
 
 // The activity indicator's list: the workspace's background work, as the person would name it.
@@ -153,22 +155,31 @@ function retryOf(j: Job): Retry | null {
   }
 }
 
-// The workspace's background work for the activity indicator: everything queued, running or paused, and what finished
-// or failed in the last day, newest first. Each with its plain name, its state (queued and paused count as running,
-// with a word on why it's waiting: paused work says which budget it waits for and why that budget stopped it), when it
-// last moved, how far along it is where the job records that (steps done so far), and for failed work how to try again
-// where that's possible.
+// Done, failed or cancelled: work that's over, which Activity can clear.
+const finished = (j: Job) => j.status === "done" || j.status === "failed" || j.status === "cancelled";
+
+// The workspace's jobs Activity lists: everything queued, running or paused, and what finished, failed or was cancelled
+// in the last day, newest first, less what was cleared off it.
+async function listed(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
+  const since = (await clockOf(ctx, workspaceId)) - RECENT_MS;
+  const jobs = await ctx.db.query("jobs").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).order("desc").take(READ);
+  return jobs.filter((j) => !j.clearedAt && (!finished(j) || (j.startedAt ?? j._creationTime) >= since));
+}
+
+// The workspace's background work for the activity indicator (listed). Each with its plain name, its state (queued and
+// paused count as running, with a word on why it's waiting: paused work says which budget it waits for and why that
+// budget stopped it), when it last moved, how far along it is where the job records that (steps done so far), and for
+// failed or cancelled work how to try again where that's possible. Cancelled work keeps its running name, with how many
+// steps it finished.
 export const list = query({
   args: {},
   handler: async (ctx) => {
     const { workspaceId } = await requireWorkspace(ctx);
-    const since = (await clockOf(ctx, workspaceId)) - RECENT_MS;
-    const jobs = await ctx.db.query("jobs").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).order("desc").take(READ);
-    const shown = jobs.filter((j) => j.status === "queued" || j.status === "running" || j.status === "paused" || (j.startedAt ?? j._creationTime) >= since);
     return Promise.all(
-      shown.map(async (j) => {
+      (await listed(ctx, workspaceId)).map(async (j) => {
         const [running, done, failed] = LABELS[j.kind](await subjectOf(ctx, j));
-        const state = j.status === "done" ? ("done" as const) : j.status === "failed" ? ("failed" as const) : ("running" as const);
+        const state = j.status === "done" || j.status === "failed" || j.status === "cancelled" ? j.status : ("running" as const);
+        const steps = j.done?.length ?? 0;
         const detail =
           j.status === "queued"
             ? "Waiting to start"
@@ -176,21 +187,70 @@ export const list = query({
               ? `${j.pausedFor === "apollo" ? "Paused until your Apollo budget allows" : "Paused until your AI budget allows"}${j.error ? `. ${j.error}` : ""}`
               : j.status === "failed"
                 ? (j.error ?? null)
-                : // A pass filling in several directions: how many it has done.
-                  j.kind === "directions" && (j.args.ids?.length ?? 0) > 1
-                  ? `${j.done?.length ?? 0} of ${j.args.ids.length}`
-                  : null;
+                : j.status === "cancelled"
+                  ? steps
+                    ? `Cancelled after ${steps} ${steps === 1 ? "step" : "steps"}`
+                    : j.startedAt
+                      ? "Cancelled"
+                      : "Cancelled before it started"
+                  : // A search for companies says what the web search couldn't do (job boards it didn't search).
+                    j.kind === "discover" && Array.isArray(j.result?.web?.notes) && j.result.web.notes.length
+                    ? (j.result.web.notes as string[]).join(" ")
+                    : // A pass filling in several directions: how many it has done.
+                      j.kind === "directions" && (j.args.ids?.length ?? 0) > 1
+                      ? `${steps} of ${j.args.ids.length}`
+                    : null;
         return {
           id: j._id,
           kind: j.kind,
           label: state === "done" ? done : state === "failed" ? failed : running,
           state,
           detail,
-          steps: j.status === "running" && j.done?.length ? j.done.length : null,
+          // Waiting to start or paused for a budget: Cancel takes it off before it runs again.
+          waiting: j.status === "queued" || j.status === "paused",
+          steps: j.status === "running" && steps ? steps : null,
           at: j.startedAt ?? j._creationTime,
-          retry: j.status === "failed" ? retryOf(j) : null,
+          retry: j.status === "failed" || j.status === "cancelled" ? retryOf(j) : null,
         };
       }),
     );
+  },
+});
+
+// Takes finished work off the list; the jobs themselves stay (reports count them, busy checks read them). Returns the
+// ones it cleared, for Undo.
+async function clearJobs(ctx: MutationCtx, jobs: Job[]) {
+  const at = Date.now();
+  const cleared = jobs.filter((j) => finished(j) && !j.clearedAt);
+  for (const j of cleared) await ctx.db.patch(j._id, { clearedAt: at });
+  return cleared.map((j) => j._id);
+}
+
+// × on a done, failed or cancelled item: takes it off the list. Free; Undo puts it back (restore).
+export const clear = mutation({
+  args: { jobId: v.id("jobs") },
+  handler: async (ctx, { jobId }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const job = await getInWorkspace(ctx, workspaceId, jobId);
+    if (!job) throw new ConvexError("Not found.");
+    return clearJobs(ctx, [job]);
+  },
+});
+
+// Clear finished: takes everything done, failed or cancelled off the list. Free; Undo puts them back (restore).
+export const clearFinished = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    return clearJobs(ctx, await listed(ctx, workspaceId));
+  },
+});
+
+// Undo of a clear: the jobs show on the list again (while they're still recent).
+export const restore = mutation({
+  args: { jobIds: v.array(v.id("jobs")) },
+  handler: async (ctx, { jobIds }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    for (const id of jobIds) if (await getInWorkspace(ctx, workspaceId, id)) await ctx.db.patch(id, { clearedAt: undefined });
   },
 });

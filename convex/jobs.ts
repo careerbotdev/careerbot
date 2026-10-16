@@ -16,7 +16,7 @@ import { runInsights } from "./insights";
 import { runFollowups } from "./followups";
 import { runResume } from "./resume";
 import { runDirections } from "./directions";
-import { runDiscover } from "./discovery";
+import { runFind } from "./findCompanies";
 import { runEnrich } from "./enrich";
 import { runRoles } from "./roles";
 import { runDuplicates } from "./duplicates";
@@ -31,6 +31,7 @@ import { runDriveSync } from "./drive";
 import { runLineCheck } from "./lineCheck";
 import { runLineUpdate } from "./factChanges";
 import { UnreadableReply } from "./replyJson";
+import { refuseCancelled } from "./cancel";
 import { requireWorkspace } from "./workspaces";
 
 // What each kind of job does. Add a kind here and to the schema's `kind` union.
@@ -52,7 +53,7 @@ const handlers: Record<Doc<"jobs">["kind"], (ctx: ActionCtx, job: Doc<"jobs">) =
   followups: runFollowups,
   resume: runResume,
   directions: runDirections,
-  discover: runDiscover,
+  discover: runFind,
   enrich: runEnrich,
   roles: runRoles,
   duplicates: runDuplicates,
@@ -117,6 +118,8 @@ export const setState = internalMutation({
   },
   handler: async (ctx, { jobId, ...patch }) => {
     const job = await ctx.db.get(jobId);
+    // Cancelled from Activity: how the run itself ended doesn't change that.
+    if (job?.status === "cancelled") return;
     // Waiting on calls that have all settled since it was refused: it starts again instead (budgets.aiHeld; on
     // CareerBot's key, plan.platformMonth's held).
     const settledSince =
@@ -144,8 +147,8 @@ export const run = internalAction({
   args: { jobId: v.id("jobs") },
   handler: async (ctx, { jobId }) => {
     const job = await ctx.runQuery(internal.jobs.get, { jobId });
-    if (!job || job.status === "done" || job.status === "running") return;
-    await ctx.runMutation(internal.jobs.markStarted, { jobId });
+    if (!job || job.status === "done" || job.status === "running" || job.status === "cancelled") return;
+    if (!(await ctx.runMutation(internal.jobs.markStarted, { jobId }))) return;
     try {
       // Every paid call the job makes is spent on it, for whoever started it, and for its pursuit when it has one.
       const pursuitId: Id<"pursuits"> | undefined =
@@ -165,11 +168,28 @@ export const run = internalAction({
   },
 });
 
+// Whether it started: one cancelled since the run was scheduled doesn't.
 export const markStarted = internalMutation({
   args: { jobId: v.id("jobs") },
   handler: async (ctx, { jobId }) => {
     const job = await ctx.db.get(jobId);
-    await ctx.db.patch(jobId, { status: "running", pausedFor: undefined, error: undefined, startedAt: Date.now(), attempts: (job?.attempts ?? 0) + 1 });
+    if (!job || job.status === "cancelled") return false;
+    await ctx.db.patch(jobId, { status: "running", pausedFor: undefined, error: undefined, startedAt: Date.now(), attempts: (job.attempts ?? 0) + 1 });
+    return true;
+  },
+});
+
+// Activity's Cancel. Work waiting to start or paused for a budget is taken off before it runs again; running work is
+// marked, and stops at its next step (cancel.ts): the step under way finishes and is charged, what it finished stays.
+// Free, and can't be undone (Try again starts it again).
+export const cancel = mutation({
+  args: { jobId: v.id("jobs") },
+  handler: async (ctx, { jobId }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const job = await ctx.db.get(jobId);
+    if (!job || job.workspaceId !== workspaceId) throw new ConvexError("Not found.");
+    if (job.status !== "queued" && job.status !== "running" && job.status !== "paused") return;
+    await ctx.db.patch(jobId, { status: "cancelled", pausedFor: undefined, error: undefined, tallied: true });
   },
 });
 
@@ -194,9 +214,11 @@ export const recoverStuck = internalMutation({
   },
 });
 
+// A finished step, kept so a resumed run doesn't do it again. Not for a cancelled job: the step it was on is dropped.
 export const checkpoint = internalMutation({
   args: { jobId: v.id("jobs"), step: v.string(), result: v.any() },
   handler: async (ctx, { jobId, step, result }) => {
+    await refuseCancelled(ctx, jobId);
     const job = await ctx.db.get(jobId);
     if (!job || (job.done ?? []).some((d) => d.step === step)) return;
     await ctx.db.patch(jobId, { done: [...(job.done ?? []), { step, result }] });

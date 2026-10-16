@@ -265,7 +265,7 @@ function Advanced({
           </Choice>
           {onPlatform ? (
             <Choice title="A model that isn’t listed" line="Other models need your own OpenRouter key.">
-              <Link href="/settings?section=keys" className={buttonLook("secondary", "self-start", small ? "lg" : "md")}>
+              <Link href="/settings?section=connections" className={buttonLook("secondary", "self-start", small ? "lg" : "md")}>
                 Add your own key
                 <Icons.goIn aria-hidden="true" />
               </Link>

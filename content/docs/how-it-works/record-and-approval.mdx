@@ -9,6 +9,7 @@ sources:
   - convex/recordContext.ts
   - convex/extract.ts
   - convex/insights.ts
+  - convex/storyRemoval.ts
   - docs/architecture/model.c4
 ---
 
@@ -97,8 +98,12 @@ An approved item counts as long as what it rests on still stands:
 - A skill, tool or certification counts while an approved role, project or fact that counts still shows it.
 
 Reject a story and everything that came only from it stops counting at once, everywhere: resumes, letters, ranking and
-insights. Restore it and they count again. Deleting a story is different: its facts stay in your record, each marked for
-you to **Keep it** or **Reject it**.
+insights. Restore it and they count again. Deleting a story is different, and can't be undone: **Delete story…** asks what goes
+with it. What came only from that story and is still waiting for review goes too unless you untick it; its approved facts
+stay unless you tick them (it says how many are in resume lines), each marked for you to **Keep it** or **Reject it**.
+A fact or role another story or a project also backs stays either way and only loses that story as a source. Anything
+you rejected that came only from that story goes too, whatever you tick, with its reason and notes, so it no longer
+steers what CareerBot finds in your other stories.
 
 Only approved items that count are used to write, rank or position you. Proposals waiting in Review are never used as if
 approved.

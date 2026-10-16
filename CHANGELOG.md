@@ -2,6 +2,56 @@
 
 What changed in each version of CareerBot, newest first. The same notes are at https://careerbot.dev/changelog.
 
+## 0.12.2 · 2026-10-16
+
+Find companies without Apollo using AI web search and job boards, or alongside it. Settings is now about your account, with search settings on Companies, plus Reset account, cancel and clear in Activity, and deleting a story with what came only from it.
+
+### Fixed
+
+- Release images build from Docker Hub's node image when CI is signed in there, as AWS's mirror now limits shared runners too.
+
+All releases: https://careerbot.dev/changelog#v0.12.2
+
+## 0.12.1 · 2026-10-16
+
+Find companies without Apollo using AI web search and job boards, or alongside it. Settings is now about your account, with search settings on Companies, plus Reset account, cancel and clear in Activity, and deleting a story with what came only from it.
+
+### Fixed
+
+- Self-hosted copies pull Convex's images from ghcr.io/convex, where Convex moved them; the old address refuses downloads.
+
+### If you host your own copy
+
+**Read before updating.**
+
+- Take the new compose.yaml before your next pull. A copy already running keeps working until its Convex images need pulling again.
+
+How to update: https://careerbot.dev/docs/self-hosting/updates#updating
+
+All releases: https://careerbot.dev/changelog#v0.12.1
+
+## 0.12.0 · 2026-10-16
+
+Find companies without Apollo using AI web search and job boards, or alongside it. Settings is now about your account, with search settings on Companies, plus Reset account, cancel and clear in Activity, and deleting a story with what came only from it.
+
+### New
+
+- Cancel work in Activity (it stops after the step it's on, keeping what it finished), and clear finished items off the list, with Undo.
+- Companies can be found without an Apollo key, by a web search for ones that fit each direction and ones hiring now, each with where it was seen.
+- Reset your account in Settings, Your data to clear your workspace and start over, keeping your sign-in, settings, spending and, if you like, your keys.
+
+### Better
+
+- Settings is for your account: keys, Drive and GitHub are in Connections, search settings on Companies, reminders in Pursuits; direction seeds add to yours.
+- Deleting a story asks whether what came only from it goes too, with counts, and keeps anything another story also backs.
+- Search settings opens in a wider dialog on a computer, with each setting's choices beside it.
+
+### Fixed
+
+- Deleting a story now also deletes what you rejected that came only from it, with its reasons, so it no longer steers what CareerBot finds in your other stories.
+
+All releases: https://careerbot.dev/changelog#v0.12.0
+
 ## 0.11.0 · 2026-10-15
 
 Reading a story now covers the whole story, writes figures plainly, and gathers your skills, tools and certifications. Review's arrow keys decide, rejecting no longer asks why, directions fill themselves in when approved, and limits only clash when they truly conflict.

@@ -17,6 +17,7 @@ import { backgroundNarratives, counted, quotedIn, sourceCheck } from "./recordCo
 import { rejectProject, restoreProject } from "./sources";
 import { tallyApproval } from "./tallies";
 import { FACT_STYLE, PLAIN_LANGUAGE } from "./writingGuides";
+import { refuseCancelled } from "./cancel";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
 
 // Reads one narrative against everything already known and proposes record entries and career facts.
@@ -68,9 +69,10 @@ export const start = mutation({
     if (!n) throw new Error("Narrative not found.");
     if (n.kind === "goals") throw new Error("Use “Read my goals” for the goals narrative.");
     if (n.rejectedAt !== undefined) throw new Error("You rejected this narrative. Restore it in Record to read it.");
-    // A plain first read of the same version twice would only duplicate proposals; reading again is explicit.
+    // A plain first read of the same version twice would only duplicate proposals; reading again is explicit. A read
+    // that failed or was cancelled read nothing.
     const done = await ctx.db.query("jobs").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect();
-    if (done.some((j) => j.kind === "extract" && j.args.narrativeId === narrativeId && j.args.version === n.version && j.status !== "failed"))
+    if (done.some((j) => j.kind === "extract" && j.args.narrativeId === narrativeId && j.args.version === n.version && j.status !== "failed" && j.status !== "cancelled"))
       throw new Error("This version has already been read. Use Read again in Record to find what was missed.");
     // A newer version of a narrative that was read before: read only what changed.
     const readVersions = done.filter((j) => j.kind === "extract" && j.args.narrativeId === narrativeId && j.status === "done").map((j) => j.args.version as number);
@@ -112,6 +114,7 @@ export const inputs = internalQuery({
 export const saveProposals = internalMutation({
   args: { workspaceId: v.id("workspaces"), runId: v.id("jobs"), narrativeId: v.id("narratives"), version: v.number(), extracted: v.any(), ignoreRejected: v.optional(v.boolean()) },
   handler: async (ctx, { workspaceId, runId, narrativeId, version, extracted, ignoreRejected }) => {
+    await refuseCancelled(ctx, runId);
     // A retried run (after an interruption) that already saved its results saves nothing twice.
     if (await ctx.db.query("items").withIndex("by_run", (q) => q.eq("runId", runId)).first()) return { alreadySaved: true } as never;
     const read = extracted as Extracted;

@@ -68,7 +68,7 @@ export type StepWords = {
 
 // Inputs read without a filter tag that are public information about a company or a role (the last part of the
 // model.c4 element's id): their filter is "public".
-export const PUBLIC_SOURCES = ["tPostings", "tPostingTexts", "tCompanies", "companyWebsites", "jinaReader"];
+export const PUBLIC_SOURCES = ["tPostings", "tPostingTexts", "tCompanies", "companyWebsites", "jinaReader", "braveSearch"];
 
 const RECORD_FOR_WRITING = "Your record: roles, facts, projects, context, insights, skills and directions";
 const ALL_FACTS_LABEL = "approved roles, facts (with ids to cite), projects, context, insights, skills and directions that count";
@@ -260,6 +260,21 @@ export const AI_STEPS: Record<string, StepWords> = {
       "blocked sites only; public company URL only": "The company’s website",
       "approved directions (titles, positioning, criteria) and approved limits": "Your directions and limits",
       "companies they turned down, and why, as preferences": "Companies you turned down, and why, as preferences",
+    },
+  },
+  webDiscovery: {
+    name: "Find companies on the web",
+    stage: "companies",
+    starts: "When you choose Find companies without an Apollo key, or with Finding companies set to Apollo + AI.",
+    may: "Find up to 15 companies for each direction that fit it, hiring or not, and up to 15 hiring for its titles now, each with the page it was seen on.",
+    mayNot: "Keep anything it says about a company beyond its name and website, or bring back a past employer or a company you turned down.",
+    reads: {
+      "approved directions (name, positioning, titles, industries, sizes) and approved limits (seniority, location, companies, work they avoid)": "Your directions and limits",
+      "companies they turned down, never found again (while Learn from your ratings is on)": "Companies you turned down, so they aren’t found again",
+      "job-board site searches for a direction’s titles": "Public job boards, searched for your directions’ titles",
+      "a board’s page, for the company’s website": "A job board’s page, for the company’s website",
+      "a named company’s own site, for its name": "The website of a company you named, for its name",
+      "a named company’s site that turns away direct requests; public URL only": "The website of a company you named, for its name",
     },
   },
   sortRoles: {

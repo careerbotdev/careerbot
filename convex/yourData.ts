@@ -26,9 +26,13 @@ export const SETTINGS = ["aiDefaults", "aiSettings", "budgets", "discovery", "pr
 const exportOf = (ctx: QueryCtx, workspaceId: Id<"workspaces">) => ctx.db.query("exports").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).first();
 const importOf = (ctx: QueryCtx, workspaceId: Id<"workspaces">) => ctx.db.query("imports").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).first();
 
-// Empty: nothing in it but settings (no stories, record, companies, roles, pursuits, resumes, notes or spending).
+// Spending a workspace keeps through a reset (accountReset.ts), so it doesn't make it non-empty either. An import never
+// replaces it: a workspace with any spending keeps its own and leaves the file's out.
+export const SPENDING = ["aiSpend", "spendTotals", "usage"];
+
+// Empty: nothing in it but settings and spending (no stories, record, companies, roles, pursuits, resumes or notes).
 export async function isEmpty(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
-  for (const table of CARRIED) if (!SETTINGS.includes(table) && (await inWorkspace(ctx, table, workspaceId).first())) return false;
+  for (const table of CARRIED) if (!SETTINGS.includes(table) && !SPENDING.includes(table) && (await inWorkspace(ctx, table, workspaceId).first())) return false;
   return true;
 }
 
@@ -255,13 +259,13 @@ export const partIn = internalMutation({
   },
 });
 
-// The pieces joined into one file (yourDataRun.checkImport): the pieces go.
+// The pieces joined into one file (yourDataRun.checkImport): the pieces go, apart from a one-piece file, which is the file.
 export const joined = internalMutation({
   args: { importId: v.id("imports"), fileId: v.id("_storage") },
   handler: async (ctx, { importId, fileId }) => {
     const row = await ctx.db.get(importId);
-    if (row?.status !== "checking") return void (await ctx.storage.delete(fileId));
-    for (const id of row.chunks ?? []) if (await ctx.db.system.get(id)) await ctx.storage.delete(id);
+    if (row?.status !== "checking") return void ((await ctx.db.system.get(fileId)) && (await ctx.storage.delete(fileId)));
+    for (const id of row.chunks ?? []) if (id !== fileId && (await ctx.db.system.get(id))) await ctx.storage.delete(id);
     await ctx.db.patch(importId, { fileId, chunks: undefined, beat: Date.now() });
   },
 });
@@ -385,7 +389,8 @@ async function importing(ctx: QueryCtx, importId: Id<"imports">) {
   return row;
 }
 
-// Before the first row goes in: the settings the file brings replace the ones the workspace had.
+// Before the first row goes in: the settings the file brings replace the ones the workspace had. Spending is never
+// replaced: when the workspace has any, the import notes it keeps its own and the file's stays out.
 export const clearSettings = internalMutation({
   args: { importId: v.id("imports"), tables: v.array(v.string()) },
   handler: async (ctx, { importId, tables }) => {
@@ -393,6 +398,13 @@ export const clearSettings = internalMutation({
     for (const table of tables.filter((t) => SETTINGS.includes(t))) {
       for (const r of await inWorkspace(ctx, table, row.workspaceId).collect()) await ctx.db.delete(r._id as Id<TableNames>);
     }
+    for (const table of SPENDING) {
+      if (await inWorkspace(ctx, table, row.workspaceId).first()) {
+        await ctx.db.patch(importId, { keepSpending: true });
+        return true;
+      }
+    }
+    return false;
   },
 });
 

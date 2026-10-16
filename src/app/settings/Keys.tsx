@@ -10,30 +10,39 @@ import { Field, Input } from "@/components/Field";
 import type { ScreenSize } from "@/components/Panes";
 import { Text } from "@/components/Text";
 import { toast } from "@/components/Toast";
-import { useDemo } from "../demo/demo";
 import { useConfirm } from "../shell/ShellContext";
-import { monthDay, SettingsPane } from "./ui";
+import { monthDay } from "./ui";
 
-// The workspace's keys: each masked to its last four with when it was added, Replace (a field that checks the new key
-// before it takes the old one's place) and Remove (asks first). Apollo also shows what's left on the plan this cycle.
-// On careerbot.dev an OpenRouter key is optional: without one, CareerBot's AI runs within the allowance (Allowance).
-// The demo carries no keys and calls out to nothing, which is all it says there.
+// The workspace's keys, as rows of Settings, Connections: each masked to its last four with when it was added, Replace
+// (a field that checks the new key before it takes the old one's place) and Remove (asks first). Apollo also shows
+// what's left on the plan this cycle. On careerbot.dev an OpenRouter key is optional: without one, CareerBot's AI runs
+// within the allowance (Allowance). The demo carries no keys (Connections says so instead).
 
 type Status = { set: false } | { set: true; last4: string; setAt?: number };
 type Saved = { ok: true } | { ok: false; message: string };
 
-export function Keys({ size }: { size: ScreenSize }) {
-  if (useDemo()) {
-    return (
-      <SettingsPane title="Keys" size={size}>
-        <Text size="sm">The demo has no keys: nothing in it calls OpenRouter, Apollo or Brave Search.</Text>
-      </SettingsPane>
-    );
-  }
-  return <OwnKeys size={size} />;
+export function OpenRouterKey({ size }: { size: ScreenSize }) {
+  const plan = useQuery(api.budgets.status)?.plan;
+  const allowance = plan ? `up to $${plan.allowanceUsd.toLocaleString("en-US")} a month` : null;
+  return (
+    <KeyRow
+      name="OpenRouter"
+      line={
+        allowance
+          ? `Optional. Without one, CareerBot’s AI is included, ${allowance}; with one, AI is paid from your own OpenRouter account, within your own budget.`
+          : "Pays for every AI task, from your own OpenRouter account. Set a monthly limit on the key at OpenRouter too, as a second cap on AI spending."
+      }
+      status={useQuery(api.openrouterKey.status)}
+      save={api.openrouterKey.save}
+      remove={api.openrouterKey.remove}
+      removing={allowance ? `CareerBot’s AI takes over again, ${allowance}.` : "AI work stops until you add a key again."}
+      placeholder="sk-or-…"
+      size={size}
+    />
+  );
 }
 
-function OwnKeys({ size }: { size: ScreenSize }) {
+export function CompanyKeys({ size }: { size: ScreenSize }) {
   const apollo = useQuery(api.apolloKey.status);
   const readBalance = useAction(api.apolloKey.balance);
   const [balance, setBalance] = useState<ApolloBalance | null>();
@@ -41,33 +50,16 @@ function OwnKeys({ size }: { size: ScreenSize }) {
   useEffect(() => {
     if (apolloSetAt !== null) void readBalance({}).then(setBalance, () => setBalance(null));
   }, [apolloSetAt, readBalance]);
-  const plan = useQuery(api.budgets.status)?.plan;
-  const allowance = plan ? `up to $${plan.allowanceUsd.toLocaleString("en-US")} a month` : null;
 
   return (
-    <SettingsPane title="Keys" size={size}>
-      <div className="flex flex-col border-b">
-        <KeyRow
-          name="OpenRouter"
-          line={
-            allowance
-              ? `Optional. Without one, CareerBot’s AI is included, ${allowance}; with one, AI is paid from your own OpenRouter account, within your own budget.`
-              : "Pays for every AI task, from your own OpenRouter account. Set a monthly limit on the key at OpenRouter too, as a second cap on AI spending."
-          }
-          status={useQuery(api.openrouterKey.status)}
-          save={api.openrouterKey.save}
-          remove={api.openrouterKey.remove}
-          removing={allowance ? `CareerBot’s AI takes over again, ${allowance}.` : "AI work stops until you add a key again."}
-          placeholder="sk-or-…"
-          size={size}
-        />
+    <>
         <KeyRow
           name="Apollo"
           line="Optional. Finds companies, their details and job postings. Needs a master key, or one with company search, organization enrichment and credit usage. CareerBot uses your own Apollo account and key, only for your own search. You're responsible for making sure your use follows Apollo's terms."
           status={apollo}
           save={api.apolloKey.save}
           remove={api.apolloKey.remove}
-          removing="Finding companies, their details and job postings through Apollo stops until you add a key again. Credits already used stay spent."
+          removing="Apollo stops finding companies, their details, job postings and people until you add a key again: companies are found by a web search instead. Credits already used stay spent."
           size={size}
         >
           {apollo?.set && (
@@ -82,15 +74,14 @@ function OwnKeys({ size }: { size: ScreenSize }) {
         </KeyRow>
         <KeyRow
           name="Brave Search"
-          line="Finds a company’s job board when its website doesn’t link one. Optional."
+          line="Finds a company’s job board when its website doesn’t link one, and searches job boards for companies hiring now. Optional."
           status={useQuery(api.braveKey.status)}
           save={api.braveKey.save}
           remove={api.braveKey.remove}
-          removing="Job boards are no longer looked up by search until you add a key again."
+          removing="Job boards are no longer looked up or searched until you add a key again."
           size={size}
         />
-      </div>
-    </SettingsPane>
+    </>
   );
 }
 
