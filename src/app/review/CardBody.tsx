@@ -8,6 +8,7 @@ import { Text } from "@/components/Text";
 import type { Card } from "./decisions";
 import { ClashOnCard } from "../goals/limits/Clash";
 import { titleNote } from "../record/roles/words";
+import { capAll, goalIndustriesLabel, RECORD_INDUSTRIES_LABEL } from "../goals/directions/words";
 
 const day = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 
@@ -17,14 +18,14 @@ export function builtOn(card: Card): BuiltOnSource[] {
 }
 
 // Words in a row of quiet chips: titles, industries, a stack.
-function Chips({ label, items }: { label?: string; items: string[] }) {
+function Chips({ label, items, muted }: { label?: string; items: string[]; muted?: boolean }) {
   if (!items.length) return null;
   return (
     <div className="flex flex-col gap-1.5">
       {label && <span className="text-label leading-label text-muted">{label}</span>}
       <ul className="flex flex-wrap gap-1.5">
         {items.map((i) => (
-          <li key={i} className="rounded-sm bg-subtle px-2.5 py-1 text-body-sm leading-body-sm text-text">
+          <li key={i} className={`rounded-sm bg-subtle px-2.5 py-1 text-body-sm leading-body-sm ${muted ? "text-muted" : "text-text"}`}>
             {i}
           </li>
         ))}
@@ -75,7 +76,14 @@ export function CardBody({ card }: { card: Card }) {
         <>
           <ReviewStatement>{`Target titles for ${card.name}`}</ReviewStatement>
           <Chips items={card.criteria.titles} />
-          <Chips label="Industries" items={card.criteria.industries} />
+          {card.criteria.fromGoals.length ? (
+            <>
+              <Chips label={goalIndustriesLabel(card.name, card.criteria.goalsScoped)} items={capAll(card.criteria.fromGoals)} muted />
+              <Chips label={RECORD_INDUSTRIES_LABEL} items={capAll(card.criteria.fromRecord)} />
+            </>
+          ) : (
+            <Chips label="Industries" items={capAll(card.criteria.industries)} />
+          )}
           <Chips label="Company sizes" items={card.criteria.sizes} />
           <Chips label="Stages" items={card.criteria.stages} />
           <Chips label="Keywords" items={card.criteria.keywords} />

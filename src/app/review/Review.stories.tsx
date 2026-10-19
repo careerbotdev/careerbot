@@ -44,7 +44,7 @@ const full: Groups = {
         line: "US, remote or Pittsburgh · 200 to 5,000 people",
         context: "Supply Chain Product",
         name: "Supply Chain Product",
-        criteria: { seeds: ["meridian.example.com"], industries: ["Supply chain software", "Logistics technology", "Food manufacturing"], sizes: ["201-500", "501-1000", "1001-5000"], stages: [], titles: ["Product Manager, Supply Planning", "Senior Product Manager", "Group Product Manager", "Head of Product, Planning"], keywords: [] },
+        criteria: { seeds: ["meridian.example.com"], industries: ["ai", "industrial", "consulting"], sizes: ["201-500", "501-1000", "1001-5000"], stages: [], titles: ["Product Manager, Supply Planning", "Senior Product Manager", "Group Product Manager", "Head of Product, Planning"], keywords: [], fromGoals: ["ai", "robotics", "industrial", "ecommerce"], goalsScoped: false, fromRecord: ["consulting"] },
         sources: [goals],
       },
       {
@@ -55,7 +55,7 @@ const full: Groups = {
         line: "Supply chain software · 51 to 500 people",
         context: "Solutions Consulting",
         name: "Solutions Consulting",
-        criteria: { seeds: [], industries: ["Supply chain software"], sizes: ["51-200", "201-500"], stages: ["Series B"], titles: ["Solutions Consultant", "Solutions Engineer"], keywords: [] },
+        criteria: { seeds: [], industries: ["Supply chain software"], sizes: ["51-200", "201-500"], stages: ["Series B"], titles: ["Solutions Consultant", "Solutions Engineer"], keywords: [], fromGoals: [], goalsScoped: false, fromRecord: [] },
         sources: [goals],
       },
     ],

@@ -3,6 +3,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { query, type QueryCtx } from "./_generated/server";
 import { companiesToRate } from "./companySets";
 import { duplicatePairs, sameWorkSuggestions } from "./factPairs";
+import { industryGoals, shownIndustries } from "./goalIndustries";
 import { type ItemOf, itemsOf, type SkillItem, skillsOf } from "./itemShapes";
 import { DEFAULT_LENS } from "./lens";
 import { updatesOf } from "./resume";
@@ -306,6 +307,7 @@ export const items = query({
         return { ...base, cards, declined: (await rejected("limit")).map((l) => rejectedRow(l, l.data.value, l.data.label, l.data.rejectedBecause)) };
       }
       case "criteria": {
+        const goals = await industryGoals(ctx, workspaceId);
         const cards = await Promise.all(
           w.criteria.map(async (d) => {
             const c = d.data.criteria!;
@@ -317,7 +319,7 @@ export const items = query({
               line: [c.industries.slice(0, 3).join(", "), c.sizes.join(", ")].filter(Boolean).join(" · "),
               context: d.data.name,
               name: d.data.name,
-              criteria: { seeds: c.seeds ?? [], industries: c.industries, sizes: c.sizes, stages: c.stages, titles: c.titles, keywords: c.keywords },
+              criteria: { seeds: c.seeds ?? [], industries: c.industries, sizes: c.sizes, stages: c.stages, titles: c.titles, keywords: c.keywords, ...shownIndustries(goals, d.data.name, c.industries) },
               sources: await quotesOf(ctx, n, d),
             };
           }),

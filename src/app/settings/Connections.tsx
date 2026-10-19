@@ -63,19 +63,34 @@ function ApolloJobs() {
 }
 
 // GitHub is connected in Record, Projects, where its repositories are chosen; this row says how it stands and goes there.
+// When the copy has no GitHub App yet, it says so; a self-hosted copy's owner (who sees Updates) gets how to set it up.
+const SETUP = "https://careerbot.dev/docs/self-hosting/keys#github-repositories-careerbots-github-app";
+
 function GitHub({ size }: { size: ScreenSize }) {
   const github = useQuery(api.github.status);
+  const owner = !!useQuery(api.updates.status);
   const connected = github?.connected;
-  const go = (className: string) => (
-    <Link href="/record/projects?github=1" className={buttonLook("secondary", className, size === "small" ? "lg" : "sm")}>
+  const notSetUp = github?.ready === false;
+  const sized = size === "small" ? "lg" : "sm";
+  // Wrapped, because the button's own inline-flex beats a hidden passed with it.
+  const button = notSetUp ? (
+    owner ? (
+      <a href={SETUP} target="_blank" rel="noreferrer" className={buttonLook("secondary", "", sized)}>
+        <Icons.openElsewhere aria-hidden="true" />
+        How to set it up
+      </a>
+    ) : null
+  ) : (
+    <Link href="/record/projects?github=1" className={buttonLook("secondary", "", sized)}>
       <Icons.openElsewhere aria-hidden="true" />
       Open Projects
     </Link>
   );
+  const line = notSetUp ? "Not set up on this copy yet." : connected ? `Connected as ${connected.account} · ${connected.selection === "all" ? "all repositories" : "repositories you chose"}` : "Not connected.";
   return (
-    <SettingRow title="GitHub" line="Connected in Projects, where you choose which repositories CareerBot reads." control={go("hidden @lg:inline-flex")}>
-      {github !== undefined && <Text size="sm">{connected ? `Connected as ${connected.account} · ${connected.selection === "all" ? "all repositories" : "repositories you chose"}` : "Not connected."}</Text>}
-      {go("self-start @lg:hidden")}
+    <SettingRow title="GitHub" line="Connected in Projects, where you choose which repositories CareerBot reads." control={button && <div className="hidden @lg:flex">{button}</div>}>
+      {github !== undefined && <Text size="sm">{line}</Text>}
+      {button && <div className="flex @lg:hidden">{button}</div>}
     </SettingRow>
   );
 }

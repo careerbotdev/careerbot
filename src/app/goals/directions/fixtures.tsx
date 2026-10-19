@@ -397,6 +397,7 @@ export function directionsFixtures({ merged = false }: { merged?: boolean } = {}
     to.data = { ...to.data, includes: [...(to.data.includes ?? []), from.data.name, ...(from.data.includes ?? [])], changedAt: 1, mergedAt: 1 };
   }
 
+  const GOAL_INDUSTRIES = ["industrial", "robotics", "ai", "data infrastructure", "ecommerce", "healthcare"];
   const list = (): FunctionReturnType<typeof api.directions.list> => ({
     suggest: suggesting,
     filling: filling.size ? { done: 0, total: filling.size } : null,
@@ -411,6 +412,10 @@ export function directionsFixtures({ merged = false }: { merged?: boolean } = {}
         reframe: (data.detail?.reframe ?? []).map(withFacts),
         evidence: (spec.evidence ?? []).map((k) => FACTS[k]),
         avoided: [],
+        // As goalIndustries.shownIndustries reads the Companies limit in ../limits/fixtures.ts.
+        fromGoals: GOAL_INDUSTRIES,
+        goalsScoped: false,
+        fromRecord: (data.criteria?.industries ?? []).filter((i) => !GOAL_INDUSTRIES.includes(i)),
         fill: filling.has(spec.id) ? ("filling" as const) : null,
         merge: undoing.has(spec.id) ? ("undoing" as const) : merging.has(spec.id) ? ("merging" as const) : null,
       })),

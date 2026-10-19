@@ -2,6 +2,22 @@
 
 What changed in each version of CareerBot, newest first. The same notes are at https://careerbot.dev/changelog.
 
+## 0.13.1 · 2026-10-19
+
+Directions now propose 10 to 20 job titles, covering the many ways companies name the same work, and their criteria show the industries your goals add to every search. A clearer message when GitHub isn't set up on a self-hosted copy.
+
+### Better
+
+- A direction's industries show the ones your goals add to its search, and mark its own ones your goals don't name as from your record.
+- Filling in a direction lists 10 to 20 titles, the names companies actually use for that work at your level.
+
+### Fixed
+
+- When GitHub isn't set up on a copy, Projects and Settings say so, and a self-hosted copy's owner gets a link to how to set it up.
+- On a phone, Settings' GitHub row shows its button once instead of twice.
+
+All releases: https://careerbot.dev/changelog#v0.13.1
+
 ## 0.13.0 · 2026-10-16
 
 Companies can be sorted and archived, directions can be merged with Undo, and Getting started can use any model. Skills are one per item in Title Case.

@@ -18,8 +18,8 @@ import { useBar } from "../../shell/ShellContext";
 import { failed, inlineLink, ItemBody, ItemHead, ItemTop, Notice, type Position, Section, ValueRows } from "../ui";
 import { useDirectionActs } from "./acts";
 import { DirectionForm } from "./forms";
-import { facts } from "./Parts";
-import { approveWords, capAll, COPY_LINK_WORDS, type Direction, fromOf, pathWord, REJECT_NOTE_WORDS, REJECT_PICKS, REJECT_WORDS } from "./words";
+import { facts, Industries } from "./Parts";
+import { approveWords, COPY_LINK_WORDS, type Direction, fromOf, pathWord, REJECT_NOTE_WORDS, REJECT_PICKS, REJECT_WORDS } from "./words";
 
 // A proposed direction (read from their goals, or suggested from their record), as one decision: what it is, its
 // titles, industries and positioning, and what it's built on; Approve, Edit or Reject, or add it to a direction it's
@@ -99,7 +99,7 @@ export function ProposedItem({
   const c = d.data.criteria;
   const rows = [
     ...(c?.titles.length ? [{ label: "Titles", value: <ValueTags items={c.titles} /> }] : d.data.includes?.length ? [{ label: "Covers", value: <ValueTags items={d.data.includes} /> }] : []),
-    ...(c?.industries.length ? [{ label: "Industries", value: <ValueTags items={capAll(c.industries)} /> }] : []),
+    ...(c?.industries.length || (c && d.fromGoals.length) ? [{ label: "Industries", value: <Industries d={d} /> }] : []),
     ...(d.data.detail?.positioning ? [{ label: "Positioning", value: d.data.detail.positioning }] : []),
   ];
 

@@ -36,6 +36,11 @@ export const sizeLabel = (s: string) => s.replace(/\d+/g, (n) => Number(n).toLoc
 export const stageLabel = (s: string) => cap(s).replace(/^Series (\S)/, (_, c: string) => `Series ${c.toUpperCase()}`);
 export const capAll = (xs: readonly string[]) => xs.map(cap);
 
+// A direction's industries in two groups when their goals want some (goalIndustries.shownIndustries): the ones their
+// goals add to its search, then its own ones the goals don't name, which came from their record.
+export const goalIndustriesLabel = (name: string, scoped: boolean) => (scoped ? `From your goals, for ${name}` : "From your goals, for every direction");
+export const RECORD_INDUSTRIES_LABEL = "From your record, not in your goals";
+
 export const rolesWord = (n: number) => (n ? `${n.toLocaleString("en-US")} ${n === 1 ? "role" : "roles"}` : "No roles");
 
 // Where a direction came from: "Suggested from your record", or the goals version it was read from.

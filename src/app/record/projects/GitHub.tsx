@@ -37,6 +37,8 @@ const repositories = (n: number) => `${n} ${n === 1 ? "repository" : "repositori
 const DISCONNECTS = "Disconnects GitHub from this workspace. Projects already read stay. The app stays installed on GitHub; uninstall it in GitHub’s settings.";
 const REFRESHES = "Asks GitHub again which repositories CareerBot can see.";
 const CONNECTS = "Opens GitHub to give CareerBot read-only access to all your repositories or the ones you choose.";
+const NOT_SET_UP = "GitHub isn’t set up on this copy yet";
+const SETUP = "https://careerbot.dev/docs/self-hosting/keys#github-repositories-careerbots-github-app";
 
 export function GitHub(props: Props) {
   const status = useQuery(api.github.status);
@@ -49,25 +51,28 @@ function Top({ small, onBack, menu }: { small: boolean; onBack: () => void; menu
   return small ? <PaneHeader back={{ label: "Projects", onBack }} actions={more} /> : <PaneHeader actions={more} />;
 }
 
+// Not ready: the copy has no GitHub App yet. Connect GitHub says so; a self-hosted copy's owner (who sees Updates) also
+// gets How to set it up, beside it.
 function NotConnected({ projects, small, onBack, ready }: Props & { ready: boolean }) {
   const connect = useMutation(api.github.connect);
+  const owner = !!useQuery(api.updates.status);
   const kept = projects.filter((p) => p.status !== "rejected").length;
   const start = useCallback(() => void connect().then((url) => window.location.assign(url), (e: unknown) => failed(e, "Couldn’t start connecting. Try again.")), [connect]);
   const commands = useMemo((): Command[] => (ready ? [{ id: "github-connect", group: "GitHub", label: "Connect GitHub", icon: "link", onSelect: start }] : []), [ready, start]);
   useCommands(commands);
-  useBar(small ? { kind: "actions", actions: <ConnectButton ready={ready} onConnect={start} size="lg" /> } : null);
-  const menu: MenuEntry[] = [{ label: "Connect GitHub", icon: "link", hint: "Free", detail: CONNECTS, note: "Free", onSelect: start, ...(ready ? {} : { disabled: true, reason: "Not available yet" }) }];
+  useBar(small ? { kind: "actions", actions: <ConnectButton ready={ready} owner={owner} onConnect={start} size="lg" /> } : null);
+  const menu: MenuEntry[] = [{ label: "Connect GitHub", icon: "link", hint: "Free", detail: CONNECTS, note: "Free", onSelect: start, ...(ready ? {} : { disabled: true, reason: NOT_SET_UP }) }];
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Top small={small} onBack={onBack} menu={menu} />
-      <EmptyState icon="link" title="GitHub isn’t connected" action={small ? undefined : <ConnectButton ready={ready} onConnect={start} size="md" />}>
+      <EmptyState icon="link" title="GitHub isn’t connected" action={small ? undefined : <ConnectButton ready={ready} owner={owner} onConnect={start} size="md" />}>
         {`Connect it to read your repositories into projects.${kept ? ` Your ${kept === 1 ? "project stays" : `${kept} projects stay`} in your record.` : ""}`}
       </EmptyState>
     </div>
   );
 }
 
-function ConnectButton({ ready, onConnect, size }: { ready: boolean; onConnect: () => void; size: "md" | "lg" }) {
+function ConnectButton({ ready, owner, onConnect, size }: { ready: boolean; owner: boolean; onConnect: () => void; size: "md" | "lg" }) {
   return (
     <div className={`flex items-center gap-3 ${size === "lg" ? "flex-1" : ""}`}>
       <Button
@@ -75,14 +80,21 @@ function ConnectButton({ ready, onConnect, size }: { ready: boolean; onConnect: 
         size={size}
         icon="link"
         className={size === "lg" ? "flex-1" : ""}
-        reason={ready ? undefined : "Not available yet"}
+        reason={ready ? undefined : NOT_SET_UP}
         detail={CONNECTS}
         note="Free"
         onClick={onConnect}
       >
         Connect GitHub
       </Button>
-      <CostEstimate amount="Free" />
+      {ready || !owner ? (
+        <CostEstimate amount="Free" />
+      ) : (
+        <a href={SETUP} target="_blank" rel="noreferrer" className={buttonLook("secondary", size === "lg" ? "flex-1" : "", size)}>
+          <Icons.openElsewhere aria-hidden="true" />
+          How to set it up
+        </a>
+      )}
     </div>
   );
 }

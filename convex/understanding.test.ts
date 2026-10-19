@@ -375,6 +375,24 @@ test("directions: detail cites only approved facts, approved parts are never ove
   expect((await asA.query(api.directions.list, {})).directions[1].evidence).toEqual(["Cut churn by 20% at Acme."]);
 });
 
+test("directions: a fill-in keeps up to 20 titles, its own industries only, and the Criteria show the goals' industries above the ones from the record", async () => {
+  const { t, asA, w, add, settle, stub } = await setup();
+  const fact = await add("fact", "approved", { text: "Closed a $2M enterprise deal at Acme." });
+  const want = ["ai", "aerospace and defense", "robotics", "hardware and semiconductors", "energy", "industrial"];
+  await t.run((ctx) => ctx.db.insert("items", { workspaceId: w, kind: "limit", status: "approved", data: { kind: "companies", label: "Companies", value: "x", rule: { industriesWant: want, industriesAvoid: ["staffing"] } }, sources: [], at: 0 }));
+  const dir = await t.run((ctx) => ctx.db.insert("items", { workspaceId: w, kind: "direction", status: "approved", data: { name: "Enterprise Sales" }, sources: [], at: 0 }));
+  const titles = Array.from({ length: 25 }, (_, i) => `Enterprise Account Executive ${i + 1}`);
+  stub({ directions: [{ id: dir, positioning: "P", targetTitles: titles, vocabulary: [], carriesOver: [{ text: "Deal", factIds: [fact] }], reframe: [], titleMap: [], criteria: { industries: ["proptech", "ai", "staffing"], sizes: [], stages: [], titles, keywords: [] } }] });
+  await asA.mutation(api.directions.detail, {});
+  await settle();
+  const d = (await asA.query(api.directions.list, {})).directions[0];
+  expect(d.data.detail!.targetTitles).toHaveLength(20);
+  expect(d.data.criteria!.titles).toEqual(titles.slice(0, 20));
+  // The direction keeps its own picks (avoided ones dropped); the wanted ones come from the limit, not copied in.
+  expect(d.data.criteria!.industries).toEqual(["proptech", "ai"]);
+  expect(d).toMatchObject({ fromGoals: want, goalsScoped: false, fromRecord: ["proptech"] });
+});
+
 test("tailoring starts from the direction resume and grades requirements honestly", async () => {
   const { t, asA, w, add, settle, stub, sentTo } = await setup();
   const fact = await add("fact", "approved", { text: "Cut churn by 20% at Acme." });

@@ -8,6 +8,7 @@ import { activeLimits, type ItemOf, itemsOf, pickDirection } from "./itemShapes"
 import { STAGE_LIST } from "./directionVocab";
 import { toDomain } from "./discovery";
 import { INDUSTRIES, SIZES } from "./limitBuckets";
+import { industryGoals, shownIndustries } from "./goalIndustries";
 import { chatJson, LONG_REPLY_TOKENS } from "./metering";
 import { listOf, type ReplySchema, replyOf, strictObject, string, strings } from "./replyJson";
 import { approvedRecord, backgroundNarratives, counted } from "./recordContext";
@@ -25,12 +26,12 @@ export const STAGES = STAGE_LIST;
 
 const DETAIL_SPEC = `For each direction produce:
 - "positioning": two sentences on how to present them for this kind of work, grounded in their record, in the second person.
-- "targetTitles": the job titles this market actually posts for someone at their level (5 to 10).
+- "targetTitles": the job titles this market actually posts for this work at their level (10 to 20). Companies name the same job many ways, and search and role sorting only find what a title names, so cover the real spread: seniority and scope variants (Senior, Lead, Principal; Enterprise, Strategic, Named or Key Accounts; Founding), and the other names companies use for the same work (for enterprise sales, say, Enterprise Account Manager, Client Partner, Strategic Accounts Lead, Sales Executive, or Business Development Executive where it is closing work). The most common names first. None their limits rule out: no title below or above the seniority their limits allow for this direction, none for work they avoid.
 - "vocabulary": terms hiring managers in this market use that fit their record (8 to 15 short terms).
 - "carriesOver": the stories from their record that transfer as they are: {"text": one line, "factIds": approved fact ids it rests on}.
 - "reframe": stories that fit only when told differently: {"text": the story as it should be told here, "how": what changes in the telling, "factIds"}.
 - "titleMap": how their past titles read in this market: {"from": their title, "to": the equivalent here}.
-- "criteria": what search should look for: "industries" (from [${INDUSTRIES.map((x) => `"${x}"`).join(", ")}]), "sizes" (from [${SIZES.map((x) => `"${x}"`).join(", ")}]), "stages" (from [${STAGES.map((x) => `"${x}"`).join(", ")}]), "titles" (the titles to search for), "keywords" (terms to find in postings and company descriptions).
+- "criteria": what search should look for: "industries" (from [${INDUSTRIES.map((x) => `"${x}"`).join(", ")}]: the ones this direction's work points to; the industries their company limits want are added to every search on their own), "sizes" (from [${SIZES.map((x) => `"${x}"`).join(", ")}]), "stages" (from [${STAGES.map((x) => `"${x}"`).join(", ")}]), "titles" (the titles to search for: the same breadth as targetTitles, 10 to 20), "keywords" (terms to find in postings and company descriptions).
 Use only what the approved record supports; never invent experience.
 Criteria and target titles aim at where they want to go, not only where they've been: they follow their approved limits (the kinds of companies and industries they want or avoid, the seniority each direction must reach, and anything else in the limits' rules). An industry from their past belongs in the criteria only if their goals keep it. Titles sit at the seniority their limits allow for that direction.`;
 
@@ -109,6 +110,9 @@ type Raw = Record<string, unknown>;
 const s = (x: unknown) => (typeof x === "string" && x.trim() ? x.trim() : "");
 const strList = (x: unknown) => (Array.isArray(x) ? [...new Set(x.map(s).filter(Boolean))] : []);
 const oneOf = (x: unknown, allowed: readonly string[]) => strList(x).map((i) => i.toLowerCase()).filter((i) => allowed.includes(i));
+// The most titles a fill-in keeps for a direction: enough for the naming spread at one level, few enough that Apollo's
+// hiring search (its first 10), the job-board queries (its first BOARD_QUERIES) and the prompts stay small.
+const TITLE_MAX = 20;
 
 // Reduces a reply to the detail and criteria shapes. Stories keep only approved fact ids; a story with none is dropped.
 function clean(raw: Raw, approvedFacts: Set<string>, avoid: Set<string>) {
@@ -119,14 +123,14 @@ function clean(raw: Raw, approvedFacts: Set<string>, avoid: Set<string>) {
       .map((st) => Object.fromEntries(Object.entries(st).filter(([, x]) => x !== undefined)) as { text: string; factIds: string[]; how?: string });
   const detail = {
     positioning: s(raw.positioning),
-    targetTitles: strList(raw.targetTitles),
+    targetTitles: strList(raw.targetTitles).slice(0, TITLE_MAX),
     vocabulary: strList(raw.vocabulary),
     carriesOver: stories(raw.carriesOver, false),
     reframe: stories(raw.reframe, true),
     titleMap: (Array.isArray(raw.titleMap) ? raw.titleMap : []).map((m: Raw) => ({ from: s(m?.from), to: s(m?.to) })).filter((m) => m.from && m.to),
   };
   const c = (raw.criteria ?? {}) as Raw;
-  const criteria = { industries: oneOf(c.industries, INDUSTRIES).filter((i) => !avoid.has(i)), sizes: oneOf(c.sizes, SIZES), stages: oneOf(c.stages, STAGES), titles: strList(c.titles), keywords: strList(c.keywords) };
+  const criteria = { industries: oneOf(c.industries, INDUSTRIES).filter((i) => !avoid.has(i)), sizes: oneOf(c.sizes, SIZES), stages: oneOf(c.stages, STAGES), titles: strList(c.titles).slice(0, TITLE_MAX), keywords: strList(c.keywords) };
   return { detail: detail.positioning ? detail : null, criteria };
 }
 
@@ -134,7 +138,7 @@ const norm = (t: string) => t.trim().toLowerCase();
 
 // Industries their approved limits avoid never become search criteria, whatever the model proposes.
 async function avoidedIndustries(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
-  return new Set((await activeLimits(ctx, workspaceId)).flatMap((l) => (l.data.kind === "companies" && Array.isArray(l.data.rule?.industriesAvoid) ? (l.data.rule.industriesAvoid as string[]) : [])));
+  return new Set((await industryGoals(ctx, workspaceId)).avoid);
 }
 
 // The next direction a fill-in pass fills: the first it was asked for that it hasn't got to and that's still approved
@@ -266,7 +270,8 @@ export const list = query({
     for (const status of ["approved", "proposed", "rejected"] as const) rows.push(...(await itemsOf(ctx, workspaceId, "direction", status)));
     const jobs = await recentJobs(ctx, workspaceId);
     const suggesting = jobs.find((j) => j.kind === "directions" && j.args.mode === "suggest");
-    const avoid = await avoidedIndustries(ctx, workspaceId);
+    const goals = await industryGoals(ctx, workspaceId);
+    const avoid = new Set(goals.avoid);
     const withFacts = (st: { text: string; factIds: string[]; how?: string }) => ({ ...st, facts: st.factIds.map((id) => facts.get(id) ?? "(no longer in your record)") });
     const fillOf = async (d: ItemOf<"direction">) => {
       if (d.status !== "approved" || !d.data.fillJob) return null;
@@ -294,6 +299,7 @@ export const list = query({
           evidence: (d.data.evidence ?? []).map((id) => facts.get(id) ?? "(no longer in your record)"),
           // Industries in these criteria that an approved limit now avoids (criteria approved before the limit was).
           avoided: (d.data.criteria?.industries ?? []).filter((i) => avoid.has(i)),
+          ...shownIndustries(goals, d.data.name, d.data.criteria?.industries ?? []),
         })),
       ),
     };

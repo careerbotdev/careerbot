@@ -7,6 +7,7 @@ import type { Doc, Id } from "../../../../convex/_generated/dataModel";
 import { answer, type Answers } from "../../storyConvex";
 import { itemId, NOW, recordFixture, type RecordState } from "../fixtures";
 import { RecordStory } from "../RecordStory";
+import { updateFixtures } from "../../settings/updateFixtures";
 import { Projects } from "./Projects";
 
 // The Projects screen with the fixture record, one story per board of the Projects section: a project open (with its
@@ -110,11 +111,13 @@ function boardState(state: RecordState, { github = false, connected = true }: { 
   if (!connected) state.github = { ...state.github, connected: null };
 }
 
-function Fixture({ query, github, connected, empty = false }: { query: string; github?: boolean; connected?: boolean; empty?: boolean }) {
+// notSetUp: the copy has no GitHub App yet (owner: seen by a self-hosted copy's owner, who sees Updates).
+function Fixture({ query, github, connected, empty = false, notSetUp }: { query: string; github?: boolean; connected?: boolean; empty?: boolean; notSetUp?: "owner" | "member" }) {
   const [answers] = useState(() => {
     const fx = recordFixture({ empty });
     if (!empty) boardState(fx.state, { github, connected });
-    return { ...fx.answers, ...projectAnswers(fx.state, fx.answers) };
+    if (notSetUp) fx.state.github = { ready: false, connected: null };
+    return { ...fx.answers, ...projectAnswers(fx.state, fx.answers), ...(notSetUp === "owner" ? updateFixtures("current") : {}) };
   });
   return (
     <RecordStory path="/record/projects" query={query} answers={answers}>
@@ -179,6 +182,10 @@ export const GitHubDisconnect: Story = {
 };
 
 export const GitHubNotConnected: Story = { name: "GitHub, not connected", render: () => <Fixture query="github=1" connected={false} /> };
+
+export const GitHubNotSetUp: Story = { name: "GitHub, not set up on this copy", render: () => <Fixture query="github=1" notSetUp="member" /> };
+
+export const GitHubNotSetUpOwner: Story = { name: "GitHub, not set up, the owner", render: () => <Fixture query="github=1" notSetUp="owner" /> };
 
 export const BackFromGitHub: Story = { name: "Back from GitHub", render: () => <Fixture query="github=connected" github /> };
 

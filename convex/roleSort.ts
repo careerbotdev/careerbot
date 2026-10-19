@@ -6,6 +6,7 @@ import { type ActionCtx, internalAction, internalQuery, type QueryCtx } from "./
 import { modelFor } from "./aiSettings";
 import { type AiTask, type ModelChoice, reasoningLevel } from "./aiTasks";
 import { withoutBoilerplate } from "./boilerplate";
+import { directionIndustries, industryGoals } from "./goalIndustries";
 import { itemsOf } from "./itemShapes";
 import { chatJson, decide, type DecisionQuestion, withBackoff } from "./metering";
 import { type ReplySchema, strictObject, strings } from "./replyJson";
@@ -38,6 +39,7 @@ export const JEV_WORK = 0.2;
 
 // Approved directions as ranking sees them: only approved detail and approved criteria.
 export async function directionsFor(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
+  const goals = await industryGoals(ctx, workspaceId);
   return (await itemsOf(ctx, workspaceId, "direction", "approved")).map((d) => {
     const detail = d.data.detailStatus === "approved" ? d.data.detail : undefined;
     const criteria = d.data.criteriaStatus === "approved" ? d.data.criteria : undefined;
@@ -47,7 +49,7 @@ export async function directionsFor(ctx: QueryCtx, workspaceId: Id<"workspaces">
       ...(d.data.summary ? { summary: d.data.summary } : {}),
       ...(detail ? { positioning: detail.positioning, vocabulary: detail.vocabulary } : {}),
       titles: [...new Set([...(detail?.targetTitles ?? []), ...(criteria?.titles ?? [])])],
-      ...(criteria ? { criteria: { industries: criteria.industries, sizes: criteria.sizes, stages: criteria.stages, keywords: criteria.keywords } } : {}),
+      ...(criteria ? { criteria: { industries: directionIndustries(goals, d.data.name, criteria.industries), sizes: criteria.sizes, stages: criteria.stages, keywords: criteria.keywords } } : {}),
     };
   });
 }

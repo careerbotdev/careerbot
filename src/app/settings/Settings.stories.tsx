@@ -5,7 +5,8 @@ import { BottomBar } from "@/components/BottomBar";
 import { ConfirmDialog } from "@/components/Dialog";
 import { useScreenSize } from "@/components/Panes";
 import { ShellProvider, useShellState } from "../shell/ShellContext";
-import { StoryConvex, StoryRouter } from "../storyConvex";
+import { answer, StoryConvex, StoryRouter } from "../storyConvex";
+import { api } from "../../../convex/_generated/api";
 import { accountFixtures } from "./accountFixtures";
 import { compareFixtures } from "./compareFixtures";
 import { settingsFixtures } from "./fixtures";
@@ -27,13 +28,15 @@ import { type YourDataState, yourDataFixtures } from "./yourDataFixtures";
 
 type SelfHosted = { oauth?: boolean; owner?: boolean; updates?: UpdateState };
 
-function Fixture({ query = "", drive = true, fresh = false, selfHosted, yourData, allowance }: { query?: string; drive?: boolean; fresh?: boolean; selfHosted?: SelfHosted; yourData?: YourDataState; allowance?: { spentUsd: number } }) {
+// githubNotSetUp: the copy has no GitHub App yet.
+function Fixture({ query = "", drive = true, fresh = false, selfHosted, yourData, allowance, githubNotSetUp }: { query?: string; drive?: boolean; fresh?: boolean; selfHosted?: SelfHosted; yourData?: YourDataState; allowance?: { spentUsd: number }; githubNotSetUp?: boolean }) {
   const [answers] = useState(() => ({
     ...settingsFixtures({ fresh, drive, allowance }),
     ...compareFixtures(),
     ...(selfHosted ? accountFixtures(selfHosted) : {}),
     ...(selfHosted?.updates ? updateFixtures(selfHosted.updates) : {}),
     ...(yourData ? yourDataFixtures(yourData) : {}),
+    ...(githubNotSetUp ? answer(api.github.status, () => ({ ready: false, connected: null })) : {}),
   }));
   return (
     <ShellProvider>
@@ -198,6 +201,12 @@ export const ConnectionsRemove: Story = {
 };
 
 export const ConnectionsDriveNotConnected: Story = { name: "Connections, Google Drive not connected", render: () => <Fixture query="section=connections" drive={false} /> };
+
+export const ConnectionsGitHubNotSetUp: Story = { name: "Connections, GitHub not set up", render: () => <Fixture query="section=connections" githubNotSetUp /> };
+export const ConnectionsGitHubNotSetUpOwner: Story = {
+  name: "Connections, GitHub not set up, the owner",
+  render: () => <Fixture query="section=connections" githubNotSetUp selfHosted={{ updates: "current" }} />,
+};
 
 export const ConnectionsDriveMenu: Story = {
   name: "Connections, Google Drive ⋯",

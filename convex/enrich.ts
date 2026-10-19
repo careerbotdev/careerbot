@@ -12,6 +12,7 @@ import { stopIfCancelled } from "./cancel";
 import { boardsIn, get, interleave, type Job, NOT_READ, pageText, publicHost, type Read, readBoard, setSearchTitles, viaReader } from "./boards";
 import { countryCode, countryName, countryNameList } from "./limitBuckets";
 import { DEFAULT_LENS } from "./lens";
+import { directionIndustries, industryGoals } from "./goalIndustries";
 import { apollo } from "./metering";
 import { origin } from "./schema";
 import { dayOf, tally } from "./tallies";
@@ -111,9 +112,10 @@ export const todo = internalQuery({
     const order = (a: Doc<"companies">, b: Doc<"companies">) => (b.recheckAt ?? 0) - (a.recheckAt ?? 0) || rank(a) - rank(b);
     const left = all.filter((c) => !c.details && c.screened?.employer !== false && c.domain).sort(order);
     const needFit = all.filter((c) => c.details && !c.fitAt && c.screened?.employer !== false).sort(order).slice(0, FIT_BATCH);
+    const goals = await industryGoals(ctx, workspaceId);
     const directions = (await itemsOf(ctx, workspaceId, "direction", "approved"))
       .filter((d) => d.data.criteriaStatus === "approved")
-      .map((d) => ({ id: d._id, name: d.data.name, positioning: d.data.detail?.positioning, titles: d.data.criteria?.titles ?? [], industries: d.data.criteria?.industries ?? [], sizes: d.data.criteria?.sizes ?? [] }));
+      .map((d) => ({ id: d._id, name: d.data.name, positioning: d.data.detail?.positioning, titles: d.data.criteria?.titles ?? [], industries: directionIndustries(goals, d.data.name, d.data.criteria?.industries ?? []), sizes: d.data.criteria?.sizes ?? [] }));
     const limits = (await activeLimits(ctx, workspaceId)).filter((l) => ["companies", "work", "seniority", "location"].includes(l.data.kind)).map((l) => ({ label: l.data.label, value: l.data.value }));
     const settings = await ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
     const judge = (settings?.lens ?? DEFAULT_LENS).judge !== "off";

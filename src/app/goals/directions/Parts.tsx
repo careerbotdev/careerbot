@@ -11,7 +11,7 @@ import { StatusTag } from "@/components/StatusTag";
 import { Text } from "@/components/Text";
 import { ValueTags } from "@/components/ValueTags";
 import { inlineLink, Notice, Section, ValueRows } from "../ui";
-import { capAll, type Direction, fillInWords, seniorityClashes, sizeLabel, stageLabel } from "./words";
+import { capAll, type Direction, fillInWords, goalIndustriesLabel, RECORD_INDUSTRIES_LABEL, seniorityClashes, sizeLabel, stageLabel } from "./words";
 
 // A direction's parts as read: its criteria, its title map and vocabulary, and the stories that carry over or need
 // reframing, each line with what it's built on.
@@ -50,7 +50,7 @@ export function criteriaRows(d: Direction, all = true) {
         </span>
       ),
     },
-    { label: "Industries", value: tags(capAll(c.industries)) },
+    { label: "Industries", value: <Industries d={d} /> },
     { label: "Sizes", value: tags(c.sizes.map(sizeLabel)) },
     { label: "Stages", value: tags(c.stages.map(stageLabel)) },
     { label: "Keywords", value: c.keywords.length ? <ValueTags items={c.keywords} max={9} /> : <span className="text-muted">None</span> },
@@ -74,6 +74,27 @@ function Seeds({ d }: { d: Direction }) {
         <span className="flex flex-col gap-1">
           <span className="text-body-sm leading-body-sm text-muted">Added for {d.data.name}</span>
           <ValueTags items={own} />
+        </span>
+      )}
+    </span>
+  );
+}
+
+// A direction's industries: with goals that want some, theirs (muted, for every direction or this one) above the
+// direction's own ones they don't name (from their record); otherwise the direction's own, as chosen.
+export function Industries({ d }: { d: Direction }) {
+  const own = d.data.criteria?.industries ?? [];
+  if (!d.fromGoals.length) return own.length ? <ValueTags items={capAll(own)} /> : <span className="text-muted">Any</span>;
+  return (
+    <span className="flex flex-col gap-3">
+      <span className="flex flex-col gap-1">
+        <span className="text-body-sm leading-body-sm text-muted">{goalIndustriesLabel(d.data.name, d.goalsScoped)}</span>
+        <ValueTags items={capAll(d.fromGoals)} className="opacity-70" />
+      </span>
+      {d.fromRecord.length > 0 && (
+        <span className="flex flex-col gap-1">
+          <span className="text-body-sm leading-body-sm text-muted">{RECORD_INDUSTRIES_LABEL}</span>
+          <ValueTags items={capAll(d.fromRecord)} />
         </span>
       )}
     </span>

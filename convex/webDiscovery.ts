@@ -9,6 +9,7 @@ import { braveKeyFor } from "./braveKey";
 import { refuseCancelled, stopIfCancelled } from "./cancel";
 import { BOARD_QUERIES, normName, toDomain } from "./discovery";
 import { type WorkArea, workAreaOf } from "./enrich";
+import { searchIndustries } from "./goalIndustries";
 import { activeLimits, itemsOf, liveDirection, recordRedirect } from "./itemShapes";
 import { countryName } from "./limitBuckets";
 import { chatJson, withBackoff } from "./metering";
@@ -344,9 +345,8 @@ export async function runWeb(ctx: ActionCtx, job: Doc<"jobs">, { named }: { name
 
   const report: Report[] = [];
   for (const [i, d] of inp.directions.entries()) {
-    // The lens, as Apollo's search reads it: steer adds their wanted industries, only searches those alone, ignore none.
-    const pick = (xs: string[]) => [...new Set(xs)].filter((x) => !inp.avoid.includes(x));
-    const industries = inp.lens.industries === "ignore" ? [] : inp.lens.industries === "only" ? pick(inp.want) : pick([...inp.want, ...d.criteria.industries]);
+    // The lens, as Apollo's search reads it (goalIndustries.searchIndustries).
+    const industries = searchIndustries(inp.goals, d.name, d.criteria.industries);
     const c: Context = { industries, positioning: more.positioning[d.id] ?? "", limits: more.limits };
     const [relevant, hiring, boards]: [Searched, Searched | null, BoardsFound | null] = await Promise.all([
       once(`web:relevant:${d.id}`, () => webSearch(ctx, ws, "relevant companies", relevantPrompt(d, c), RELEVANT_SCHEMA)),

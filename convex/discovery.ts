@@ -7,6 +7,7 @@ import { refuseCancelled, stopIfCancelled } from "./cancel";
 import { activeLimits, itemsOf, liveDirection, recordRedirect } from "./itemShapes";
 import { apollo } from "./metering";
 import { DEFAULT_LENS } from "./lens";
+import { industryGoals, searchIndustries, wantedFor } from "./goalIndustries";
 import { screenCompanies } from "./screening";
 import { dayOf, tally } from "./tallies";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
@@ -21,6 +22,8 @@ import { searchReadiness } from "./directionFill";
 const LOOKALIKE_MAX = 5;
 // Job-board searches the web search makes for a direction (webDiscovery.ts): one for each of its first titles.
 export const BOARD_QUERIES = 2;
+// Titles one hiring-now search sends Apollo: the first ones, the direction's main names (a fill-in lists 10 to 20).
+const HIRING_TITLES = 10;
 
 // A website, URL or email reduced to its domain; null if it doesn't look like one.
 export function toDomain(raw: string): string | null {
@@ -107,23 +110,16 @@ export const inputs = internalQuery({
   args: { workspaceId: v.id("workspaces") },
   handler: async (ctx, { workspaceId }) => {
     const directions = (await itemsOf(ctx, workspaceId, "direction", "approved")).filter((d) => d.data.criteriaStatus === "approved" && d.data.criteria);
-    const avoid = new Set<string>();
-    const want = new Set<string>();
     const exclude: string[] = [];
-    for (const l of await activeLimits(ctx, workspaceId))
-      if (l.data.kind === "companies") {
-        for (const i of (l.data.rule?.industriesAvoid as string[] | undefined) ?? []) avoid.add(i);
-        for (const i of (l.data.rule?.industriesWant as string[] | undefined) ?? []) want.add(i);
-        exclude.push(...((l.data.rule?.exclude as string[] | undefined) ?? []));
-      }
+    for (const l of await activeLimits(ctx, workspaceId)) if (l.data.kind === "companies") exclude.push(...((l.data.rule?.exclude as string[] | undefined) ?? []));
+    const goals = await industryGoals(ctx, workspaceId);
     const row = await settings(ctx, workspaceId);
     const learn = learns(row);
     const companies = learn ? await ctx.db.query("companies").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect() : [];
     return {
       directions: directions.map((d) => ({ id: d._id, name: d.data.name, criteria: d.data.criteria! })),
-      avoid: [...avoid],
-      want: [...want],
-      lens: row?.lens ?? DEFAULT_LENS,
+      goals,
+      lens: goals.lens,
       exclude,
       seeds: row?.seeds ?? [],
       named: row?.named ?? [],
@@ -251,12 +247,12 @@ export async function runDiscover(ctx: ActionCtx, job: Doc<"jobs">) {
   const report = [];
   for (const d of inp.directions) {
     const c = d.criteria;
-    // The lens: steer adds their wanted industries to the direction's; only searches wanted industries alone; ignore uses none.
     const lens = inp.lens;
-    const pick = (xs: string[]) => [...new Set(xs)].filter((i) => !inp.avoid.includes(i));
-    const industries = lens.industries === "ignore" ? [] : lens.industries === "only" ? pick(inp.want) : pick([...inp.want, ...c.industries]);
+    // The lens (goalIndustries.searchIndustries): steer adds their wanted industries to the direction's; only searches wanted industries alone; ignore uses none.
+    const industries = searchIndustries(inp.goals, d.name, c.industries);
     // Hiring now is steered into wanted industries unless industry is ignored, so it can't pull in any company that hires the title.
-    const hiringIndustries = lens.industries === "ignore" ? [] : pick(inp.want.length ? inp.want : c.industries);
+    const want = wantedFor(inp.goals, d.name);
+    const hiringIndustries = inp.lens.industries === "ignore" ? [] : want.length ? want : c.industries.filter((i) => !inp.goals.avoid.includes(i));
     const params: Record<string, string | number | string[]> = { per_page: 100, page: 1 };
     if (industries.length) params["q_organization_keyword_tags"] = industries;
     if (c.sizes.length) params["organization_num_employees_ranges"] = c.sizes.map(sizeRange);
@@ -278,7 +274,7 @@ export async function runDiscover(ctx: ActionCtx, job: Doc<"jobs">) {
     // Hiring now: companies with open postings for this direction's titles. Added alongside, never narrowing the wide net.
     const hiring = c.titles.length
       ? await once(`hiring:${d.id}`, async () => {
-          const body = await apollo(ctx, { workspaceId: ws, purpose: `hiring now: ${d.name}`, endpoint: "mixed_companies/search", automated: false, params: { q_organization_job_titles: c.titles.slice(0, 10), ...(hiringIndustries.length ? { q_organization_keyword_tags: hiringIndustries } : {}), per_page: 100, page: 1 } });
+          const body = await apollo(ctx, { workspaceId: ws, purpose: `hiring now: ${d.name}`, endpoint: "mixed_companies/search", automated: false, params: { q_organization_job_titles: c.titles.slice(0, HIRING_TITLES), ...(hiringIndustries.length ? { q_organization_keyword_tags: hiringIndustries } : {}), per_page: 100, page: 1 } });
           const orgs = clean(orgsOf(body));
           const added = await ctx.runMutation(internal.discovery.saveCompanies, { workspaceId: ws, runId: job._id, directionId: d.id, via: "hiring", orgs });
           return { found: orgs.length, added, total: totalOf(body) };
