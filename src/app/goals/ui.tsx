@@ -145,7 +145,7 @@ export function ValueRows({ rows, lane = "w-32" }: { rows: { label: string; valu
     <dl className="flex flex-col">
       {rows.map((r) => (
         <div key={r.label} className="flex gap-4 border-t py-2.5 text-body-sm leading-body-sm max-md:flex-col max-md:gap-1">
-          <dt className={`${lane} shrink-0 text-muted`}>{r.label}</dt>
+          <dt className={`${lane} shrink-0 text-muted max-md:w-auto`}>{r.label}</dt>
           <dd className="flex min-w-0 flex-1 flex-col gap-0.5 text-text">
             {r.value}
             {r.note && <span className="text-muted">{r.note}</span>}

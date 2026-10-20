@@ -14,10 +14,11 @@ import { getInWorkspace, requireWorkspace } from "./workspaces";
 import { searchReadiness } from "./directionFill";
 
 // Finds companies with Apollo for each direction whose search criteria are approved: one search from the criteria, and
-// lookalike searches from seed companies (the workspace's seeds, for every direction, plus the direction's own). Seeds are
-// websites; Apollo's lookalike filter needs its own ids, so seeds are looked up first. Past employers never come back.
-// Learning from their ratings (on unless they turn it off): their targets seed lookalike searches too, for each
-// direction the target fits, and companies they turned down are never found again.
+// lookalike searches from seed companies (the companies they like with Find more like it on, for every direction, plus
+// the direction's own). Seeds are websites; Apollo's lookalike filter needs its own ids, so seeds are looked up first.
+// The companies they like with Add to my companies on are looked up and added for every direction. Past employers
+// never come back. Learning from their ratings (on unless they turn it off): their targets seed lookalike searches too,
+// for each direction the target fits, and companies they turned down are never found again.
 
 const LOOKALIKE_MAX = 5;
 // Job-board searches the web search makes for a direction (webDiscovery.ts): one for each of its first titles.
@@ -51,29 +52,55 @@ function targetSeeds(companies: Doc<"companies">[]) {
     .filter((t) => t.directionIds.length);
 }
 
-export const setSeeds = mutation({
-  args: { seeds: v.array(v.string()) },
-  handler: async (ctx, { seeds }) => {
+export type Like = { domain: string; name?: string; add: boolean; like: boolean };
+
+// The companies they like, in their order. A row from before likes reads as folded (foldLikes, and an export from
+// before likes as it's imported, exportFormat): a website in both old lists keeps both choices on, and a seed takes
+// the name Apollo knows it by. Kept until every deployment has run foldLikes (its runbook is on bead cb-e5a.88).
+export function likesOf(row: Pick<Doc<"discovery">, "likes" | "seeds" | "named" | "resolved"> | null): Like[] {
+  if (!row) return [];
+  if (row.likes) return row.likes;
+  const seeds = row.seeds ?? [];
+  const named = row.named ?? [];
+  return [...new Set([...seeds, ...named])].map((domain) => {
+    const name = row.resolved.find((r) => r.domain === domain)?.name;
+    return { domain, ...(name ? { name } : {}), add: named.includes(domain), like: seeds.includes(domain) };
+  });
+}
+
+// The whole list at once, as Search settings shows it (Undo saves the list before). Each website is checked; a
+// website given twice keeps its first place and either one's choices.
+export const setLikes = mutation({
+  args: { likes: v.array(v.object({ domain: v.string(), name: v.optional(v.string()), add: v.boolean(), like: v.boolean() })) },
+  handler: async (ctx, { likes }) => {
     const { workspaceId } = await requireWorkspace(ctx);
-    const bad = seeds.filter((s) => s.trim() && !toDomain(s));
+    const bad = likes.filter((l) => !toDomain(l.domain)).map((l) => l.domain);
     if (bad.length) throw new ConvexError(`Use each company's website, like acme.com: ${bad.join(", ")}`);
-    const domains = [...new Set(seeds.map(toDomain).filter((d): d is string => !!d))];
+    const kept = new Map<string, Like>();
+    for (const l of likes) {
+      const domain = toDomain(l.domain)!;
+      const was = kept.get(domain);
+      const name = was?.name ?? l.name?.trim();
+      kept.set(domain, { domain, ...(name ? { name } : {}), add: !!was?.add || l.add, like: !!was?.like || l.like });
+    }
     const row = await settings(ctx, workspaceId);
-    if (row) await ctx.db.patch(row._id, { seeds: domains });
-    else await ctx.db.insert("discovery", { workspaceId, seeds: domains, resolved: [] });
+    if (row) await ctx.db.patch(row._id, { likes: [...kept.values()], seeds: undefined, named: undefined });
+    else await ctx.db.insert("discovery", { workspaceId, likes: [...kept.values()], resolved: [] });
   },
 });
 
-export const setNamed = mutation({
-  args: { named: v.array(v.string()) },
-  handler: async (ctx, { named }) => {
-    const { workspaceId } = await requireWorkspace(ctx);
-    const bad = named.filter((s) => s.trim() && !toDomain(s));
-    if (bad.length) throw new ConvexError(`Use each company's website, like nvidia.com: ${bad.join(", ")}`);
-    const domains = [...new Set(named.map(toDomain).filter((d): d is string => !!d))];
-    const row = await settings(ctx, workspaceId);
-    if (row) await ctx.db.patch(row._id, { named: domains });
-    else await ctx.db.insert("discovery", { workspaceId, seeds: [], named: domains, resolved: [] });
+// Operator, once per deployment: every row's seeds and named websites become its likes (likesOf). Running it again
+// changes nothing.
+export const foldLikes = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let folded = 0;
+    for (const row of await ctx.db.query("discovery").collect()) {
+      if (row.likes && row.seeds === undefined && row.named === undefined) continue;
+      await ctx.db.patch(row._id, { likes: likesOf(row), seeds: undefined, named: undefined });
+      folded++;
+    }
+    return { folded };
   },
 });
 
@@ -116,13 +143,17 @@ export const inputs = internalQuery({
     const row = await settings(ctx, workspaceId);
     const learn = learns(row);
     const companies = learn ? await ctx.db.query("companies").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect() : [];
+    const likes = likesOf(row);
     return {
       directions: directions.map((d) => ({ id: d._id, name: d.data.name, criteria: d.data.criteria! })),
       goals,
       lens: goals.lens,
       exclude,
-      seeds: row?.seeds ?? [],
-      named: row?.named ?? [],
+      // Find more like it: the websites, and each with its name for the web search ("companies like Kestrel Freight").
+      seeds: likes.filter((l) => l.like).map((l) => l.domain),
+      liked: likes.filter((l) => l.like).map((l) => ({ domain: l.domain, ...(l.name ? { name: l.name } : {}) })),
+      // Add to my companies.
+      named: likes.filter((l) => l.add).map((l) => l.domain),
       resolved: row?.resolved ?? [],
       targets: targetSeeds(companies),
       turnedDown: companies.filter((c) => c.rating?.value === "no").map((c) => ({ name: c.name, ...(c.apolloId ? { apolloId: c.apolloId } : {}), ...(c.domain ? { domain: c.domain } : {}) })),
@@ -143,7 +174,7 @@ export const saveSeeds = internalMutation({
     const row = await settings(ctx, workspaceId);
     const merged = [...(row?.resolved ?? []).filter((r) => !resolved.some((x) => x.domain === r.domain)), ...resolved];
     if (row) await ctx.db.patch(row._id, { resolved: merged });
-    else await ctx.db.insert("discovery", { workspaceId, seeds: [], resolved: merged });
+    else await ctx.db.insert("discovery", { workspaceId, resolved: merged });
   },
 });
 
@@ -315,7 +346,7 @@ export async function runDiscover(ctx: ActionCtx, job: Doc<"jobs">) {
 
 // How each way of finding a company reads in its Found line.
 const FOUND_VIA: Record<Exclude<Doc<"companies">["found"][number]["via"], "hand">, string> = {
-  lookalike: "like your seeds",
+  lookalike: "like companies you like",
   criteria: "criteria",
   hiring: "hiring now",
   large: "large companies",
@@ -338,8 +369,9 @@ export const list = query({
     const jobs = await ctx.db.query("jobs").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).order("desc").take(100);
     const last = jobs.find((j) => j.kind === "discover");
     const lastEnrich = jobs.find((j) => j.kind === "enrich");
+    const likes = likesOf(row);
+    const nameOf = knownNames(row);
     return {
-      named: row?.named ?? [],
       apolloJobs: !!row?.apolloJobs,
       lens: row?.lens ?? DEFAULT_LENS,
       // Learn from your ratings; when on, each direction lists the targets that seed its lookalike searches.
@@ -347,16 +379,20 @@ export const list = query({
       // How many companies are filled in: what Check all again goes over.
       filledIn: companies.filter((c) => c.fitAt !== undefined).length,
       companyGoals,
-      seeds: (row?.seeds ?? []).map((domain) => ({ domain, lookup: row?.resolved.find((r) => r.domain === domain) ?? null })),
+      // Companies you like: each one's name when known, its two choices, and what Apollo knows it as (null: not looked
+      // up yet; apolloId null: not in Apollo).
+      likes: likes.map((l) => ({ domain: l.domain, name: l.name ?? nameOf(l.domain), add: l.add, like: l.like, lookup: row?.resolved.find((r) => r.domain === l.domain) ?? null })),
       // A target that's already one of the direction's seeds isn't searched twice.
       searchable: directions
         .filter((d) => d.data.criteriaStatus === "approved")
         .map((d) => {
-          const seedIds = [...(row?.seeds ?? []), ...(d.data.criteria?.seeds ?? [])].map((s) => row?.resolved.find((r) => r.domain === s)?.apolloId);
+          const seedIds = [...likes.filter((l) => l.like).map((l) => l.domain), ...(d.data.criteria?.seeds ?? [])].map((s) => row?.resolved.find((r) => r.domain === s)?.apolloId);
           const seeding = targets.filter((t) => t.directionIds.includes(d._id) && !seedIds.includes(t.apolloId)).map((t) => t.name);
           const titles = d.data.criteria?.titles.length ?? 0;
-          // boardQueries: the Brave searches of job boards it takes, with a Brave key, on a way that searches the web.
-          return { id: d._id, name: d.data.name, ownSeeds: d.data.criteria?.seeds ?? null, hasTitles: titles > 0, boardQueries: Math.min(titles, BOARD_QUERIES), targets: seeding };
+          // ownSeeds: the companies it finds more like on its own (its Criteria). boardQueries: the Brave searches of
+          // job boards it takes, with a Brave key, on a way that searches the web.
+          const ownSeeds = d.data.criteria?.seeds?.map((domain) => ({ domain, name: nameOf(domain) })) ?? null;
+          return { id: d._id, name: d.data.name, ownSeeds, hasTitles: titles > 0, boardQueries: Math.min(titles, BOARD_QUERIES), targets: seeding };
         }),
       // Approved directions whose search criteria aren't approved yet, not searched until they are: each being filled
       // in, with criteria to review, or to fill in; and how far the fill-in underway has got.
@@ -405,12 +441,25 @@ export const companySettings = query({
   },
 });
 
-// The seed companies in Search settings, for every direction (what a direction's Criteria shows above its own).
+// A company's name by its website, as far as CareerBot knows it: the name it was liked with, else Apollo's; null when
+// neither knows it (it shows its website).
+function knownNames(row: Doc<"discovery"> | null) {
+  const likes = likesOf(row);
+  return (domain: string) => likes.find((l) => l.domain === domain)?.name ?? row?.resolved.find((r) => r.domain === domain)?.name ?? null;
+}
+
+// What a direction's Criteria shows above its own: the companies every direction finds more like (Search settings),
+// and the names of its own by website.
 export const seeds = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { domains: v.array(v.string()) },
+  handler: async (ctx, { domains }) => {
     const { workspaceId } = await requireWorkspace(ctx);
-    return (await settings(ctx, workspaceId))?.seeds ?? [];
+    const row = await settings(ctx, workspaceId);
+    const nameOf = knownNames(row);
+    return {
+      everyDirection: likesOf(row).filter((l) => l.like).map((l) => ({ domain: l.domain, name: l.name ?? nameOf(l.domain) })),
+      own: domains.map((domain) => ({ domain, name: nameOf(domain) })),
+    };
   },
 });
 
@@ -420,7 +469,7 @@ export const setLens = mutation({
     const { workspaceId } = await requireWorkspace(ctx);
     const row = await settings(ctx, workspaceId);
     if (row) await ctx.db.patch(row._id, { lens });
-    else await ctx.db.insert("discovery", { workspaceId, seeds: [], resolved: [], lens });
+    else await ctx.db.insert("discovery", { workspaceId, resolved: [], lens });
   },
 });
 
@@ -431,6 +480,6 @@ export const setLearn = mutation({
     const { workspaceId } = await requireWorkspace(ctx);
     const row = await settings(ctx, workspaceId);
     if (row) await ctx.db.patch(row._id, { learn: on });
-    else await ctx.db.insert("discovery", { workspaceId, seeds: [], resolved: [], learn: on });
+    else await ctx.db.insert("discovery", { workspaceId, resolved: [], learn: on });
   },
 });

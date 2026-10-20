@@ -70,7 +70,7 @@ One JSON object:
 
 | Field | What it holds |
 |---|---|
-| `format` | The file's own version, a whole number (now 1). It goes up whenever a file from an older CareerBot would no longer import as it is. |
+| `format` | The file's own version, a whole number (now 2). It goes up whenever a file from an older CareerBot would no longer import as it is. An export in format 1 still imports: its seed companies and the companies it named become **Companies you like**. |
 | `careerbotVersion` | The version of CareerBot that exported it, like `0.8.0`. |
 | `exportedAt` | When it was exported (ISO 8601, UTC). |
 | `workspace` | The workspace's own settings: `name`, `began` (when your search began, in milliseconds), and whether Getting started was put away and which tours were offered. |
@@ -133,7 +133,7 @@ exports are cleared too.
 3. When it's done, **Get started** takes you to **Today**, where Getting started begins again from its first step.
 
 It clears your stories and their versions, your record, what's waiting in **Review**, your directions and limits,
-companies and the roles found at them, your seed companies, pursuits with their people, letters and follow-ups,
+companies and the roles found at them, your companies you like, pursuits with their people, letters and follow-ups,
 resumes, notes, past exports, work in progress and activity, and the files stored with them.
 
 It keeps your sign-in, your other settings (models, budgets, contact details, reminders, resume lengths), the Google

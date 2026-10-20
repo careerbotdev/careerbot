@@ -401,7 +401,7 @@ function ResetAccount({ reset, size }: { reset: ResetStatus; size: ScreenSize })
     <Button
       variant="secondary"
       size={btn}
-      detail="Clears your stories, record, goals, companies, seed companies, pursuits, resumes, notes, exports and activity. Keeps your sign-in, settings, spending and, unless you choose, your keys."
+      detail="Clears your stories, record, goals, companies, companies you like, pursuits, resumes, notes, exports and activity. Keeps your sign-in, settings, spending and, unless you choose, your keys."
       note="Free · Can’t be undone"
       onClick={() => setAsking(true)}
     >
@@ -411,7 +411,7 @@ function ResetAccount({ reset, size }: { reset: ResetStatus; size: ScreenSize })
   return (
     <SettingRow
       title="Reset account"
-      line={running ? "Clearing this workspace. You stay signed in." : "Clears everything in this workspace, seed companies and past exports too, and keeps your sign-in, settings, keys and spending. Export first to keep a copy."}
+      line={running ? "Clearing this workspace. You stay signed in." : "Clears everything in this workspace, companies you like and past exports too, and keeps your sign-in, settings, keys and spending. Export first to keep a copy."}
       control={control || undefined}
     >
       {running && (
@@ -439,7 +439,7 @@ const CLEARS: { key: keyof FunctionReturnType<typeof api.accountReset.counts>["g
   { key: "review", label: "Waiting in Review", short: "Waiting in Review" },
   { key: "goals", label: "Directions and limits", short: "Directions and limits" },
   { key: "companies", label: "Companies and the roles found at them", short: "Companies and roles found" },
-  { key: "seeds", label: "Seed companies", short: "Seed companies" },
+  { key: "likes", label: "Companies you like", short: "Companies you like" },
   { key: "pursuits", label: "Pursuits, with their people, letters and follow-ups", short: "Pursuits, with people and letters" },
   { key: "resumes", label: "Resumes, every version", short: "Resumes" },
   { key: "notes", label: "Notes", short: "Notes" },

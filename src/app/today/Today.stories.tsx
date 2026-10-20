@@ -70,7 +70,7 @@ function todayFixtures({ empty, allowance }: { empty: boolean; allowance?: { spe
             ],
           },
     ),
-    ...answer(api.resume.updates, () => (empty ? [] : [{ target: { name: "Base resume", href: "/resumes?resume=base" }, state: "changed" as const, writing: false, summary: null }])),
+    ...answer(api.resume.updates, () => (empty ? [] : [{ target: { name: "Base resume", href: "/resumes?resume=base" }, state: "changed" as const, writing: false, summary: null, voiceOnly: false }])),
     ...answer(api.factChanges.documents, () => []),
     ...answer(api.activity.list, () => []),
   };

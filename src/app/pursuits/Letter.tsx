@@ -6,19 +6,20 @@ import { useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import { BuiltOnPeek } from "@/components/BuiltOn";
 import { Button } from "@/components/Button";
-import { CostAction } from "@/components/CostEstimate";
+import { CostAction, CostEstimate } from "@/components/CostEstimate";
 import { Textarea } from "@/components/Field";
 import { KeyHint } from "@/components/Kbd";
 import { StatusTag } from "@/components/StatusTag";
 import { Text } from "@/components/Text";
 import { toast } from "@/components/Toast";
+import { WriteAgain } from "@/components/WriteAgain";
 import { day } from "./dates";
 import { aboutUsd } from "../costs";
 import type { Pursuit } from "./words";
 import { FactChanges } from "../resumes/FactChanges";
 
-// The cover letter: once sent, as it was sent; before that, the newest version, with Write it again, Edit and Copy, and
-// what it's built on.
+// The cover letter: once sent, as it was sent; before that, the newest version, with Write again (with a note on what
+// should change), Edit and Copy, and what it's built on.
 
 const failed = (e: unknown, fallback: string) => toast({ message: e instanceof ConvexError ? String(e.data) : fallback, icon: "failed" });
 const copy = (text: string) => void navigator.clipboard.writeText(text).then(() => toast({ message: "Copied the cover letter", icon: "copy" }));
@@ -29,6 +30,7 @@ export function LetterTab({ p }: { p: Pursuit }) {
   const write = useMutation(api.letters.write);
   const edit = useMutation(api.letters.edit);
   const [draft, setDraft] = useState<string | null>(null);
+  const [again, setAgain] = useState({ open: false, note: "" });
   if (p.sent)
     return (
       <div className="flex flex-col gap-3">
@@ -52,19 +54,42 @@ export function LetterTab({ p }: { p: Pursuit }) {
     if (!draft?.trim()) return;
     void edit({ pursuitId: p.id, text: draft }).then(() => setDraft(null), (e: unknown) => failed(e, "Couldn’t save it."));
   };
+  const amount = aboutUsd(costs?.letter) ?? "Uses your AI budget";
+  const detail = "Writes a cover letter for this role from your approved record and the resume tailored to it, with an optional note on what should change. Earlier versions stay.";
+  const run = (note?: string) =>
+    void write({ pursuitId: p.id, ...(note ? { note } : {}) }).then(
+      () => setAgain({ open: false, note: "" }),
+      (e: unknown) => failed(e, "Couldn’t start."),
+    );
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <CostAction
-          amount={aboutUsd(costs?.letter) ?? "Uses your AI budget"}
-          budget="From your AI budget"
-          loading={busy}
-          loadingLabel="Writing"
-          detail="Writes a cover letter for this role from your approved record and the resume tailored to it. Earlier versions stay."
-          onClick={() => void write({ pursuitId: p.id }).catch((e: unknown) => failed(e, "Couldn’t start."))}
-        >
-          {letter ? "Write it again" : "Write a cover letter"}
-        </CostAction>
+        {letter ? (
+          <div className="flex min-w-0 items-center gap-3">
+            <WriteAgain
+              title="Write again"
+              subject="Cover letter"
+              examples={["Shorter", "Warmer opening", "Lead with results"]}
+              line="Written only from your approved record and this posting. Earlier letters stay in its versions."
+              amount={amount}
+              note={again.note}
+              onNote={(note) => setAgain((a) => ({ ...a, note }))}
+              open={again.open}
+              onOpenChange={(open) => setAgain((a) => ({ ...a, open }))}
+              onWrite={run}
+              trigger={
+                <Button icon="tryAgain" loading={busy} loadingLabel="Writing" detail={detail} note={`${amount}. From your AI budget`}>
+                  Write again
+                </Button>
+              }
+            />
+            <CostEstimate amount={amount} budget="From your AI budget" />
+          </div>
+        ) : (
+          <CostAction amount={amount} budget="From your AI budget" loading={busy} loadingLabel="Writing" detail={detail} onClick={() => run()}>
+            Write a cover letter
+          </CostAction>
+        )}
         <span className="flex-1" />
         {letter && draft === null && (
           <>
@@ -110,6 +135,7 @@ export function LetterTab({ p }: { p: Pursuit }) {
         <>
           <Text size="sm" muted>
             {letter.edited ? "Your wording" : "Written"} {day(letter.at)}
+            {letter.note && ` · Asked for “${letter.note}”`}
           </Text>
           <Text measure className="whitespace-pre-line">
             {text}

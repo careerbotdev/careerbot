@@ -226,6 +226,7 @@
         "Rewriting facts"
       ],
       "screens": [
+        "resumes",
         "record"
       ]
     },
@@ -697,11 +698,15 @@
           "filter": "approved"
         },
         {
+          "text": "How each role shows on this resume: a role left out, or folded with its lines left out, gives no facts",
+          "filter": "approved"
+        },
+        {
           "text": "The direction’s positioning, for a direction or tailored resume",
           "filter": "approved"
         },
         {
-          "text": "For a tailored resume, the direction resume it starts from",
+          "text": "For a tailored resume, the direction resume it starts from; and the facts behind the lines you pinned, so the new version keeps them",
           "filter": null
         },
         {
@@ -924,6 +929,30 @@
       "mayNot": "Change your words. It only answers.",
       "tasks": [
         "Checking edited lines"
+      ],
+      "screens": [
+        "resumes"
+      ]
+    },
+    {
+      "id": "resumeLine",
+      "name": "Write a resume line",
+      "stage": "writing",
+      "starts": "You choose Write it for this resume under Add a line on a resume.",
+      "reads": [
+        {
+          "text": "The approved fact you picked",
+          "filter": "approved"
+        },
+        {
+          "text": "The resume as it shows, and the role or project the line goes under",
+          "filter": null
+        }
+      ],
+      "may": "Write one line from one approved fact the resume doesn’t use yet, in the resume’s voice.",
+      "mayNot": "Add a claim the fact doesn’t make, or change the resume’s other lines.",
+      "tasks": [
+        "Writing resumes"
       ],
       "screens": [
         "resumes"
@@ -1330,7 +1359,7 @@
     {
       "screen": "companies",
       "label": "Change",
-      "detail": "Opens the seed companies, companies you’d name, industries, goals check and ratings these searches use.",
+      "detail": "Opens the companies you like, industries, goals check and ratings these searches use.",
       "note": "Free"
     },
     {
@@ -1338,18 +1367,6 @@
       "label": "Connect Google Drive again",
       "detail": "Google stopped accepting CareerBot, so this resume isn’t kept in Drive now. Opens Settings to connect it again.",
       "note": "Free"
-    },
-    {
-      "screen": "resumes",
-      "label": "Edit",
-      "detail": "Puts this line in your own words on this resume. It stays built on the same facts, marked Edited.",
-      "note": "Free · Undo with U"
-    },
-    {
-      "screen": "resumes",
-      "label": "Hide",
-      "detail": "Leaves it out of this resume. It stays here, struck, to bring back.",
-      "note": "Free · Undo with U"
     },
     {
       "screen": "resumes",
@@ -1458,6 +1475,12 @@
       "label": "Type a title",
       "detail": "Opens a field to write the title yourself.",
       "note": "Free"
+    },
+    {
+      "screen": "resumes",
+      "label": "Use your record’s",
+      "detail": "Drops this resume’s own setting for this role and uses your record’s.",
+      "note": "Free · Undo with U"
     },
     {
       "screen": "resumes",
@@ -1948,7 +1971,7 @@
     {
       "screen": "settings",
       "label": "Reset my account",
-      "detail": "Clears your stories, record, goals, companies, seed companies, pursuits, resumes, notes, exports and activity. Keeps your sign-in, settings, spending and, unless you choose, your keys.",
+      "detail": "Clears your stories, record, goals, companies, companies you like, pursuits, resumes, notes, exports and activity. Keeps your sign-in, settings, spending and, unless you choose, your keys.",
       "note": "Free · Can’t be undone"
     },
     {

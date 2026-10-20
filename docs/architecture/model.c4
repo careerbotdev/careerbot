@@ -83,13 +83,13 @@ model {
         }
       }
       resumeScreen = screen 'Resumes' {
-        description 'The base resume, one per direction, and every tailored one (frozen, with its posting and Tailor again). A resume: each line with Built on, Edit (in their own words on this resume, marked Edited, Use CareerBot\u2019s to put it back, and Check against facts with its cost: Supported, or Goes beyond with the words that do), Pin and Hide (hidden lines kept struck), the summary edited the same way by clicking it, the contact block edited in place, Layout (length, titles, folds, breaks, projects, skills; for this resume or as the default), Export (PDF, Word, copy), Write again and Add what\u2019s new with their costs (new lines from facts approved since, added or skipped one by one with a reason), History with restore and undo, two versions side by side, Notes.'
+        description 'The base resume, one per direction, and every tailored one (frozen, with its posting and Tailor again). A resume: each line with Built on, Pin and Hide (hidden lines kept struck; both carry into new versions by the facts the line rests on), and its \u22ef menu (also a right-click or a long press on a phone): Edit (in their own words on this resume, marked Edited, Use CareerBot\u2019s to put it back, and Check against facts with its cost: Supported, or Goes beyond with the words that do), Pin, Hide, Move up and Move down (\u2325\u2191, \u2325\u2193, or its handle dragged; the order carries into new versions); under each role or project with approved facts it does not use, Add a line (Add as written, free; Write it for this resume, with its cost; a note when one more line runs past its length); the summary edited the same way by clicking it, the contact block edited in place, Details (Uses N of M approved facts, Length with its lines and pages, past its length in caution), Layout (length, titles, folds, breaks, projects, skills; for this resume or as the default), Export (PDF, Word, copy), Write again and Add what\u2019s new with their costs (new lines from facts approved since, added or skipped one by one with a reason), a new version beside the current one noting what it kept (pins, hidden lines, order), History with restore and undo and what each version kept, two versions side by side, Notes.'
         metadata {
           path '/resumes (?resume=base | direction | tailored id; /resume and /profile redirect)'
         }
       }
       companiesScreen = screen 'Companies' {
-        description 'One list with tabs Targets, Maybe, Found, Set aside and Archived (folded into More when they don\u2019t fit) (Doesn\u2019t fit your goals, Not for me with its reason, Not a place to work, each with a line saying why; nothing is deleted: Keep anyway, Restore). Rating in place: Target T, Maybe M, Not for me R with Why?, saved together. The item: about, how it fits their company goals (Built on), fit per direction, open roles into Pursuits, Start outreach (a pursuit there with no open role, for the direction it fits best, opened at People), people found there, website and job board edited in place, coverage with Check again and its cost, how it was found (with Where it was seen, the page a web search saw it on; a row not filled in says how the web search found it), Notes. The list \u22ef: Find companies on the way companies are found (each search with its Apollo credits, its dollars from the AI budget a direction, or both; Brave job-board searches; the total and what\u2019s left; the last search, with what the web search couldn\u2019t do), Sort by (Best fit, Weakest fit first, Has a job board first, Newest found, Name; ?sort=, the whole of Targets, Maybe, Found and Archived), Fill in details, Select several (Shift-click checks a range; long press on a phone; bulk Target, Archive, Maybe, Not for me, Check again), Search settings (also from Find companies\u2019 Change and the palette; a dialog, full screen with Back on a phone): seed companies for every direction, companies they\u2019d name, industries, checking companies against goals with Check all again, learning from ratings; each change saved at once with Undo. While fit is judged, Found shows Ranking\u2026 N of M and the unranked wait in Not ranked yet. Archive (A, \u22ef, bulk) hides a company from every list, keeping its rating, and its roles aren\u2019t read; Restore (A) puts it back where it was; Undo with U.'
+        description 'One list with tabs Targets, Maybe, Found, Set aside and Archived (folded into More when they don\u2019t fit) (Doesn\u2019t fit your goals, Not for me with its reason, Not a place to work, each with a line saying why; nothing is deleted: Keep anyway, Restore). Rating in place: Target T, Maybe M, Not for me R with Why?, saved together. The item: about, how it fits their company goals (Built on), fit per direction, open roles into Pursuits, Start outreach (a pursuit there with no open role, for the direction it fits best, opened at People), people found there, website and job board edited in place, coverage with Check again and its cost, how it was found (with Where it was seen, the page a web search saw it on; a row not filled in says how the web search found it), Notes. The list \u22ef: Find companies on the way companies are found (each search with its Apollo credits, its dollars from the AI budget a direction, or both; Brave job-board searches; the total and what\u2019s left; the last search, with what the web search couldn\u2019t do), Sort by (Best fit, Weakest fit first, Has a job board first, Newest found, Name; ?sort=, the whole of Targets, Maybe, Found and Archived), Fill in details, Select several (Shift-click checks a range; long press on a phone; bulk Target, Archive, Maybe, Not for me, Check again), Search settings (also from Find companies\u2019 Change and the palette; a dialog, full screen with Back on a phone): Companies you like (a picker: Find by name, costs shown first, or a typed website; each with Add to my companies and Find more like it), industries, checking companies against goals with Check all again, learning from ratings; each change saved at once with Undo. While fit is judged, Found shows Ranking\u2026 N of M and the unranked wait in Not ranked yet. Archive (A, \u22ef, bulk) hides a company from every list, keeping its rating, and its roles aren\u2019t read; Restore (A) puts it back where it was; Undo with U.'
         metadata {
           path '/companies'
         }
@@ -313,6 +313,14 @@ model {
           model_task 'lineCheck'
         }
       }
+      resumeLine = aiStep 'Write a resume line' {
+        description 'Add a line, Write it for this resume: on their ask only, with its estimate beside the button, one line written from one approved fact this resume does not use, in the resume\u2019s voice, from the resume as it shows and the role or project it goes under. One metered call with the resume model. It lands at the end of that role or project, marked Added, resting on that fact only; Undo or Hide takes it off. Refused when the fact no longer counts or a shown line already rests on it, and once a base or direction resume has a new version. Add as written (free, resumeApi addLine) puts the fact on as it reads instead.'
+        metadata {
+          functions 'resume:writeLine, resume:oneLineInputs, resume:saveOneLine'
+          files 'convex/resume.ts'
+          model_task 'resume'
+        }
+      }
       lineUpdate = aiStep 'Update lines for changed facts' {
         description 'An approved fact edited or rejected since a document was written: the lines citing it on each document in use (the base resume and each approved direction\u2019s current version, a tailored resume, cover letter and answers of a pursuit not sent) are found by the facts as the lines reflect them (the marks kept once updated, else what a base or direction resume was written from, else the fact\u2019s wording at the time from its history), and offered Update lines with its estimate. On their ask only, one metered call rewrites just those lines from the facts as they read now (a line left on no fact that counts goes; an answer always keeps an answer), with the model for resumes or for letters. The new lines wait to Apply or Discard; a line in their own words stays theirs unless they tick Use the new line. Apply changes only those lines (a resume in place with its pins, hides and own words following the line, and what it was written from taking the facts as they read; a cover letter as a new version; answers in place), holds the facts as they read, and Google Drive syncs soon after. Apply is refused, changing nothing, when a fact the new lines were written from was edited or stopped counting since, or a cited fact that didn\u2019t count then counts again. A document sent with a pursuit is never offered nor changed.'
         metadata {
@@ -455,7 +463,7 @@ model {
       resumeApi = service 'Resumes' {
         description 'Versions (a direction’s, or those tailored to one role, forPosting), the resume settings and the translated titles to offer (direction title map, else the record’s market title; never invented). setPresentation saves how an approved role or career break shows on every resume (fold, break shown, reason shown), judged among approved roles and breaks that count, by date; presentation reads it for the record page. setRole saves one resume’s choice for one entry: folds and breaks as that resume’s override of the record; titles on a base resume into the resume settings for every resume, on a direction or tailored resume as its override. The written resume never changes; a fold with no role on that side is refused. setProjectPresentation leaves an approved project out of every resume (or shows it again); setProject shows or leaves one out on one resume, or follows the record again (choosing what the record says stores nothing). setWords and setSummary put a line or the summary in their own words on one resume, its current version or a tailored one (its layout; the written resume never changes; a line on it twice word for word is refused), and Compare reads each version with them: the line keeps the facts it rests on and shows as edited in every format and in Drive; pins and hides still go by CareerBot\u2019s words; a new version keeps a reworded line where it has the same line, and writes its own summary. Bullets count only approved facts that still count (sourceCheck). Resume updates (updates): per base and direction resume (tailored ones are frozen), its latest version compared with the record now (resumeBasis: ids of the approved roles, facts, projects, insights and direction with a mark of their content, so a fact reworded in place shows even when counts stay the same); a version from before this was kept is unknown until rewritten. rewrite and updateAll queue resume runs whose new version waits (one at a time per resume), previewable in updates, and is never the resume until kept: not listed, downloaded, tailored from, inherited from or compared with. keep makes it the current version; discard sets it aside with an optional reason (older versions stay); reopen undoes either.'
         metadata {
-          functions 'resume:list, resume:forPosting, resume:setRole, resume:setPresentation, resume:presentation, resume:setProjectPresentation, resume:setProject, resume:setSkillPresentation, resume:setSkill, resume:setBullet, resume:setWords, resume:setSummary, resume:setLength, resume:setRecordLength, resume:updates, resume:rewrite, resume:updateAll, resume:keep, resume:discard, resume:reopen, resume:overview, resume:showsFact, resume:history, resume:version, resume:compare, resume:restore, resume:undoRestore, resume:whatsNew, resume:linesInputs, resume:saveLines, resume:setLine, resume:addAll, resume:closeAdditions'
+          functions 'resume:list, resume:forPosting, resume:setRole, resume:setPresentation, resume:presentation, resume:setProjectPresentation, resume:setProject, resume:setSkillPresentation, resume:setSkill, resume:setBullet, resume:moveLine, resume:addLine, resume:removeLine, resume:setWords, resume:setSummary, resume:setLength, resume:setRecordLength, resume:setVoice, resume:setRecordVoice, resume:recordVoice, resume:resumeVoice, resume:voiceExample, resume:exampleFacts, resume:saveVoiceExample, resume:updates, resume:rewrite, resume:updateAll, resume:keep, resume:discard, resume:reopen, resume:overview, resume:showsFact, resume:history, resume:version, resume:compare, resume:restore, resume:undoRestore, resume:whatsNew, resume:linesInputs, resume:saveLines, resume:setLine, resume:addAll, resume:closeAdditions'
           files 'convex/resume.ts, convex/resumeBasis.ts'
         }
       }
@@ -588,9 +596,16 @@ model {
         }
       }
       discovery = service 'Company discovery' {
-        description 'One run: look up the companies they named and any new seed websites; then per direction with approved criteria, four Apollo searches: criteria (industries as goalIndustries.searchIndustries reads them under the lens: the goals\u2019 wanted ones for the direction, scoped like limits, then its own; sizes), large companies (1,001+), hiring now (active postings for its target titles, steered into the goals’ wanted industries, added alongside, never narrowing) and lookalikes of its seeds (the workspace\u2019s, for every direction, plus its own on top, each batched on its own; identical seed batches shared). Past employers dropped; avoided industries never searched. Each finished search is checkpointed so a resumed run never repays. Ends by screening new companies. Every call goes through the Apollo credit guard: never past the account balance, fails closed if it cannot be read. The lens (workspace setting on Home): industries Steer (goals’ wanted industries added to each search; default) / Only (wanted industries alone, lookalikes too) / Ignore (no industry filter); avoided industries and past employers always excluded.'
+        description 'One run: look up the companies they like with Add to my companies on and any new ones with Find more like it on; then per direction with approved criteria, four Apollo searches: criteria (industries as goalIndustries.searchIndustries reads them under the lens: the goals\u2019 wanted ones for the direction, scoped like limits, then its own; sizes), large companies (1,001+), hiring now (active postings for its target titles, steered into the goals’ wanted industries, added alongside, never narrowing) and lookalikes of the companies they like (the workspace\u2019s, for every direction, plus its own on top, each batched on its own; identical batches shared). Past employers dropped; avoided industries never searched. Each finished search is checkpointed so a resumed run never repays. Ends by screening new companies. Every call goes through the Apollo credit guard: never past the account balance, fails closed if it cannot be read. The lens (workspace setting on Home): industries Steer (goals’ wanted industries added to each search; default) / Only (wanted industries alone, lookalikes too) / Ignore (no industry filter); avoided industries and past employers always excluded.'
         metadata {
-          functions 'discovery:companySettings, discovery:seeds, discovery:setNamed, discovery:setSeeds, discovery:setDirectionSeeds, discovery:start, discovery:inputs, discovery:saveSeeds, discovery:saveCompanies, discovery:list, discovery:setLens, discovery:setLearn'
+          functions 'discovery:companySettings, discovery:seeds, discovery:setLikes, discovery:foldLikes, discovery:setDirectionSeeds, discovery:start, discovery:inputs, discovery:saveSeeds, discovery:saveCompanies, discovery:list, discovery:setLens, discovery:setLearn'
+        }
+      }
+      companyLookup = service 'Find a company by name' {
+        description 'Search settings\u2019 Companies you like picker, run only on Find (find) or a typed website (website). find: with an Apollo key, Apollo mixed_companies/search by q_organization_name (1 credit); without, a Brave web search on their key, or else an OpenRouter Perplexity Sonar web-search call from the AI budget (purpose find a company by name); returns every company with that name, each with its website, one line on what it does and where the results came from. website: free, no search; the name is read from the site\u2019s own homepage: public https hosts only (no IP addresses, localhost or internal names), redirects to such hosts not followed, only the start of the page read.'
+        metadata {
+          functions 'companyLookup:find, companyLookup:website'
+          files 'convex/companyLookup.ts'
         }
       }
       findCompanies = service 'Finding companies' {
@@ -692,7 +707,7 @@ model {
         }
       }
       yourData = service 'Your data' {
-        description 'Settings, Your data. Export: one ZIP of the caller\u2019s whole workspace, made in the background (Node): every table the workspace owns is carried or left out on purpose (workspaceCopy.ts: keys, Drive and GitHub connections, memberships, the export\u2019s and import\u2019s own rows; jobs only once finished), read a page at a time through each table\u2019s workspace index only; careerbot-export.json (format, CareerBot version, when, the workspace\u2019s settings, every carried row with its ids, ids it names but doesn\u2019t carry, stored files), readable Markdown (record, goals, companies, stories, pursuits, notes) and the current resumes, cover letters and answers as Word and Markdown (the same plan Google Drive gets), and stored files. Kept in file storage for an hour, then deleted. Import: a ZIP up to 100 MB, only into an empty workspace (nothing but settings, which the file\u2019s replace): checked first (refused when it is not an export, or from a newer CareerBot or format; an older format is migrated forward), shown as a preview, then put in on their say with every id remapped (workspaceCopy.copyRows, the demo\u2019s own rules), rows needing work that wasn\u2019t finished left out, work running at the source never running here; each row recorded with its old id as it goes in (importIds), so an import cut off is continued without putting anything in twice. No AI, Apollo or email calls. Refused in the demo like every change.'
+        description 'Settings, Your data. Export: one ZIP of the caller\u2019s whole workspace, made in the background (Node): every table the workspace owns is carried or left out on purpose (workspaceCopy.ts: keys, Drive and GitHub connections, memberships, the export\u2019s and import\u2019s own rows; jobs only once finished), read a page at a time through each table\u2019s workspace index only; careerbot-export.json (format, now 2, CareerBot version, when, the workspace\u2019s settings, every carried row with its ids, ids it names but doesn\u2019t carry, stored files), readable Markdown (record, goals, companies, stories, pursuits, notes) and the current resumes, cover letters and answers as Word and Markdown (the same plan Google Drive gets), and stored files. Kept in file storage for an hour, then deleted. Import: a ZIP up to 100 MB, only into an empty workspace (nothing but settings, which the file\u2019s replace): checked first (refused when it is not an export, or from a newer CareerBot or format; an older format is migrated (format 1\u2019s seeds and named companies read into Companies you like) forward), shown as a preview, then put in on their say with every id remapped (workspaceCopy.copyRows, the demo\u2019s own rules), rows needing work that wasn\u2019t finished left out, work running at the source never running here; each row recorded with its old id as it goes in (importIds), so an import cut off is continued without putting anything in twice. No AI, Apollo or email calls. Refused in the demo like every change.'
         metadata {
           functions 'yourData:status, yourData:startExport, yourData:exportRow, yourData:page, yourData:idTables, yourData:about, yourData:documents, yourData:exportProgress, yourData:exportDone, yourData:exportFailed, yourData:expire, yourData:prepareImport, yourData:partIn, yourData:joined, yourData:clearImport, yourData:startImport, yourData:importRow, yourData:importChecked, yourData:putIn, yourData:clearSettings, yourData:insertRows, yourData:fileIn, yourData:patchRows, yourData:importFinished, yourData:importFailed, yourData:forgetIds, yourDataRun:runExport, yourDataRun:checkImport, yourDataRun:runImport'
           routes 'POST /your-data/import, OPTIONS /your-data/import'
@@ -707,7 +722,7 @@ model {
         }
       }
       accountReset = service 'Account reset' {
-        description 'Resetting an account, from Settings, Your data (start: the person types its name; refused in the demo): clears every table with a workspaceId except a kept list (memberships, plans, spending: usage, spendTotals, aiSpend; settings: aiDefaults, aiSettings, budgets, profiles, reminderSettings, resumeSettings, discovery; apiKeys unless Also remove my keys; Google Drive and GitHub connections), with the stored files the rows name, seed companies and exports included. One row per workspace, run in the background a page at a time (step: count, then clear, through accountDelete\u2019s page purge, jobs first), checked once through and gone round again if anything was written meanwhile. Seed companies and the resume layout\u2019s choices about cleared rows are taken out of the kept settings, and Getting started shows again from its first step. counts: what the dialog lists, by group.'
+        description 'Resetting an account, from Settings, Your data (start: the person types its name; refused in the demo): clears every table with a workspaceId except a kept list (memberships, plans, spending: usage, spendTotals, aiSpend; settings: aiDefaults, aiSettings, budgets, profiles, reminderSettings, resumeSettings, discovery; apiKeys unless Also remove my keys; Google Drive and GitHub connections), with the stored files the rows name, Companies you like and exports included. One row per workspace, run in the background a page at a time (step: count, then clear, through accountDelete\u2019s page purge, jobs first), checked once through and gone round again if anything was written meanwhile. Companies you like and the resume layout\u2019s choices about cleared rows are taken out of the kept settings, and Getting started shows again from its first step. counts: what the dialog lists, by group.'
         metadata {
           functions 'accountReset:status, accountReset:counts, accountReset:start, accountReset:step'
           files 'convex/accountReset.ts, convex/accountDelete.ts'
@@ -722,7 +737,7 @@ model {
       admin = service 'Admin fixes' {
         #operatorOnly
         metadata {
-          functions 'admin:rankAgain, admin:applyRubric, admin:setStretch, admin:clearRoleFailures, admin:setRoleSort, admin:stopRoles, admin:rejudgeRoles, admin:clearStuckRechecks, admin:probe, admin:probeReader, admin:rejudge, admin:setNarrativeKind, admin:deleteNarrative, admin:setItemStatus, admin:setFactText, admin:deleteItem, admin:setSuggestion, admin:setAiChoice, admin:setAiTask, admin:startGoals, admin:startJob, admin:addNarrative, admin:saveNarrative, admin:readNarrative, admin:purgeNarrative, admin:createTrialWorkspace, admin:addTrialPosting, admin:readTrialProject, admin:setSeeds, admin:screenNow, admin:setNamed, admin:clearBoards, admin:clearNoBoard'
+          functions 'admin:rankAgain, admin:applyRubric, admin:setStretch, admin:clearRoleFailures, admin:setRoleSort, admin:stopRoles, admin:rejudgeRoles, admin:clearStuckRechecks, admin:probe, admin:probeReader, admin:rejudge, admin:setNarrativeKind, admin:deleteNarrative, admin:setItemStatus, admin:setFactText, admin:deleteItem, admin:setSuggestion, admin:setAiChoice, admin:setAiTask, admin:startGoals, admin:startJob, admin:addNarrative, admin:saveNarrative, admin:readNarrative, admin:purgeNarrative, admin:createTrialWorkspace, admin:addTrialPosting, admin:readTrialProject, admin:setLikes, admin:screenNow, admin:clearBoards, admin:clearNoBoard'
         }
       }
     }
@@ -1145,7 +1160,7 @@ model {
   careerbot.ui.recordScreen -[calls]-> careerbot.core.questionsApi
   careerbot.ui.recordScreen -[calls]-> careerbot.ai.duplicatesStep 'Find duplicates'
   careerbot.ui.recordScreen -[calls]-> careerbot.core.duplicatesApi 'Merge, Keep both'
-  careerbot.ui.recordScreen -[calls]-> careerbot.core.resumeApi 'Fold menu: how each role and break shows on every resume'
+  careerbot.ui.recordScreen -[calls]-> careerbot.core.resumeApi 'On resumes (role view and ⋯): own entry, fold (lines kept or left out) or leave out; how each break shows on every resume'
   careerbot.ui.recordScreen -[calls]-> careerbot.core.breaksApi 'Add a career break, Edit'
   careerbot.core.breaksApi -[writes]-> careerbot.data.tItems.roles 'career breaks'
   careerbot.ui.goalsScreen -[calls]-> careerbot.core.goalsApi
@@ -1385,7 +1400,7 @@ model {
   careerbot.ui.shell -[calls]-> careerbot.platform.accountReset 'status: Resetting your account in Activity'
   careerbot.platform.accountReset -[writes]-> careerbot.data.tAccountResets
   careerbot.platform.accountReset -[writes]-> careerbot.data.tWorkspaces 'deletes every row with its id but the kept tables, with their stored files; Getting started shows again'
-  careerbot.platform.accountReset -[writes]-> careerbot.data.tDiscovery 'clears seed companies'
+  careerbot.platform.accountReset -[writes]-> careerbot.data.tDiscovery 'clears companies you like'
   careerbot.platform.accountDelete -[writes]-> careerbot.data.tWorkspaces 'deletes the workspace and every row with its id (every table with a workspaceId), with their stored files'
   careerbot.platform.accountDelete -[writes]-> careerbot.data.tMemberships 'deletes the person\u2019s membership'
   careerbot.platform.accountDelete -[writes]-> careerbot.data.tUsers 'deletes the person, their sign-in accounts and sessions'
@@ -1449,6 +1464,10 @@ model {
     #approvedOnly
     description 'The person’s own setting, not record content. The version’s writtenFrom keeps it, so a change shows in Resume updates.'
   }
+  careerbot.ai.resume -[reads]-> careerbot.data.tResumeSettings 'how each role is placed (resumePlacement.ts): the record’s fold or leave-out, then the resume’s own override; a role left out, or folded with its lines left out, gives no facts; a fold that keeps its lines is told it belongs to its target' {
+    #approvedOnly
+    description 'The person’s own setting, not record content. The version’s writtenFrom keeps the placement, so a change (on the record or this resume) shows in Resume updates, naming the role.'
+  }
   careerbot.ui.recordScreen -[calls]-> careerbot.core.resumeApi 'Resume length for every resume (setRecordLength)'
   careerbot.core.resumeApi -[reads]-> careerbot.data.tResumes
   careerbot.core.resumeApi -[writes]-> careerbot.data.tResumes 'overrides (direction and tailored); keep or discard a version from Resume updates'
@@ -1497,9 +1516,11 @@ model {
   careerbot.ai.resume -[reads]-> careerbot.data.tItems.directions 'approved positioning (direction and tailored resumes)' {
     #approvedOnly
   }
-  careerbot.ai.resume -[reads]-> careerbot.data.tResumes 'the direction resume a tailored one starts from'
+  careerbot.ai.resume -[reads]-> careerbot.data.tResumes 'the direction resume a tailored one starts from; the facts behind the lines pinned on the current version, which the new one writes a line from'
+  careerbot.core.resumeApi -[writes]-> careerbot.data.tResumes 'a new version keeps the pins, hides and line order of the one before, matched by the facts each line rests on (save); Move up and Move down (moveLine); Add as written (addLine) and its Undo (removeLine)'
 
   careerbot.ui.resumeScreen -[calls]-> careerbot.core.profileApi 'the contact block'
+  careerbot.ui.resumeScreen -[calls]-> careerbot.ai.rework 'Rewrite this fact… from a line’s Built on peek (with their comment); it lands in Review > Rewrites'
 
   // ---- Projects from GitHub (M5.5) ----
   operator -> careerbot.platform.githubApp 'setupLink, once'
@@ -1618,10 +1639,18 @@ model {
     description 'Public pages and the public job board data each provider’s own careers page loads (convex/boards.ts lists them). Free; read only for companies the person targets.'
   }
   careerbot.platform.discovery -[calls]-> careerbot.platform.enrich 'after each run'
+  careerbot.ui.companiesScreen -[calls]-> careerbot.platform.companyLookup 'Search settings: Companies you like, Find and a typed website'
+  careerbot.ui.goalsScreen -[calls]-> careerbot.platform.companyLookup 'a direction\u2019s Criteria: Companies you like, find more like these for this direction'
+  careerbot.platform.companyLookup -[uses]-> careerbot.platform.metering 'Apollo credit guard; AI budget for the web-search call'
+  careerbot.platform.companyLookup -[calls]-> apolloApi 'mixed_companies/search by q_organization_name'
+  careerbot.platform.companyLookup -[uses]-> careerbot.platform.braveKey 'web search on their key'
+  careerbot.platform.companyLookup -[calls]-> braveSearch 'web search for a company name'
+  careerbot.platform.companyLookup -[calls]-> openrouter 'Perplexity Sonar web search for a company name'
+  careerbot.platform.companyLookup -[calls]-> companyWebsites 'a typed website\u2019s homepage, for its name; public https only, redirects to internal hosts not followed, start of the page only'
   careerbot.ui.companiesScreen -[calls]-> careerbot.platform.enrich 'Fill in details'
   careerbot.ui.companiesScreen -[calls]-> careerbot.platform.enrich 'Archive and Restore'
   careerbot.ui.companiesScreen -[calls]-> careerbot.platform.enrich 'Search settings: Check all again'
-  careerbot.ui.goalsScreen -[calls]-> careerbot.platform.discovery 'a direction\u2019s Criteria: the seeds from Search settings'
+  careerbot.ui.goalsScreen -[calls]-> careerbot.platform.discovery 'a direction\u2019s Criteria: Companies you like, the ones from Search settings'
   careerbot.ui.companiesScreen -[calls]-> careerbot.ai.directionsStep 'Fill in a direction not filled in (Find companies)'
   careerbot.platform.enrich -[calls]-> companyWebsites 'public hostnames only; every redirect re-checked'
   jinaReader = external 'Jina Reader' {
@@ -1978,6 +2007,15 @@ model {
   careerbot.ai.lineCheck -[writes]-> careerbot.data.tResumes 'the answer, with the words and the facts it checked'
   careerbot.ai.lineCheck -[reads]-> careerbot.data.tJobs 'which lines are being checked'
   careerbot.ai.lineCheck -[uses]-> careerbot.platform.metering 'AI call'
+  careerbot.ui.resumeScreen -[calls]-> careerbot.ai.resumeLine 'Add a line, Write it for this resume'
+  careerbot.ui.resumeScreen -[calls]-> careerbot.pursue.estimatesApi 'cost beside Write it for this resume'
+  careerbot.ai.resumeLine -[reads]-> careerbot.data.tItems.facts 'the one approved fact it is written from, and that no shown line rests on it' {
+    #approvedOnly
+  }
+  careerbot.ai.resumeLine -[reads]-> careerbot.data.tResumes 'the resume as it shows, and the role or project the line goes under'
+  careerbot.ai.resumeLine -[writes]-> careerbot.data.tResumes 'the line, marked Added, and the fact as it reads into what it was written from'
+  careerbot.ai.resumeLine -[reads]-> careerbot.data.tJobs 'which lines are being written'
+  careerbot.ai.resumeLine -[uses]-> careerbot.platform.metering 'AI call'
 
   // ---- Fact changes flow to documents (M7) ----
   careerbot.ui.resumeScreen -[calls]-> careerbot.ai.lineUpdate 'lines resting on changed facts; Update lines, Apply, Discard, Use the new line'

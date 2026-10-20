@@ -1,3 +1,4 @@
+import { likesOf } from "./discovery";
 import { compareVersions } from "./releases";
 import { VERSION } from "./version";
 import { newer, NEWER_FORMAT, WRONG_FILE } from "./exportRules";
@@ -15,7 +16,7 @@ import { CARRIED, type Row } from "./workspaceCopy";
 // that it doesn't carry (work that hadn't finished), with their tables. files: stored files by id, and where each is in
 // the ZIP. tables: every carried table's rows (workspaceCopy.CARRIED), oldest first, with their ids as they were.
 
-export const FORMAT = 1;
+export const FORMAT = 2;
 export const DATA_FILE = "careerbot-export.json";
 
 export type WorkspaceAbout = { _id: string; name: string; began: number; setupHidden?: boolean; setupSkipped?: ("drive" | "apollo" | "people")[]; toursOffered?: string[] };
@@ -31,8 +32,19 @@ export type ExportFile = {
 };
 
 type Loose = Record<string, unknown>;
-// Each brings a file of format n (its key) to n + 1. Empty while there's only format 1.
-export const MIGRATIONS: Record<number, (file: Loose) => Loose> = {};
+// Each brings a file of format n (its key) to n + 1.
+export const MIGRATIONS: Record<number, (file: Loose) => Loose> = {
+  // 1 → 2: Search settings' seed and named websites became Companies you like (discovery.likesOf).
+  1: (f) => {
+    const tables = (f.tables ?? {}) as Record<string, Loose[]>;
+    if (!Array.isArray(tables.discovery)) return f;
+    const discovery = tables.discovery.map((row) => {
+      const { seeds: _seeds, named: _named, ...rest } = row;
+      return { ...rest, likes: likesOf({ resolved: [], ...row } as Parameters<typeof likesOf>[0]) };
+    });
+    return { ...f, tables: { ...tables, discovery } };
+  },
+};
 
 // Why a file can't be imported, in words for the person importing it.
 export class Refusal extends Error {}

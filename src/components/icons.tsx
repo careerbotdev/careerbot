@@ -5,9 +5,11 @@
 import {
   Activity,
   Archive,
+  ArrowDown,
   ArrowDownUp,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   ArrowUpRight,
   Award,
   Bell,
@@ -61,6 +63,7 @@ import {
   PanelLeft,
   PanelRight,
   Pencil,
+  Pin,
   Plus,
   RefreshCw,
   Search,
@@ -141,6 +144,11 @@ export const Icons = {
   delete: Trash2,
   add: Plus,
   select: SquareCheck,
+  // A resume line's own: Pin, Hide, and Move up and Move down within its role.
+  pin: Pin,
+  hide: EyeOff,
+  moveUp: ArrowUp,
+  moveDown: ArrowDown,
   // Work
   activity: Activity,
   running: LoaderCircle,

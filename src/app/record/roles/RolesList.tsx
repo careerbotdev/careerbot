@@ -21,7 +21,8 @@ import { monthSpan, plural, type Project, type Role, roleTitle, yearSpan } from 
 // the timeline.
 
 export type View = "timeline" | "rejected";
-export type Line = { role: Role; facts: number; toReview: number; projects: Project[] };
+// `placed`: how an approved role shows on every resume when it isn't its own entry ("Folded into …", "Left out").
+export type Line = { role: Role; facts: number; toReview: number; projects: Project[]; placed?: string };
 
 export function RolesList({
   view,
@@ -65,18 +66,18 @@ export function RolesList({
 export function Timeline({ lines, selected, onOpen, menuFor }: { lines: Line[]; selected: string | null; onOpen: (r: Role) => void; menuFor: (r: Role) => MenuEntry[] }) {
   return (
     <List label="Roles" tour="record.list" className="p-2">
-      {lines.map(({ role, facts, toReview, projects }) =>
+      {lines.map(({ role, facts, toReview, projects, placed }) =>
         role.data.break ? (
           <BreakRow key={role.id} role={role} selected={selected === role.id} onOpen={() => onOpen(role)} />
         ) : (
-          <TimelineRole key={role.id} role={role} facts={facts} toReview={toReview} projects={projects} selected={selected === role.id} onOpen={() => onOpen(role)} menu={menuFor(role)} />
+          <TimelineRole key={role.id} role={role} facts={facts} toReview={toReview} projects={projects} placed={placed} selected={selected === role.id} onOpen={() => onOpen(role)} menu={menuFor(role)} />
         ),
       )}
     </List>
   );
 }
 
-function TimelineRole({ role, facts, toReview, projects, selected, onOpen, menu }: Omit<Line, "role"> & { role: Role; selected: boolean; onOpen: () => void; menu: MenuEntry[] }) {
+function TimelineRole({ role, facts, toReview, projects, placed, selected, onOpen, menu }: Omit<Line, "role"> & { role: Role; selected: boolean; onOpen: () => void; menu: MenuEntry[] }) {
   const title = roleTitle(role);
   const tag =
     role.status === "proposed" ? (
@@ -91,7 +92,16 @@ function TimelineRole({ role, facts, toReview, projects, selected, onOpen, menu 
         line={[yearSpan(role.data.start, role.data.end), role.data.employer].filter(Boolean).join(" · ")}
         lead={<Avatar name={role.data.employer || title} company size={28} />}
         tag={tag}
-        meta={tag ? undefined : plural(facts, "fact")}
+        meta={
+          tag ? undefined : placed ? (
+            <span className="flex flex-col items-end">
+              <span>{plural(facts, "fact")}</span>
+              <span className="max-w-32 truncate text-label leading-label">{placed}</span>
+            </span>
+          ) : (
+            plural(facts, "fact")
+          )
+        }
         selected={selected}
         onOpen={onOpen}
         menu={menu}

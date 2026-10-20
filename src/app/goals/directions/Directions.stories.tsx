@@ -78,6 +78,19 @@ export const CriteriaEditing: Story = {
   },
 };
 
+// Find more like, on the Criteria: Search settings' for every direction, Loadstar Systems for this one only, and the
+// picker with one choice (find more like it, for this direction). Kestrel has two companies by that name.
+export const CriteriaFindMoreLike: Story = {
+  name: "Criteria, find more like a company",
+  render: () => <Fixture query="direction=dir-product&tab=criteria" />,
+  play: async ({ canvasElement }) => {
+    const pane = firstPane(canvasElement);
+    await userEvent.type(await pane.findByRole("textbox", { name: "Find more like a company, for Supply Chain Product" }), "Kestrel");
+    await userEvent.click(pane.getByRole("button", { name: "Find" }));
+    await pane.findByText("2 companies named Kestrel");
+  },
+};
+
 export const PhoneListReject: Story = {
   name: "Phone list, reject with a note",
   render: () => <Fixture query="list=proposed" />,

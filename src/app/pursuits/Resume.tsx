@@ -93,7 +93,19 @@ export function ResumePane({ postingId, company, title, p }: { postingId: Id<"po
               </a>
             </div>
             <FactChanges target={{ kind: "resume", id: t.id }} />
-            <EditSheet key={t.id} id={t.id} version={{ doc: t.doc, layout: t.layout ?? { roles: [] }, additions: null }} settings={data.settings} facts={data.facts} contact={contact ?? null} small canAdd={false} />
+            <EditSheet
+              key={t.id}
+              id={t.id}
+              version={{ doc: t.doc, layout: t.layout ?? { roles: [] }, additions: null }}
+              settings={data.settings}
+              facts={data.facts}
+              places={data.places}
+              length={t.length}
+              writing={data.writingLines.filter((l) => l.resumeId === t.id).map((l) => l.factId)}
+              contact={contact ?? null}
+              small
+              canAdd={false}
+            />
           </>
         )
       )}

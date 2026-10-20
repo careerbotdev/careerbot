@@ -319,8 +319,10 @@ export const AI_STEPS: Record<string, StepWords> = {
       "approved roles, facts, insights, context": "Your roles, facts, insights and context",
       "approved career breaks, with the reason in their words": "Your career breaks, with the reason in your words",
       "the length to write to: the resume’s own, else the record’s (a tailored one: its direction’s), as a target (bullets per role and in all, skills 12 to 20)": "The length to write to",
+      "how each role is placed (resumePlacement.ts): the record’s fold or leave-out, then the resume’s own override; a role left out, or folded with its lines left out, gives no facts; a fold that keeps its lines is told it belongs to its target":
+        "How each role shows on this resume: a role left out, or folded with its lines left out, gives no facts",
       "approved positioning (direction and tailored resumes)": "The direction’s positioning, for a direction or tailored resume",
-      "the direction resume a tailored one starts from": "For a tailored resume, the direction resume it starts from",
+      "the direction resume a tailored one starts from; the facts behind the lines pinned on the current version, which the new one writes a line from": "For a tailored resume, the direction resume it starts from; and the facts behind the lines you pinned, so the new version keeps them",
       "approved projects (name, link, dates, linked role) and their approved facts, inside the role they are linked to or under Projects": "Your projects and their facts",
       "facts connected as the same work: one fact, the lead, with the other’s words as context": "Facts that describe the same work, as one",
       "the role tailored to: title and place": "For a tailored resume, the role’s title and place",
@@ -401,6 +403,19 @@ export const AI_STEPS: Record<string, StepWords> = {
       "their words and where the line sits": "Your words, and where the line sits",
       // Which lines are being checked: bookkeeping for the run.
       "which lines are being checked": null,
+    },
+  },
+  resumeLine: {
+    name: "Write a resume line",
+    stage: "writing",
+    starts: "You choose Write it for this resume under Add a line on a resume.",
+    may: "Write one line from one approved fact the resume doesn’t use yet, in the resume’s voice.",
+    mayNot: "Add a claim the fact doesn’t make, or change the resume’s other lines.",
+    reads: {
+      "the one approved fact it is written from, and that no shown line rests on it": "The approved fact you picked",
+      "the resume as it shows, and the role or project the line goes under": "The resume as it shows, and the role or project the line goes under",
+      // Which lines are being written: bookkeeping for the run.
+      "which lines are being written": null,
     },
   },
   lineUpdate: {

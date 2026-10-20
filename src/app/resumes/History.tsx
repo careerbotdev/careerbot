@@ -11,7 +11,8 @@ import { StatusTag } from "@/components/StatusTag";
 import { toast } from "@/components/Toast";
 import { sourcesOf } from "./EditSheet";
 import { Line, ResumeSheet } from "./Sheet";
-import { type Change, dayTime, plural } from "./words";
+import { useAgainNote } from "./againNote";
+import { type Change, dayTime, EXPLAIN, keptWords, plural } from "./words";
 
 // History: every kept version of a base or direction resume, newest first, each with what it changed in substance
 // from the one before (roles, results and claims added, changed or dropped, with what they rest on). A version opens
@@ -35,8 +36,19 @@ export function ChangeRow({ c, facts, wide = false }: { c: Change; facts: Record
   );
 }
 
+// What a new version kept from the one before: its pins, hidden lines and order of lines.
+export function KeptRow({ kept, wide = false }: { kept: { pins: number; hidden: number; order: boolean }; wide?: boolean }) {
+  return (
+    <li className={`flex items-start gap-3 ${wide ? "border-t py-2" : ""}`}>
+      <span className={`shrink-0 text-body-sm leading-body-sm text-muted ${wide ? "w-22" : "w-17"}`}>Kept</span>
+      <span className="min-w-0 flex-1 text-body-sm leading-body-sm text-text">{keptWords(kept)} from the last version</span>
+    </li>
+  );
+}
+
 export function HistoryPane({ directionId, facts, viewing, onView }: { directionId: Id<"items"> | null; facts: Record<string, string>; viewing: Id<"resumes"> | null; onView: (id: Id<"resumes"> | null) => void }) {
   const data = useQuery(api.resume.history, directionId ? { directionId } : {});
+  const again = useAgainNote(directionId ?? "base");
   if (!data) return null;
   return (
     <div className="-mx-4 flex flex-col">
@@ -63,15 +75,29 @@ export function HistoryPane({ directionId, facts, viewing, onView }: { direction
                   {head}
                 </button>
               )}
+              {v.note && (
+                <div className="flex items-start gap-3 border-l-2 border-border pl-2.5">
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="text-label leading-label text-muted">Your note</span>
+                    <span className="text-body-sm leading-body-sm text-text">“{v.note}”</span>
+                  </span>
+                  {!v.current && (
+                    <Button variant="ghost" size="sm" detail={EXPLAIN.useAgain} note="Free" onClick={() => again.putBack(v.note!)}>
+                      Use again
+                    </Button>
+                  )}
+                </div>
+              )}
               {v.plain ? (
                 <span className="text-body-sm leading-body-sm text-muted">Write it again to use titles and folding.</span>
               ) : v.restoredFrom ? (
                 <span className="text-body-sm leading-body-sm text-muted">Restored from {dayTime(v.restoredFrom)}</span>
-              ) : v.changes.length ? (
+              ) : v.changes.length || v.kept ? (
                 <ul className="flex flex-col gap-1.5">
                   {v.changes.map((c, i) => (
                     <ChangeRow key={i} c={c} facts={facts} />
                   ))}
+                  {v.kept && <KeptRow kept={v.kept} />}
                 </ul>
               ) : (
                 <span className="text-body-sm leading-body-sm text-muted">{data.versions.at(-1)?.id === v.id ? "The first version." : "Nothing changed in substance."}</span>

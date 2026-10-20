@@ -2,6 +2,40 @@
 
 What changed in each version of CareerBot, newest first. The same notes are at https://careerbot.dev/changelog.
 
+## 0.14.0 · 2026-10-20
+
+Resumes get their own engaging voice with a Plain or Confident setting, Write again takes your guidance, and you can add any fact, reorder lines and keep pins across versions. Companies you like replaces seed and named companies, with Find by name.
+
+### New
+
+- Companies you like: find a company by name or website, then add it to your companies, find more like it, or both.
+- A resume's Layout has a Voice, Plain or Confident, that also sets cover letters and outreach, with an example from your record.
+- Add a line puts an approved fact a resume doesn't use under its role, as written or written for it; Details says how many facts it uses.
+- Move a resume line up or down within its role from its menu, with Option and the arrow keys, or by dragging; the order carries into new versions.
+- Built on a resume line shows the fact beside the line, and Rewrite this fact… asks for a new wording with your comment.
+- Set how a role shows on resumes in Record > Roles: its own entry, folded into another role (with or without its lines), or left out.
+- Write again, Tailor again and a cover letter's Write again take an optional note on what should change, kept in History with Use again.
+
+### Better
+
+- A resume's details show its line count and about how many pages it fills, and say when a version runs past the length you chose.
+- Resumes and cover letters have their own confident voice, leading with what came of your work, and claim nothing the facts they cite don't.
+
+### Fixed
+
+- The Activity panel no longer runs off the top of the window when it holds a long list; its header stays in view and the list scrolls.
+- Write again keeps your pinned and hidden resume lines even when it words them differently, and says what it kept.
+
+### If you host your own copy
+
+**Read before updating.**
+
+- After deploying, run `npx convex run discovery:foldLikes` once to move existing seed and named companies into Companies you like.
+
+How to update: https://careerbot.dev/docs/self-hosting/updates#updating
+
+All releases: https://careerbot.dev/changelog#v0.14.0
+
 ## 0.13.1 · 2026-10-19
 
 Directions now propose 10 to 20 job titles, covering the many ways companies name the same work, and their criteria show the industries your goals add to every search. A clearer message when GitHub isn't set up on a self-hosted copy.

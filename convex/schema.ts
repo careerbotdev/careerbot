@@ -9,6 +9,7 @@ import { BOARD_PROVIDERS } from "./boardProviders";
 import { CLEARANCES, detailsValidator, EMPLOYMENT_TYPES, LEVELS, SETUPS } from "./roleDetails";
 import { conflictData, contextData, directionData, factData, followupData, insightData, itemStatus, limitData, projectData, roleData, skillData } from "./itemShapes";
 import { factMarks, resumeBasis } from "./resumeBasis";
+import { voiceLevel } from "./writingGuides";
 import { release } from "./releases";
 import { compareRow, rubric } from "./roleRubric";
 
@@ -597,11 +598,15 @@ export default defineSchema({
     .index("by_posting", ["postingId"])
     .index("by_workspace", ["workspaceId"]),
 
-  // Company search settings: seed companies for every direction (by website), and what Apollo knows them as.
+  // Company search settings: the companies they like (by website), and what Apollo knows the ones to find more like as.
   discovery: defineTable({
     workspaceId: v.id("workspaces"),
-    seeds: v.array(v.string()),
-    // Companies they'd name themselves (websites); looked up and added every run.
+    // Companies you like (Search settings): each one's website, its name when known, and its two choices: add it to
+    // their companies at every search (`add`) and find more like it in every direction's search (`like`).
+    likes: v.optional(v.array(v.object({ domain: v.string(), name: v.optional(v.string()), add: v.boolean(), like: v.boolean() }))),
+    // Before likes: seed websites (find more like) and websites they'd name (add). discovery.foldLikes moves them into
+    // likes; a row not folded yet reads as folded (discovery.likesOf). Dropped once every deployment has folded.
+    seeds: v.optional(v.array(v.string())),
     named: v.optional(v.array(v.string())),
     // Last resort when no public job board is found: Apollo's job postings (1 credit per company). Off unless they turn it on.
     apolloJobs: v.optional(v.boolean()),
@@ -669,6 +674,8 @@ export default defineSchema({
     postingTitles: v.optional(v.array(v.object({ roleKey: v.string(), title: v.string() }))),
     // A version restored from History: the older version it copies.
     restoredFrom: v.optional(v.id("resumes")),
+    // What they asked this version to change when they wrote it again (Write again, Tailor again, or a Discard reason).
+    note: v.optional(v.string()),
     // In the reports' counts of versions kept (resumeKept, and resumeUpdated when it has writtenAt) or of tailored ones.
     tallied: v.optional(v.boolean()),
     // Add what's new, on the current version while they go through it: lines proposed for what's new in the record
@@ -828,6 +835,10 @@ export default defineSchema({
     runId: v.optional(v.id("jobs")),
     // The facts its paragraphs cite as they read, on a version made by a line update (factChanges.ts).
     cites: v.optional(factMarks),
+    // What they asked this letter to change when they wrote it again.
+    note: v.optional(v.string()),
+    // The voice it was written in (writingGuides.VOICES); unset on letters from before there was one, or in their words.
+    voice: v.optional(voiceLevel),
     at: v.number(),
   })
     .index("by_pursuit", ["pursuitId", "at"])
@@ -895,6 +906,12 @@ export default defineSchema({
     // base resume's (no directionId) or a direction resume's own.
     length: v.optional(resumeLength),
     lengths: v.optional(v.array(v.object({ directionId: v.optional(v.id("items")), length: resumeLength }))),
+    // The voice documents are written in (writingGuides.VOICES): the record's default for every resume, cover letter and
+    // outreach message (unset: confident), and the base resume's (no directionId) or a direction resume's own.
+    voice: v.optional(voiceLevel),
+    voices: v.optional(v.array(v.object({ directionId: v.optional(v.id("items")), voice: voiceLevel }))),
+    // Layout's Example from your record: one approved fact written at every voice, to compare.
+    voiceExample: v.optional(v.object({ factId: v.id("items"), fact: v.string(), plain: v.string(), confident: v.string(), at: v.number() })),
   }).index("by_workspace", ["workspaceId"]),
 
   // CareerBot's GitHub App (read-only repository contents and metadata), created once by the operator through GitHub's

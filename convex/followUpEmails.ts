@@ -8,7 +8,7 @@ import { chatJson } from "./metering";
 import { type ReplySchema, strictObject, string, strings } from "./replyJson";
 import { dayText, statusText } from "./pursuitSteps";
 import { change, own } from "./pursuits";
-import { OUTREACH_STYLE, PLAIN_LANGUAGE } from "./writingGuides";
+import { outreachStyle, PLAIN_LANGUAGE } from "./writingGuides";
 import { requireWorkspace } from "./workspaces";
 
 // Follow-ups: when an application or an outreach message goes quiet, or after an interview, a short email to the
@@ -200,13 +200,14 @@ export const undoSent = mutation({
   },
 });
 
-const SYSTEM = `You write a short follow-up email from someone about a role, to a person at the company, when an application or an outreach message has gone quiet, or after an interview. You get their approved career record (the only source of claims about them), the role, what the follow-up follows (an application through the posting, an outreach message to this person, or both), where the pursuit stands (its status, when they applied, the interview, its timeline, with dates), what they already sent, and who they are writing to (when no one in particular, write to the hiring team).
+// Written in the record's voice (writingGuides.outreachStyle).
+const SYSTEM = (style: string) => `You write a short follow-up email from someone about a role, to a person at the company, when an application or an outreach message has gone quiet, or after an interview. You get their approved career record (the only source of claims about them), the role, what the follow-up follows (an application through the posting, an outreach message to this person, or both), where the pursuit stands (its status, when they applied, the interview, its timeline, with dates), what they already sent, and who they are writing to (when no one in particular, write to the hiring team).
 
 Write it the way a considerate person follows up: a subject line, then a few sentences. Say what it follows and when (after an interview, thank them for it and say when it was). Add one thing from the record that matters to this role and that they haven't already said in what they sent. Make one small, clear ask, such as where things stand or what the next step is; after an outreach message, a short call, or if that isn't possible, who the right person to talk to would be. Stay polite and brief: never pushy, never a complaint about the wait. Never add a claim, number, tool or title the record doesn't have, and never say something happened that the timeline doesn't show. First person; sign off with their name when it's given.
 
 List the ids of the approved facts it rests on ("factIds").
 
-${OUTREACH_STYLE}
+${style}
 ${PLAIN_LANGUAGE}
 
 Reply with JSON only: {"subject": "...", "text": "...", "factIds": ["..."]}.`;
@@ -287,6 +288,7 @@ export async function runFollowUp(ctx: ActionCtx, job: Doc<"jobs">) {
   if (!g || !s) return null;
   if (!g.record.facts.length) throw new Error("Approve some facts first; messages are written only from your approved record.");
   const choice = await modelFor(ctx, job.workspaceId, "followUp");
+  const voice = await ctx.runQuery(internal.resume.recordVoice, { workspaceId: job.workspaceId });
   const to = s.contact ? `${s.contact.name}${s.contact.title ? `, ${s.contact.title}` : ""}${s.contact.hiringManager ? " (likely the hiring manager for this role)" : ""}` : "No one in particular: the hiring team";
   const reply = await chatJson<{ subject?: unknown; text?: unknown; factIds?: unknown }>(ctx, {
     workspaceId: job.workspaceId,
@@ -295,7 +297,7 @@ export async function runFollowUp(ctx: ActionCtx, job: Doc<"jobs">) {
     reasoning: choice.reasoning,
     schema: FOLLOW_UP_SCHEMA,
     messages: [
-      { role: "system", content: SYSTEM },
+      { role: "system", content: SYSTEM(outreachStyle(voice)) },
       {
         role: "user",
         content: [

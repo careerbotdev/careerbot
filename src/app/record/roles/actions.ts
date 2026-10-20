@@ -176,9 +176,9 @@ export function useRoleActions(rows: Row[]) {
     },
   ];
 
-  // A role's ⋯ (and right-click): `item` adds what only the open item can do (edit in place, add context, and for a
-  // proposed role, reject with a note).
-  const roleMenu = (role: Role, opts: { item?: { edit: () => void; addContext: () => void; rejectWithNote?: () => void }; onGone: () => void }): MenuEntry[] => {
+  // A role's ⋯ (and right-click): `item` adds what only the open item can do (edit in place, add context, how it shows
+  // on resumes, and for a proposed role, reject with a note).
+  const roleMenu = (role: Role, opts: { item?: { edit: () => void; addContext: () => void; rejectWithNote?: () => void; onResumes?: MenuEntry }; onGone: () => void }): MenuEntry[] => {
     const story = storyOf(role);
     const inRecord = role.status !== "rejected";
     const approved = role.status === "approved";
@@ -244,6 +244,7 @@ export function useRoleActions(rows: Row[]) {
                     }
                   : { disabled: true, reason: "No projects to link" }),
             },
+            ...(opts.item?.onResumes ? [opts.item.onResumes] : []),
             "separator" as const,
           ]
         : []),

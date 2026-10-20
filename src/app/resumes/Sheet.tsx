@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type HTMLAttributes, type ReactNode, type Ref } from "react";
 import { type Bullet, type Contact, type Entry, type ProjectEntry, type ResumeDoc, breakLine, dates, shortUrl } from "../../../convex/resumeDoc";
 
 // A resume as a page: the contact block, summary, experience (a project linked to a role inside it), projects and
@@ -11,14 +11,16 @@ import { type Bullet, type Contact, type Entry, type ProjectEntry, type ResumeDo
 // a fact that changed, one struck out) and whatever sits at its right. `stack`: what's at its right goes under the words
 // when both don't fit (always on a phone), so a line's actions never squeeze its words. `onEdit`: clicking the words
 // (or Enter on them) opens them to edit. `note`: a short line under the words (what a check against facts found).
-export type LineLook = { tone?: "added" | "problem" | "struck"; aside?: ReactNode; className?: string; stack?: boolean; onEdit?: () => void; note?: ReactNode };
+// `lead`: what sits left of the line's dash (a drag handle). Anything else given goes on the row itself (a long press,
+// drag and drop, keys).
+export type LineLook = { tone?: "added" | "problem" | "struck"; aside?: ReactNode; className?: string; stack?: boolean; onEdit?: () => void; note?: ReactNode; lead?: ReactNode };
 
 const toneOf: Partial<Record<NonNullable<LineLook["tone"]>, string>> = {
   added: "border-l-2 border-good bg-good-subtle",
   problem: "border-l-2 border-red bg-subtle",
 };
 
-export function Line({ text, look = {} }: { text: string; look?: LineLook }) {
+export function Line({ text, look = {}, ref, ...row }: { text: string; look?: LineLook; ref?: Ref<HTMLLIElement> } & HTMLAttributes<HTMLLIElement>) {
   // Stacked, the words keep at least 20rem beside what's at their right before that wraps under them (on a phone it
   // always goes under). The basis goes on the row's child: with a note that's the column holding the words, where a
   // basis would be a height.
@@ -44,7 +46,8 @@ export function Line({ text, look = {} }: { text: string; look?: LineLook }) {
     <span className={`min-w-0 ${wordsGrow} text-body-sm leading-body-sm ${look.tone === "struck" ? "text-muted line-through" : "text-text"}`}>{text}</span>
   );
   return (
-    <li className={`group/line relative flex items-start gap-2 rounded-sm px-1.5 py-[3px] ${look.stack ? "flex-wrap" : ""} ${look.tone ? (toneOf[look.tone] ?? "") : ""} ${look.className ?? ""}`}>
+    <li ref={ref} {...row} className={`group/line relative flex items-start gap-2 rounded-sm px-1.5 py-[3px] ${look.stack ? "flex-wrap" : ""} ${look.tone ? (toneOf[look.tone] ?? "") : ""} ${look.className ?? ""}`}>
+      {look.lead}
       <span aria-hidden="true" className="text-body-sm leading-body-sm text-muted">
         –
       </span>
@@ -75,6 +78,8 @@ export type PageParts = {
   titleTag?: (e: Entry) => ReactNode;
   // The muted line under a title, when the page has more to say (the roles folded into it).
   folded?: (e: Entry) => string | null;
+  // Above an entry's lines, under its employer (that the order of its lines was kept from the version before).
+  entryNote?: (at: At) => ReactNode;
   // The summary as shown, or the field to edit it in place. Defaults to its words.
   summary?: (text: string) => ReactNode;
 };
@@ -107,6 +112,7 @@ export function Page({ doc, parts = {}, small = false }: { doc: ResumeDoc; parts
         <span className="flex-1" />
         {!inRole && <span className="shrink-0 text-body-sm leading-body-sm text-muted tabular-nums">{dates(p)}</span>}
       </div>
+      {parts.entryNote?.({ where: p.name, projectKey: p.projectKey })}
       {bullets(p.bullets, { where: p.name, projectKey: p.projectKey })}
     </div>
   );
@@ -132,6 +138,7 @@ export function Page({ doc, parts = {}, small = false }: { doc: ResumeDoc; parts
                   <span className="shrink-0 text-body-sm leading-body-sm text-muted tabular-nums">{dates(e).replace("Present", "now")}</span>
                 </div>
                 <span className="text-body-sm leading-body-sm text-muted">{[e.employer, e.location, parts.folded?.(e)].filter(Boolean).join(" · ")}</span>
+                {parts.entryNote?.({ where: e.employer, roleKey: e.roleKey })}
                 {bullets(e.bullets, { where: e.employer, roleKey: e.roleKey })}
                 {(e.projects ?? []).map((p) => project(p, true))}
               </div>

@@ -72,13 +72,13 @@ export function FindCompanies({ data, onSettings }: { data: CompaniesData; onSet
         )}
         {est.seeds > 0 && (
           <div className={row}>
-            <span className="min-w-0 flex-1 truncate text-text">Like your seed companies</span>
+            <span className="min-w-0 flex-1 truncate text-text">Like the companies you like</span>
             <span className="text-muted tabular-nums">{credits(est.seeds)}</span>
           </div>
         )}
         {est.named > 0 && (
           <div className={row}>
-            <span className="min-w-0 flex-1 truncate text-text">Companies you’d name</span>
+            <span className="min-w-0 flex-1 truncate text-text">Companies you added</span>
             <span className="text-muted tabular-nums">{credits(est.named)}</span>
           </div>
         )}
@@ -90,7 +90,7 @@ export function FindCompanies({ data, onSettings }: { data: CompaniesData; onSet
         )}
         <div className={`${row} py-1.5`}>
           <span className="min-w-0 flex-1 text-muted">{searchSummary(data)}</span>
-          <Button variant="ghost" size="sm" detail="Opens the seed companies, companies you’d name, industries, goals check and ratings these searches use." note="Free" onClick={onSettings}>
+          <Button variant="ghost" size="sm" detail="Opens the companies you like, industries, goals check and ratings these searches use." note="Free" onClick={onSettings}>
             Change
           </Button>
         </div>
@@ -134,7 +134,7 @@ export function FindCompanies({ data, onSettings }: { data: CompaniesData; onSet
           loading={busy}
           loadingLabel="Searching"
           reason={data.searchable.length ? undefined : "Approve a direction’s search criteria first."}
-          detail={`Searches ${searching.length < 2 ? searching.join("") : `${searching.slice(0, -1).join(", ")} and ${searching.at(-1)}`} for companies for each direction${est.apollo ? `, and ones like your seeds${data.learn ? " and targets" : ""}` : ""}. Your past employers never come back${data.learn ? ", nor do companies you said Not for me" : ""}.`}
+          detail={`Searches ${searching.length < 2 ? searching.join("") : `${searching.slice(0, -1).join(", ")} and ${searching.at(-1)}`} for companies for each direction${est.apollo ? `, and ones like the companies you like${data.learn ? " and your targets" : ""}` : ""}. Your past employers never come back${data.learn ? ", nor do companies you said Not for me" : ""}.`}
           note={`${total}.`}
           onClick={() =>
             void act

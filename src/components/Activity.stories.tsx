@@ -79,6 +79,28 @@ export const States: Story = {
   ),
 };
 
+// A long day's work: 40 items. The panel opens from the foot of a full-height sidebar and is never taller than the
+// window; its header (Clear finished) and the spending stay put while the list scrolls between them.
+const many: Job[] = Array.from({ length: 40 }, (_, i): Job => {
+  const time = `${8 + Math.floor(i / 6)}:${String((i * 7) % 60).padStart(2, "0")}`;
+  if (i < 3) return { id: `run-${i}`, label: `Checking roles at company ${i + 1}`, state: "running", detail: `${i + 2} of 12`, time, onCancel: noop };
+  if (i < 5) return { id: `fail-${i}`, label: `Couldn’t read job board ${i - 2}`, state: "failed", detail: "The page didn’t load.", time, onRetry: noop, onClear: noop };
+  return { id: `done-${i}`, label: `Found companies, batch ${i - 4}`, state: "done", detail: `${(i % 9) + 1} to review`, time, onClear: noop };
+});
+
+export const ALongList: Story = {
+  name: "A long list",
+  args: { jobs: many, spend, onClearFinished: noop, defaultOpen: true },
+  render: (args) => (
+    // Out past the preview's 24px padding, so the sidebar is the window's height and its foot the window's foot.
+    <div className="-m-6 flex h-dvh w-60 flex-col border-r bg-subtle p-2">
+      <div className="mt-auto">
+        <Activity {...args} />
+      </div>
+    </div>
+  ),
+};
+
 // Each action still shows its own brief state where it was started: a loading button while it runs, then its result.
 export const AnActionsOwnState: Story = {
   name: "An action’s own state",

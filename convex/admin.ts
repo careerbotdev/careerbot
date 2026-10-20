@@ -200,13 +200,13 @@ export const readTrialProject = internalMutation({
   },
 });
 
-// Operator: set a workspace's seed companies for every direction (websites).
-export const setSeeds = internalMutation({
-  args: { workspaceId: v.id("workspaces"), seeds: v.array(v.string()) },
-  handler: async (ctx, { workspaceId, seeds }) => {
+// Operator: set a workspace's companies you like (websites, each with its two choices), replacing the list.
+export const setLikes = internalMutation({
+  args: { workspaceId: v.id("workspaces"), likes: v.array(v.object({ domain: v.string(), name: v.optional(v.string()), add: v.boolean(), like: v.boolean() })) },
+  handler: async (ctx, { workspaceId, likes }) => {
     const row = await ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
-    if (row) await ctx.db.patch(row._id, { seeds });
-    else await ctx.db.insert("discovery", { workspaceId, seeds, resolved: [] });
+    if (row) await ctx.db.patch(row._id, { likes, seeds: undefined, named: undefined });
+    else await ctx.db.insert("discovery", { workspaceId, likes, resolved: [] });
   },
 });
 
@@ -214,15 +214,6 @@ export const setSeeds = internalMutation({
 export const screenNow = internalAction({
   args: { workspaceId: v.id("workspaces") },
   handler: (ctx, { workspaceId }): Promise<{ byRule: number; byAi: number; costUsd: number }> => screenCompanies(ctx, workspaceId),
-});
-
-export const setNamed = internalMutation({
-  args: { workspaceId: v.id("workspaces"), named: v.array(v.string()) },
-  handler: async (ctx, { workspaceId, named }) => {
-    const row = await ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
-    if (row) await ctx.db.patch(row._id, { named });
-    else await ctx.db.insert("discovery", { workspaceId, seeds: [], named, resolved: [] });
-  },
 });
 
 // Operator: clear filled-in details that include a job board, so they're read again under current rules.

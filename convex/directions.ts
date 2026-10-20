@@ -6,7 +6,6 @@ import { mutation } from "./functions";
 import { modelFor } from "./aiSettings";
 import { activeLimits, type ItemOf, itemsOf, pickDirection } from "./itemShapes";
 import { STAGE_LIST } from "./directionVocab";
-import { toDomain } from "./discovery";
 import { INDUSTRIES, SIZES } from "./limitBuckets";
 import { industryGoals, shownIndustries } from "./goalIndustries";
 import { chatJson, LONG_REPLY_TOKENS } from "./metering";
@@ -359,7 +358,7 @@ export const unapprovePart = mutation({
 });
 
 const detailFields = { positioning: v.string(), targetTitles: v.array(v.string()), vocabulary: v.array(v.string()) };
-const criteriaFields = { seeds: v.optional(v.array(v.string())), industries: v.array(v.string()), sizes: v.array(v.string()), stages: v.array(v.string()), titles: v.array(v.string()), keywords: v.array(v.string()) };
+const criteriaFields = { industries: v.array(v.string()), sizes: v.array(v.string()), stages: v.array(v.string()), titles: v.array(v.string()), keywords: v.array(v.string()) };
 
 // Their corrections are approved as given. Criteria lists must use the shared vocabularies.
 export const editDetail = mutation({
@@ -386,10 +385,8 @@ export const editCriteria = mutation({
       ...c.stages.filter((x) => !(STAGES as readonly string[]).includes(x)),
     ];
     if (bad.length) throw new ConvexError(`Not on the list: ${bad.join(", ")}.`);
-    // Own seeds are checked with everything else, so Save either keeps all of it or none. Omitted: unchanged; empty: none of its own.
-    const badSeeds = (c.seeds ?? []).filter((x) => x.trim() && !toDomain(x));
-    if (badSeeds.length) throw new ConvexError(`Use each company's website, like acme.com: ${badSeeds.join(", ")}`);
-    const seeds = c.seeds === undefined ? d.data.criteria?.seeds : [...new Set(c.seeds.map(toDomain).filter((x): x is string => !!x))];
+    // Its own companies to find more like are kept; they change on its Criteria (discovery.setDirectionSeeds).
+    const seeds = d.data.criteria?.seeds;
     const tidy = (x: string[]) => [...new Set(x.map((i) => i.trim()).filter(Boolean))];
     await ctx.db.patch(id, { data: { ...d.data, criteria: { ...(seeds?.length ? { seeds } : {}), industries: c.industries, sizes: c.sizes, stages: c.stages, titles: tidy(c.titles), keywords: tidy(c.keywords) }, criteriaStatus: "approved", changedAt: Date.now() } });
   },

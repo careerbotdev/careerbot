@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id, TableNames } from "./_generated/dataModel";
 import { internalMutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { accountName, anyLeft, ORDER, purgePage } from "./accountDelete";
+import { likesOf } from "./discovery";
 import { mutation } from "./functions";
 import { inWorkspace, pageOf } from "./workspaceRows";
 import { requireWorkspace } from "./workspaces";
@@ -33,7 +34,7 @@ export const KEPT: Record<string, string> = {
   profiles: "a setting: contact details",
   reminderSettings: "a setting",
   resumeSettings: "a setting; its choices about cleared roles, projects, skills and directions are taken out",
-  discovery: "a setting; its seed companies are cleared",
+  discovery: "a setting; its companies you like are cleared",
   apiKeys: "the keys, unless Also remove my keys is ticked",
   driveConnections: "the Google Drive connection",
   driveLinks: "a Google Drive connection being made",
@@ -103,7 +104,7 @@ export const counts = query({
       review: items.review,
       goals: items.goals + (await countOf(ctx, "narratives", workspaceId, (d) => d.kind === "goals")),
       companies: (await countOf(ctx, "companies", workspaceId)) + (await countOf(ctx, "postings", workspaceId)),
-      seeds: (discovery?.seeds.length ?? 0) + (discovery?.named?.length ?? 0),
+      likes: likesOf(discovery).length,
       pursuits: await countOf(ctx, "pursuits", workspaceId),
       resumes: await countOf(ctx, "resumes", workspaceId),
       notes: await countOf(ctx, "notes", workspaceId),
@@ -137,11 +138,11 @@ export const start = mutation({
 
 // ─── The background steps ───────────────────────────────────────────────────────────────────────────────────────────
 
-// Settings that name what's cleared: seed companies go, and the resume layout forgets cleared roles, projects, skills
+// Settings that name what's cleared: companies you like go, and the resume layout forgets cleared roles, projects, skills
 // and directions (its default length stays). Getting started shows again from its first step.
 async function clearSettings(ctx: MutationCtx, workspaceId: Id<"workspaces">) {
   const discovery = await ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
-  if (discovery) await ctx.db.patch(discovery._id, { seeds: [], named: undefined, resolved: [], rolesProblems: undefined, rolesBudget: undefined });
+  if (discovery) await ctx.db.patch(discovery._id, { likes: [], seeds: undefined, named: undefined, resolved: [], rolesProblems: undefined, rolesBudget: undefined });
   const layout = await ctx.db.query("resumeSettings").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
   if (layout) await ctx.db.patch(layout._id, { roles: [], projects: undefined, skills: undefined, lengths: layout.lengths?.filter((l) => !l.directionId) });
   await ctx.db.patch(workspaceId, { setupHidden: undefined, setupSkipped: undefined });

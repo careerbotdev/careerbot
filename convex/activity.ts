@@ -58,9 +58,12 @@ async function subjectOf(ctx: QueryCtx, j: Job): Promise<string | null> {
     }
     case "resume": {
       if (a.posting !== undefined) return "a tailored resume";
+      if (a.voiceExample) return "an example of each voice";
       const d = await get<"items">(a.directionId);
       const resume = d?.kind === "direction" ? `your ${d.data.name} resume` : "your base resume";
-      // Add what's new writes new lines for the resume, not the resume: "Writing new lines for your base resume".
+      // Add what's new writes new lines for the resume, not the resume: "Writing new lines for your base resume"; Add a
+      // line writes one ("Writing a line for your base resume").
+      if (a.line) return a.line.tailored ? "a line for a tailored resume" : `a line for ${resume}`;
       return a.lines ? `new lines for ${resume}` : resume;
     }
     case "directions": {
@@ -106,12 +109,13 @@ async function subjectOf(ctx: QueryCtx, j: Job): Promise<string | null> {
 type Retry =
   | { fn: "extract.start"; args: { narrativeId: string } }
   | { fn: "goals.start"; args: { narrativeId: string } }
-  | { fn: "resume.rewrite"; args: { directionId?: string } }
-  | { fn: "resume.start"; args: { directionId?: string } }
+  | { fn: "resume.rewrite"; args: { directionId?: string; note?: string } }
+  | { fn: "resume.start"; args: { directionId?: string; note?: string } }
   | { fn: "resume.whatsNew"; args: { directionId?: string } }
+  | { fn: "resume.voiceExample"; args: Record<string, never> }
   | { fn: "directions.suggest"; args: Record<string, never> }
   | { fn: "directions.detail"; args: { id?: string } }
-  | { fn: "letters.write"; args: { pursuitId: string } }
+  | { fn: "letters.write"; args: { pursuitId: string; note?: string } }
   | { fn: "people.draft"; args: { contactId: string } }
   | { fn: "followUpEmails.write"; args: { pursuitId: string; contactId?: string } }
   | { fn: "lineCheck.check"; args: { id: string; line?: string } }
@@ -127,11 +131,13 @@ function retryOf(j: Job): Retry | null {
       return { fn: "goals.start", args: { narrativeId: a.narrativeId } };
     case "resume":
       if (a.posting !== undefined) return null;
-      return { fn: a.lines ? "resume.whatsNew" : a.review ? "resume.rewrite" : "resume.start", args: a.directionId ? { directionId: a.directionId } : {} };
+      if (a.voiceExample) return { fn: "resume.voiceExample", args: {} };
+      if (a.lines) return { fn: "resume.whatsNew", args: a.directionId ? { directionId: a.directionId } : {} };
+      return { fn: a.review ? "resume.rewrite" : "resume.start", args: { ...(a.directionId ? { directionId: a.directionId } : {}), ...(typeof a.note === "string" ? { note: a.note } : {}) } };
     case "directions":
       return a.mode === "detail" ? { fn: "directions.detail", args: a.ids?.length === 1 ? { id: a.ids[0] } : {} } : { fn: "directions.suggest", args: {} };
     case "letter":
-      return { fn: "letters.write", args: { pursuitId: a.pursuitId } };
+      return { fn: "letters.write", args: { pursuitId: a.pursuitId, ...(typeof a.note === "string" ? { note: a.note } : {}) } };
     case "outreach":
       return { fn: "people.draft", args: { contactId: a.contactId } };
     case "followUp":

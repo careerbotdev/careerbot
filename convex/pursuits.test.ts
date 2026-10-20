@@ -6,6 +6,7 @@ import schema from "./schema";
 import { remindersOf, snoozeDay } from "./pursuitSteps";
 import { seal } from "./secretBox";
 import { ensureWorkspace } from "./workspaces";
+import { DOCUMENT_HONESTY } from "./writingGuides";
 
 const modules = import.meta.glob("./**/*.ts");
 const reply = (content: unknown) => Response.json({ choices: [{ message: { content: JSON.stringify(content) } }], usage: { cost: 0.001 } });
@@ -198,6 +199,25 @@ test("a cover letter rests only on the approved record: proposed and rejected fa
   await asA.mutation(api.letters.edit, { pursuitId: id, text: "I cut churn by 20% at Acme.\n\nBest,\nSam" });
   expect((await asA.query(api.letters.forPursuit, { pursuitId: id })).versions.map((l) => [l.edited, l.paragraphs.map((x) => x.factIds.length)])).toEqual([[true, [1, 0]], [false, [1, 0]]]);
   expect((await asA.query(api.pursuits.get, { id })).timeline.filter((e) => e.event === "letter").map((e) => e.text)).toEqual(["edited", "written"]);
+});
+
+test("a cover letter written again follows their note within the record and the record's voice, and keeps the note on the version", async () => {
+  const { asA, run, postingId, approvedFact } = await setup();
+  const id = await asA.mutation(api.pursuits.start, { postingId });
+  await asA.mutation(api.resume.setRecordVoice, { voice: "plain" });
+  await asA.mutation(api.letters.write, { pursuitId: id, note: "  Open with the churn result  " });
+  const sent = await run({ paragraphs: [{ text: "I cut churn by 20% at Acme.", factIds: [approvedFact] }] });
+  expect(sent[0].messages[0].content).toContain("Voice: plain.");
+  expect(sent[0].messages[0].content).toContain(DOCUMENT_HONESTY);
+  expect(sent[0].messages[1].content).toContain('What they asked this version to change');
+  expect(sent[0].messages[1].content).toContain('"""Open with the churn result"""');
+  const letters = await asA.query(api.letters.forPursuit, { pursuitId: id });
+  expect(letters.versions[0].note).toBe("Open with the churn result");
+  // With no note it's written again as before.
+  await asA.mutation(api.letters.write, { pursuitId: id });
+  const again = await run({ paragraphs: [{ text: "I cut churn by 20% at Acme.", factIds: [approvedFact] }] });
+  expect(again[0].messages[1].content).not.toContain("What they asked");
+  expect((await asA.query(api.letters.forPursuit, { pursuitId: id })).versions[0].note).toBeNull();
 });
 
 test("marking Applied keeps the cover letter as sent; it can't be rewritten or edited after", async () => {

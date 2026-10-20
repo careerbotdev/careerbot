@@ -314,7 +314,7 @@ async function main() {
     const apolloBudget = opts.discovery ? { apolloMonthlyCredits: opts.apolloCredits, apolloMode: "onRequest" } : { apolloMonthlyCredits: 0, apolloMode: "paused" };
     await as("budgets:set", { aiMonthlyUsd: opts.budget, ...apolloBudget });
     if (persona.settings?.resumeLength) await as("resume:setRecordLength", { length: persona.settings.resumeLength });
-    await as("discovery:setNamed", { named: persona.companies.filter((c) => !c.fictional).map((c) => c.domain) });
+    await as("discovery:setLikes", { likes: persona.companies.filter((c) => !c.fictional).map((c) => ({ domain: c.domain, add: true, like: false })) });
     return `AI budget $${opts.budget} (the persona's own is $${persona.budgets.aiMonthlyUsd}), Apollo ${opts.discovery ? `${opts.apolloCredits} credits` : "paused"}`;
   });
   await step("Narratives", async () => {

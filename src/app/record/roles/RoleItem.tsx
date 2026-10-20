@@ -19,7 +19,6 @@ import { useScreenSize } from "@/components/Panes";
 import { Properties, Property } from "@/components/Properties";
 import { ReasonField } from "@/components/ReasonField";
 import { ReviewCard, ReviewStatement } from "@/components/ReviewCard";
-import type { SelectOption } from "@/components/Select";
 import { StatusTag } from "@/components/StatusTag";
 import { TabPanel, Tabs } from "@/components/Tabs";
 import { Heading, Text } from "@/components/Text";
@@ -29,7 +28,8 @@ import { useArrangement } from "../../resumes/arrangement";
 import { useBar, useCommands } from "../../shell/ShellContext";
 import { Facts, useFactsHaveCards } from "../facts/Facts";
 import type { useRoleActions } from "./actions";
-import { type Placement, RoleForm, type RoleChange } from "./RoleForm";
+import { placementMenu, placementOf, RoleOnResumes } from "./OnResumes";
+import { RoleForm, type RoleChange } from "./RoleForm";
 import { type Context, EXPLAIN, type Fact, monthLabel, monthSpan, plural, type Question, readMonth, type Role, type Row, roleName, roleTitle, titleNote, yearSpan } from "./words";
 
 // A role open beside the list: its title, employer, dates and place; Approve, Edit and Reject while it's new, or its
@@ -80,26 +80,9 @@ export function RoleItem({
   const approved = rows.filter((r): r is Role => r.kind === "role" && r.status === "approved" && r.counts);
   const a = useArrangement({ doc: recordDoc(approved.map((r) => ({ ...r.data, roleKey: r.roleKey }))), settings: presentation ?? { roles: [] }, layout: null, level: "record" });
   const entry = a.entryOf(roleKey);
-  const eff = a.effOf(roleKey);
-  const placed: Placement = eff?.hidden ? "out" : eff?.fold?.into === "previous" ? "previous" : eff?.fold?.into === "next" ? "next" : "own";
-  const target = (into: "previous" | "next") => (entry ? a.foldTarget(roleKey, into) : null);
-  const foldLabel = (into: "previous" | "next") => {
-    const t = target(into);
-    return t ? `Fold into ${t.title}${t.employer ? `, ${t.employer}` : ""}` : into === "previous" ? "Fold into the one before" : "Fold into the one after";
-  };
-  const placement = {
-    value: placed,
-    options: [
-      { value: "own", label: "Own entry" },
-      { value: "previous", label: foldLabel("previous"), disabled: !target("previous") },
-      { value: "next", label: foldLabel("next"), disabled: !target("next") },
-      { value: "out", label: "Leave out" },
-    ] satisfies SelectOption<Placement>[],
-    reason: entry ? undefined : "Approve it first",
-  };
-  const placedWords = placed === "out" ? "Left out" : placed === "own" ? "Own entry" : foldLabel(placed).replace("Fold", "Folded");
+  const placed = placementOf(a, roleKey);
 
-  const save = (c: RoleChange, place?: Placement) => {
+  const save = (c: RoleChange) => {
     const d = role.data;
     const before = { employer: d.employer ?? "", title: d.title ?? "", alternateTitles: d.alternateTitles ?? [], start: d.start ?? "", end: d.end ?? "", location: d.location ?? "", change: d.change ?? "none" };
     setEditing(false);
@@ -107,7 +90,6 @@ export function RoleItem({
       () => toast({ message: `Saved: ${c.title}`, icon: "approve", action: { label: "Undo", key: "U", run: () => void editRole({ id: role.id, ...before }) } }),
       (e: unknown) => failed(e, "Couldn’t save that."),
     );
-    if (place && place !== placed) a.place(roleKey, place === "own" ? {} : place === "out" ? { hidden: true } : { fold: { into: place, bullets: "move" } });
   };
   const reject = (reason?: string) => {
     setRejecting(false);
@@ -118,7 +100,10 @@ export function RoleItem({
     setAddingContext(true);
   };
 
-  const menu = actions.roleMenu(role, { item: { edit: () => setEditing(true), addContext, rejectWithNote: () => setRejecting(true) }, onGone });
+  const menu = actions.roleMenu(role, {
+    item: { edit: () => setEditing(true), addContext, rejectWithNote: () => setRejecting(true), onResumes: placementMenu(a, roleKey, !!entry) },
+    onGone,
+  });
   // ⌘K: what the ⋯ can do, under the role's name.
   useCommands(
     menu.flatMap((m, i): Command[] =>
@@ -191,10 +176,10 @@ export function RoleItem({
   const details = editing ? (
     <section aria-label="Details" className="flex flex-col gap-3.5">
       <h3 className="text-label leading-label font-medium text-text">Details</h3>
-      <RoleForm role={role} placement={placement} onSave={save} onCancel={() => setEditing(false)} />
+      <RoleForm role={role} onSave={save} onCancel={() => setEditing(false)} />
     </section>
   ) : (
-    <Details role={role} rows={rows} placed={rejected ? null : placedWords} stories={stories} columns={wide ? 1 : 2} />
+    <Details role={role} rows={rows} placed={rejected || !entry ? null : placed} stories={stories} columns={wide ? 1 : 2} />
   );
 
   return (
@@ -247,6 +232,7 @@ export function RoleItem({
             <div className="flex min-w-0 flex-1 flex-col gap-8 px-4 py-6 md:px-6 lg:px-8">
               <TabPanel value="facts" className="flex flex-col gap-6">
                 <Disagreements role={role} questions={questions} />
+                {entry && !role.data.break && <RoleOnResumes a={a} roleKey={roleKey} rows={rows} />}
                 <Facts owner={{ roleKey }} open={fact} onOpen={onOpenFact} />
               </TabPanel>
               <TabPanel value="context">
@@ -300,7 +286,7 @@ function useStoryTitles() {
 
 // Its details: employer, dates, place, team, the title resumes use, how it shows on them, its projects, skills and tools,
 // and the story it came from.
-function Details({ role, rows, placed, stories, columns }: { role: Role; rows: Row[]; placed: string | null; stories: Story[]; columns: 1 | 2 }) {
+function Details({ role, rows, placed, stories, columns }: { role: Role; rows: Row[]; placed: { words: string; line?: string } | null; stories: Story[]; columns: 1 | 2 }) {
   const skills = useQuery(api.skills.list);
   const title = useStoryTitles();
   const d = role.data;
@@ -317,7 +303,12 @@ function Details({ role, rows, placed, stories, columns }: { role: Role; rows: R
       {d.team?.length ? <Property label="Team">{d.team.join(", ")}</Property> : null}
       <Property label="Title on resumes">{d.break ? "Career break" : (resumeTitle(d)?.text ?? "None")}</Property>
       {d.alternateTitles?.length ? <Property label="Also called">{d.alternateTitles.join(", ")}</Property> : null}
-      {placed && <Property label="On resumes">{placed}</Property>}
+      {placed && (
+        <Property label="On resumes">
+          {placed.words}
+          {placed.line && <span className="text-muted">{placed.line}</span>}
+        </Property>
+      )}
       {projects.length > 0 && (
         <Property label="Projects">
           {projects.map((p) => (

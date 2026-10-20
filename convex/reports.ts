@@ -63,7 +63,7 @@ const AREA_OF: Record<string, Area> = {
   extract: "Record", rework: "Record", revision: "Record", check: "Record", insights: "Record", followups: "Record", duplicates: "Record", project: "Record", "same work": "Record", skills: "Record",
   goals: "Goals", "limit rule": "Goals", "suggest directions": "Goals", "direction detail": "Goals",
   "find seed companies": "Companies", "companies you named": "Companies", "find companies": "Companies", "large companies": "Companies", "hiring now": "Companies", "lookalike companies": "Companies",
-  "relevant companies": "Companies", "companies hiring now": "Companies",
+  "relevant companies": "Companies", "companies hiring now": "Companies", "find a company by name": "Companies",
   "company summaries": "Companies", "company summaries (general knowledge)": "Companies", "company fit": "Companies", "screen companies": "Companies", "job postings": "Companies", "role sort": "Companies", "role fit": "Companies",
   "ask about this role": "Pursuits", "cover letter": "Pursuits", outreach: "Pursuits", "follow-up": "Pursuits", "find people": "Pursuits", "reveal an email": "Pursuits",
   resume: "Resumes", "direction resume": "Resumes", "tailored resume": "Resumes", "resume lines": "Resumes", "line check": "Resumes",

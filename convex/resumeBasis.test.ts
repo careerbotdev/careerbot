@@ -8,7 +8,7 @@ const facts = (first: string) => [
   { _id: id("f1"), data: { text: first } },
   { _id: id("f2"), data: { text: "Shipped the S&OP deck." } },
 ];
-const labels: Labels = { fact: () => ({ role: "Brightwater" }), project: () => "", role: () => "Brightwater", skill: () => "" };
+const labels: Labels = { fact: () => ({ role: "Brightwater" }), project: () => "", role: () => "Brightwater", skill: () => "", titled: (k) => (k === "a" ? "Charge Nurse" : "MICU Staff Nurse") };
 
 test("a fact reworded in place is a change even when every count stays the same", () => {
   const before = basisOf({ roles: [role], facts: facts("Shipped the forecast."), projects: [], insights: [] });
@@ -36,4 +36,15 @@ test("an item with no name left is counted without empty brackets", () => {
   const before = basisOf({ roles: [], facts: [], projects: [{ _id: id("p1"), data: { name: "Gone", url: "" } }], insights: [] });
   const now = basisOf({ roles: [], facts: [], projects: [], insights: [] });
   expect(describeChanges(changesSince(before, now), labels)).toBe("1 removed project");
+});
+
+test("a placement change shows as one, named by role; a version from before placement was kept never does", () => {
+  const before = { ...basisOf({ roles: [], facts: [], projects: [], insights: [] }), placement: [{ roleKey: "a", how: "fold" as const, into: "b", lines: "move" as const }] };
+  const now = { ...before, placement: [{ roleKey: "a", how: "fold" as const, into: "b", lines: "drop" as const }] };
+  const changes = changesSince(before, now);
+  expect(hasChanges(changes)).toBe(true);
+  expect(describeChanges(changes, labels)).toBe("Charge Nurse now folds into MICU Staff Nurse with its lines left out");
+  expect(describeChanges(changesSince(now, { ...now, placement: [] }), labels)).toBe("Charge Nurse now has its own entry");
+  const { placement: _, ...old } = before;
+  expect(hasChanges(changesSince(old, now))).toBe(false);
 });

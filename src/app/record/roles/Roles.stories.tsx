@@ -169,6 +169,49 @@ const overlap: Item = {
 };
 export const OverlappingJobs: Story = { name: "Jobs that overlap", render: () => <Fixture query={`role=${itemId("role-pantry")}`} extra={[overlap]} /> };
 
+// On resumes: the volunteer role folds into the role before it; leaving its lines out shows only its title and dates
+// inside that role, in the excerpt and the details.
+export const OnResumes: Story = {
+  name: "On resumes",
+  render: () => <Fixture query={`role=${itemId("role-pantry")}`} />,
+  play: async () => {
+    await settled();
+    await expect(await page().findByRole("radio", { name: "Fold into a role" })).toBeChecked();
+    await userEvent.click(await page().findByRole("switch", { name: "Leave its lines out of resumes" }));
+    await waitFor(() => expect(page().getAllByText(/Only its title and dates show/)[0]).toBeVisible());
+    await waitFor(() => expect(page().getByText("Its lines left out")).toBeVisible());
+  },
+};
+
+// The role's ⋯ > On resumes: the three choices, the fold named by the role it widens, and Leave its lines out.
+export const OnResumesMenu: Story = {
+  name: "⋯ On resumes",
+  globals: { viewport: { value: "desktop" } },
+  render: () => <Fixture query={`role=${itemId("role-pantry")}`} />,
+  play: async () => {
+    await settled();
+    await userEvent.click(await page().findByRole("button", { name: "More for Volunteer Logistics Lead" }));
+    await userEvent.click(await within(document.body).findByRole("menuitem", { name: /On resumes/ }));
+    await waitFor(() => expect(within(document.body).getAllByRole("menuitemcheckbox", { name: /Leave its lines out of resumes/ }).length).toBeGreaterThan(0));
+  },
+};
+
+// The same on a phone: ⋯ opens the sheet, and On resumes opens its choices in place.
+export const OnResumesMenuPhone: Story = {
+  name: "⋯ On resumes (phone)",
+  globals: { viewport: { value: "mobile2" } },
+  render: () => <Fixture query={`role=${itemId("role-pantry")}`} />,
+  play: async () => {
+    await settled();
+    await userEvent.click(await page().findByRole("button", { name: "More for Volunteer Logistics Lead" }));
+    await userEvent.click(await page().findByRole("button", { name: /^On resumes/ }));
+    // The sheet's row, under the role view's own switch of the same name.
+    await waitFor(() => expect(page().getAllByText("Leave its lines out of resumes").length).toBeGreaterThan(1));
+    await userEvent.click(page().getAllByText("Leave its lines out of resumes").at(-1)!);
+    await waitFor(() => expect(page().getByText("Its lines left out")).toBeVisible());
+  },
+};
+
 // A role read from a story that never says what the job was officially called: it goes on resumes under what they
 // call it, and the role says so until they give the official title.
 const untitled: Item = {

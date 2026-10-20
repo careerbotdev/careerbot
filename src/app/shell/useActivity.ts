@@ -20,6 +20,7 @@ const RETRY: Record<RetryName, FunctionReference<"mutation">> = {
   "resume.rewrite": api.resume.rewrite,
   "resume.start": api.resume.start,
   "resume.whatsNew": api.resume.whatsNew,
+  "resume.voiceExample": api.resume.voiceExample,
   "directions.suggest": api.directions.suggest,
   "directions.detail": api.directions.detail,
   "letters.write": api.letters.write,

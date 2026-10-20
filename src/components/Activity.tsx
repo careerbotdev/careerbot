@@ -161,9 +161,11 @@ export function ActivityList({ jobs, spend, onClearFinished }: { jobs: Job[]; sp
   const time = (job: Job) => (small ? undefined : job.time);
 
   return (
-    <div className="flex flex-col md:-m-1">
+    // In the panel the header and the spending stay put and the list scrolls between them once it's taller than the
+    // room; in the phone's sheet, the sheet scrolls.
+    <div className="flex min-h-0 flex-col md:-m-1">
       {!small && (
-        <div className="flex h-11 items-center gap-2 border-b pr-2 pl-3">
+        <div className="flex h-11 shrink-0 items-center gap-2 border-b pr-2 pl-3">
           <h2 className="text-body-sm leading-body-sm font-semibold text-text">Activity</h2>
           <span className="min-w-0 flex-1 text-label leading-label text-muted tabular-nums">{running.length > 0 && `${running.length} running`}</span>
           {onClearFinished && <ClearFinished jobs={jobs} onClick={onClearFinished} />}
@@ -172,7 +174,7 @@ export function ActivityList({ jobs, spend, onClearFinished }: { jobs: Job[]; sp
       {jobs.length === 0 ? (
         <p className="px-3 py-6 text-center text-body-sm leading-body-sm text-muted">Nothing running or recent.</p>
       ) : (
-        <div className="flex flex-col py-1">
+        <div className="flex min-h-0 flex-col overflow-y-auto py-1">
           {running.length > 0 && (
             <ul>
               {running.map((job) => (
@@ -198,7 +200,7 @@ export function ActivityList({ jobs, spend, onClearFinished }: { jobs: Job[]; sp
               ))}
             </ul>
           )}
-          {running.length > 0 && finished.length > 0 && <div role="presentation" className="my-1 h-px bg-border" />}
+          {running.length > 0 && finished.length > 0 && <div role="presentation" className="my-1 h-px shrink-0 bg-border" />}
           {finished.length > 0 && (
             <ul>
               {finished.map((job) => (
@@ -246,7 +248,7 @@ export function ActivityList({ jobs, spend, onClearFinished }: { jobs: Job[]; sp
         </div>
       )}
       {spend && (
-        <div className="flex min-h-10 flex-wrap items-center gap-x-3.5 border-t px-3 py-3 text-label leading-label text-muted tabular-nums md:py-0">
+        <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-x-3.5 border-t px-3 py-3 text-label leading-label text-muted tabular-nums md:py-0">
           <span className="flex-1">{spend.period}</span>
           {spend.lines.map((line) => (
             <span key={line}>{line}</span>

@@ -1,12 +1,15 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { LINE_UPDATE_PROMPT } from "./factChanges";
+import { RESUME_PROMPTS } from "./resume";
 import { arrange, present, toPlain } from "./resumeDoc";
 import { seedModelPrices } from "./modelPrices.testing";
 import schema from "./schema";
 import { seal } from "./secretBox";
 import { ensureWorkspace } from "./workspaces";
+import { DOCUMENT_HONESTY, FACT_STYLE, letterStyle, resumeStyle, VOICES } from "./writingGuides";
 
 const modules = import.meta.glob("./**/*.ts");
 const reply = (content: unknown) => Response.json({ choices: [{ message: { content: JSON.stringify(content) } }], usage: { cost: 0.001 } });
@@ -78,8 +81,8 @@ test("folds and breaks are set on the record for every resume: workspace-checked
   // Acme is the most recent role: nothing after it to fold into.
   await expect(asA.mutation(api.resume.setPresentation, { roleKey: "acme", fold: { into: "next", bullets: "move" } })).rejects.toThrow("no role on that side");
   await asA.mutation(api.resume.setPresentation, { roleKey: "globex", fold: { into: "next", bullets: "drop" } });
-  expect(await asA.query(api.resume.presentation, {})).toEqual({ roles: [{ roleKey: "globex", fold: { into: "next", bullets: "drop" } }], projects: [], skills: [], length: "two" });
-  expect(await asB.query(api.resume.presentation, {})).toEqual({ roles: [], projects: [], skills: [], length: "two" });
+  expect(await asA.query(api.resume.presentation, {})).toEqual({ roles: [{ roleKey: "globex", fold: { into: "next", bullets: "drop" } }], projects: [], skills: [], length: "two", voice: "confident" });
+  expect(await asB.query(api.resume.presentation, {})).toEqual({ roles: [], projects: [], skills: [], length: "two", voice: "confident" });
   // A base title choice on the same role is kept when the record's placement changes, and the other way round.
   await write(resumeReply("v1"));
   const base = (await asA.query(api.resume.list, {})).versions[0];
@@ -90,7 +93,7 @@ test("folds and breaks are set on the record for every resume: workspace-checked
   expect(data.versions[0].layout).toEqual({ roles: [] });
   expect(present(data.versions[0].doc!, data.settings, data.versions[0].layout).experience.map((e) => [e.title, e.start, e.bullets.length])).toEqual([["Head of CS", "2016-01", 2]]);
   await asA.mutation(api.resume.setPresentation, { roleKey: "globex" });
-  expect(await asA.query(api.resume.presentation, {})).toEqual({ roles: [], projects: [], skills: [], length: "two" });
+  expect(await asA.query(api.resume.presentation, {})).toEqual({ roles: [], projects: [], skills: [], length: "two", voice: "confident" });
   // The written resume is untouched.
   expect((await t.run((ctx) => ctx.db.get(base.id)))!.doc!.experience[1].title).toBe("Implementation Manager");
 });
@@ -361,7 +364,7 @@ test("an old resume shows as unknown; a rewrite writes a version to keep or disc
   // Written before what it was written from was kept.
   await t.run((ctx) => ctx.db.patch(v1.id, { writtenFrom: undefined, basedOn: { roles: 2, facts: 2, insights: 0 } }));
   await asA.mutation(api.resume.setRole, { id: v1.id, role: { roleKey: "globex", fold: { into: "next", bullets: "move" } } });
-  expect(await asA.query(api.resume.updates, {})).toEqual([{ target: { name: "Base resume", href: "/resumes?resume=base" }, state: "unknown", summary: null, writing: false }]);
+  expect(await asA.query(api.resume.updates, {})).toEqual([{ target: { name: "Base resume", href: "/resumes?resume=base" }, state: "unknown", summary: null, voiceOnly: false, writing: false }]);
 
   // Update all starts one run per resume not already being written.
   expect(await asA.mutation(api.resume.updateAll, {})).toBe(1);
@@ -434,7 +437,7 @@ test("a fact from a rejected narrative stops backing its line, drops out of the 
   await t.run((ctx) => ctx.db.patch(narrativeId, { rejectedAt: 1 }));
   // Still approved, but no longer counted.
   expect((await t.run((ctx) => ctx.db.get(acmeFact)))!.status).toBe("approved");
-  expect(await asA.query(api.resume.updates, {})).toEqual([{ target: { name: "Base resume", href: "/resumes?resume=base" }, state: "changed", summary: "1 removed fact at Acme", writing: false }]);
+  expect(await asA.query(api.resume.updates, {})).toEqual([{ target: { name: "Base resume", href: "/resumes?resume=base" }, state: "changed", summary: "1 removed fact at Acme", voiceOnly: false, writing: false }]);
   const data = await asA.query(api.resume.list, {});
   expect(data.facts[acmeFact]).toBeUndefined();
   expect(data.versions[0].doc!.experience[0].bullets[0]).toEqual({ text: "Cut churn by 20%.", factIds: [], unsourced: true });
@@ -477,8 +480,8 @@ test("each resume's length follows the record unless it sets its own; the writer
   expect((await asA.query(api.resume.list, {})).length).toEqual({ own: "full", record: "one" });
   const sent = await write(resumeReply("v2"));
   expect(sent.messages[0].content).toContain("Length: Full");
-  // The next version keeps the hidden line where it has the same words.
-  expect((await asA.query(api.resume.list, {})).versions[0].layout.bullets).toEqual([{ text: "Cut churn by 20%.", state: "hidden" }]);
+  // The next version keeps the hidden line (by the facts it rests on), marked as kept from the version before.
+  expect((await asA.query(api.resume.list, {})).versions[0].layout.bullets).toEqual([{ text: "Cut churn by 20%.", state: "hidden", roleKey: "acme", factIds: [acmeFact], kept: true }]);
   expect(await asA.query(api.resume.updates, {})).toEqual([]);
   // Choosing what the record says follows the record.
   await asA.mutation(api.resume.setLength, { length: "one" });
@@ -696,4 +699,175 @@ test("a fact lists the base and direction resumes whose current version cites it
   await write(resumeReply("Direction v2"), { directionId });
   expect((await asA.query(api.resume.showsFact, { id: acmeFact })).map((x) => x.key)).toEqual(["base", directionId]);
   expect(await asB.query(api.resume.showsFact, { id: acmeFact })).toEqual([]);
+});
+
+// What the last scheduled run sent to the model, with it replying `content`.
+async function sentBy(t: Awaited<ReturnType<typeof setup>>["t"], content: unknown) {
+  const f = vi.fn(async () => reply(content));
+  vi.stubGlobal("fetch", f);
+  await t.finishAllScheduledFunctions(vi.runAllTimers);
+  return f.mock.calls.map((c) => JSON.parse((c as unknown as [string, { body: string }])[1].body) as { messages: { content: string }[] });
+}
+
+test("Write again's note reaches the writer as a request within the rules, is kept on the version and shows in History; a Discard reason steers the next one", async () => {
+  const { t, asA, write, resumeReply } = await setup();
+  await write(resumeReply("v1"));
+  await asA.mutation(api.resume.rewrite, { note: "  Lead with the churn result  " });
+  let [sent] = await sentBy(t, resumeReply("v2"));
+  expect(sent.messages[1].content).toContain("What they asked this version to change (follow it within every rule above; it never adds a claim");
+  expect(sent.messages[1].content).toContain('"""Lead with the churn result"""');
+  const waiting = (await asA.query(api.resume.overview, {})).base.versionId!;
+  await asA.mutation(api.resume.keep, { id: waiting });
+  expect((await asA.query(api.resume.list, {})).versions[0].note).toBe("Lead with the churn result");
+  expect((await asA.query(api.resume.history, {})).versions.map((v) => v.note)).toEqual(["Lead with the churn result", null]);
+
+  // Discarded with a reason: the next Write again without a note of its own is steered by it.
+  await asA.mutation(api.resume.rewrite, {});
+  await sentBy(t, resumeReply("v3"));
+  await asA.mutation(api.resume.discard, { id: (await asA.query(api.resume.overview, {})).base.versionId!, reason: "Too long" });
+  await asA.mutation(api.resume.rewrite, {});
+  [sent] = await sentBy(t, resumeReply("v4"));
+  expect(sent.messages[1].content).toContain('"""Too long"""');
+  await asA.mutation(api.resume.keep, { id: (await asA.query(api.resume.overview, {})).base.versionId! });
+  expect((await asA.query(api.resume.history, {})).versions[0].note).toBe("Too long");
+  // Kept since: an older reason no longer steers, and no note goes in.
+  await asA.mutation(api.resume.rewrite, {});
+  [sent] = await sentBy(t, resumeReply("v5"));
+  expect(sent.messages[1].content).not.toContain("What they asked");
+});
+
+test("Tailor again's note reaches the tailoring call only and is kept on the tailored resume", async () => {
+  const { t, asA, w, resumeReply } = await setup();
+  const directionId = await t.run((ctx) => ctx.db.insert("items", direction(w)));
+  await asA.mutation(api.resume.start, { directionId, posting: "Onboarding Manager at Beta", note: "Use the posting's words" });
+  const sent = await sentBy(t, { resume: resumeReply("Tailored"), requirements: [], titles: [] });
+  // The direction resume first (no note), then the tailored one with it.
+  expect(sent.map((s) => s.messages[1].content.includes("Use the posting's words"))).toEqual([false, true]);
+  expect((await asA.query(api.resume.list, { directionId })).tailored[0].note).toBe("Use the posting's words");
+});
+
+test("voice: the record's default and a resume's own are written into the prompt and the basis, with the same honesty limits at every level; changing it marks the resume changed", async () => {
+  const { t, asA, asB, write, resumeReply } = await setup();
+  const v1 = await write(resumeReply("v1"));
+  expect(v1.messages[0].content).toContain("Voice: confident.");
+  const data = await asA.query(api.resume.list, {});
+  expect([data.voice, data.versions[0].voice]).toEqual([{ own: null, record: "confident" }, "confident"]);
+
+  await asA.mutation(api.resume.setRecordVoice, { voice: "plain" });
+  let base = (await asA.query(api.resume.overview, {})).base;
+  expect([base.state, base.summary, base.voiceOnly]).toEqual(["changed", "Voice changed to Plain", true]);
+  expect((await asB.query(api.resume.presentation, {})).voice).toBe("confident");
+  // Nothing can ask for a level that isn't offered.
+  await expect(asA.mutation(api.resume.setRecordVoice, { voice: "bold" as "plain" })).rejects.toThrow();
+
+  // Its own voice overrides the record's: Confident here matches what it was written in.
+  await asA.mutation(api.resume.setVoice, { voice: "confident" });
+  expect((await asA.query(api.resume.list, {})).voice).toEqual({ own: "confident", record: "plain" });
+  expect((await asA.query(api.resume.overview, {})).base.state).toBe("upToDate");
+  await asA.mutation(api.resume.rewrite, {});
+  const [confident] = await sentBy(t, resumeReply("v2"));
+  expect(confident.messages[0].content).toContain("Voice: confident.");
+  await asA.mutation(api.resume.keep, { id: (await asA.query(api.resume.overview, {})).base.versionId! });
+  // Choosing the record's again follows it.
+  await asA.mutation(api.resume.setVoice, { voice: "plain" });
+  expect((await asA.query(api.resume.list, {})).voice).toEqual({ own: null, record: "plain" });
+  base = (await asA.query(api.resume.overview, {})).base;
+  expect([base.state, base.voiceOnly]).toEqual(["changed", true]);
+  await asA.mutation(api.resume.rewrite, {});
+  const [plain] = await sentBy(t, resumeReply("v3"));
+  expect(plain.messages[0].content).toContain("Voice: plain.");
+  await asA.mutation(api.resume.keep, { id: (await asA.query(api.resume.overview, {})).base.versionId! });
+  expect((await asA.query(api.resume.list, {})).versions[0].voice).toBe("plain");
+  // The honesty limits are the same at every level.
+  for (const s of [plain, confident, v1]) expect(s.messages[0].content).toContain(DOCUMENT_HONESTY);
+});
+
+test("Update lines and Add what's new write in the version's own voice, not the record's default", async () => {
+  const { t, w, asA, write, resumeReply, acmeFact } = await setup();
+  await asA.mutation(api.resume.setVoice, { voice: "plain" });
+  await write(resumeReply("v1"));
+  const id = (await asA.query(api.resume.list, {})).versions[0].id;
+  // The record's default changes after: the version keeps the voice it was written in.
+  await asA.mutation(api.resume.setVoice, { voice: null });
+  await asA.mutation(api.resume.setRecordVoice, { voice: "confident" });
+  await t.run((ctx) => ctx.db.patch(acmeFact, { data: { text: "Cut churn by 25%." } }));
+  await asA.mutation(api.factChanges.update, { target: { kind: "resume", id } });
+  const [update] = await sentBy(t, { lines: [{ index: 0, text: "Cut churn by 25%.", factIds: [acmeFact] }] });
+  expect(update.messages[0].content).toContain("Voice: plain.");
+  await t.run((ctx) => ctx.db.insert("items", { workspaceId: w, kind: "fact", status: "approved", roleKey: "acme", data: { text: "Ran the QBR program." }, sources: [], at: 0 }));
+  await asA.mutation(api.resume.whatsNew, {});
+  const [lines] = await sentBy(t, { lines: [] });
+  expect(lines.messages[0].content).toContain("Voice: plain.");
+});
+
+test("Example from your record writes one approved fact at every voice and keeps it on the record's settings", async () => {
+  const { t, asA, asB, acmeFact } = await setup();
+  await asA.mutation(api.resume.voiceExample, {});
+  const [sent] = await sentBy(t, { factId: acmeFact, plain: "Cut churn by 20%.", confident: "Cut churn 20% for the base." });
+  expect(sent.messages[0].content).toContain("Voice: plain.");
+  expect(sent.messages[0].content).toContain("Voice: confident.");
+  expect(sent.messages[1].content).toContain("Cut churn by 20%.");
+  const { voiceExample } = await asA.query(api.resume.list, {});
+  expect(voiceExample.example).toMatchObject({ factId: acmeFact, fact: "Cut churn by 20%.", plain: "Cut churn by 20%." });
+  expect(voiceExample.last?.status).toBe("done");
+  expect((await asB.query(api.resume.list, {})).voiceExample.example).toBeNull();
+  // It's never a resume run: nothing is being written and no resume is waiting.
+  expect((await asA.query(api.resume.overview, {})).writing).toBe(false);
+});
+
+test("every prompt that writes resume lines uses the resume voice at each level, not the facts' voice; cover letter line updates use the letter voice", () => {
+  for (const voice of Object.keys(VOICES) as (keyof typeof VOICES)[]) {
+    for (const prompt of [...Object.values(RESUME_PROMPTS).map((p) => p(resumeStyle(voice))), LINE_UPDATE_PROMPT("resume", voice)]) {
+      expect(prompt).toContain(resumeStyle(voice));
+      expect(prompt).not.toContain(FACT_STYLE);
+    }
+    expect(LINE_UPDATE_PROMPT("letter", voice)).toContain(letterStyle(voice));
+  }
+});
+
+test("the writer is told how each role is placed: a role left out, or folded with its lines left out, gives no facts; a fold that keeps its lines belongs to its target", async () => {
+  const { t, asA, w, acmeFact, globexFact } = await setup();
+  const inputs = () => t.query(internal.resume.inputs, { workspaceId: w });
+  const globex = async () => (await inputs()).record.roles.find((r) => r.roleKey === "globex")!;
+  expect((await inputs()).record.facts.map((f) => f.id).sort()).toEqual([acmeFact, globexFact].sort());
+  expect((await inputs()).writtenFrom.placement).toEqual([]);
+
+  await asA.mutation(api.resume.setPresentation, { roleKey: "globex", fold: { into: "next", bullets: "drop" } });
+  let now = await inputs();
+  expect(now.record.facts.map((f) => f.id)).toEqual([acmeFact]);
+  expect((await globex()).onResumes).toMatch(/^Folded into acme: only its title and dates show/);
+  expect(now.writtenFrom.placement).toEqual([{ roleKey: "globex", how: "fold", into: "acme", lines: "drop" }]);
+
+  await asA.mutation(api.resume.setPresentation, { roleKey: "globex", fold: { into: "next", bullets: "move" } });
+  now = await inputs();
+  expect(now.record.facts.map((f) => f.id).sort()).toEqual([acmeFact, globexFact].sort());
+  expect((await globex()).onResumes).toBe("Folded into acme: write its facts as lines of that role's entry.");
+
+  await asA.mutation(api.resume.setPresentation, { roleKey: "globex", hidden: true });
+  now = await inputs();
+  expect(now.record.facts.map((f) => f.id)).toEqual([acmeFact]);
+  // Its title and dates stay, so the record still reads right.
+  expect(now.record.roles.map((r) => r.roleKey).sort()).toEqual(["acme", "globex"]);
+  expect(now.writtenFrom.placement).toEqual([{ roleKey: "globex", how: "out" }]);
+});
+
+test("a resume's own placement wins over the record's for the writer, a change marks it changed with the new placement, and using the record's again clears it", async () => {
+  const { t, asA, w, write, resumeReply, acmeFact, globexFact } = await setup();
+  await asA.mutation(api.resume.setPresentation, { roleKey: "globex", fold: { into: "next", bullets: "move" } });
+  await write(resumeReply("v1"));
+  const base = (await asA.query(api.resume.list, {})).versions[0];
+  expect(await asA.query(api.resume.updates, {})).toEqual([]);
+  // This resume leaves Globex's lines out; the record keeps them.
+  await asA.mutation(api.resume.setRole, { id: base.id, role: { roleKey: "globex", fold: { into: "next", bullets: "drop" } } });
+  expect((await t.query(internal.resume.inputs, { workspaceId: w })).record.facts.map((f) => f.id)).toEqual([acmeFact]);
+  expect((await asA.query(api.resume.updates, {})).map((u) => [u.target.name, u.state, u.summary])).toEqual([
+    ["Base resume", "changed", "Implementation Manager now folds into Head of CS with its lines left out"],
+  ]);
+  // Use your record's: this resume's own placement goes, and it's as written again.
+  await asA.mutation(api.resume.setRole, { id: base.id, role: { roleKey: "globex" } });
+  expect((await t.query(internal.resume.inputs, { workspaceId: w })).record.facts.map((f) => f.id).sort()).toEqual([acmeFact, globexFact].sort());
+  expect(await asA.query(api.resume.updates, {})).toEqual([]);
+  // The record changing it marks the resume changed too.
+  await asA.mutation(api.resume.setPresentation, { roleKey: "globex" });
+  expect((await asA.query(api.resume.updates, {})).map((u) => u.summary)).toEqual(["Implementation Manager now has its own entry"]);
 });

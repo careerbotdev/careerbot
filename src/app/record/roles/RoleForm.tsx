@@ -9,7 +9,6 @@ import { monthLabel, readMonth, type Role } from "./words";
 // A role's details as a form: edited in place in the Details column, or filled in to add a role. Dates are months
 // ("May 2021"); an empty End means it's current. ↵ saves from any field, Esc cancels.
 
-export type Placement = "own" | "previous" | "next" | "out";
 export type RoleChange = { employer: string; title: string; alternateTitles: string[]; start: string; end: string; location: string; change: "none" | "promotion" | "transition" };
 type Texts = { employer: string; title: string; also: string; start: string; end: string; location: string; change: RoleChange["change"] };
 
@@ -31,22 +30,18 @@ const textsOf = (r?: Role): Texts => ({
 
 export function RoleForm({
   role,
-  placement,
   onSave,
   onCancel,
   saveLabel = "Save",
   className = "",
 }: {
   role?: Role;
-  // On resumes: the choices and the one in effect, for a role in the record.
-  placement?: { value: Placement; options: SelectOption<Placement>[]; reason?: string };
-  onSave: (change: RoleChange, placement?: Placement) => void;
+  onSave: (change: RoleChange) => void;
   onCancel: () => void;
   saveLabel?: string;
   className?: string;
 }) {
   const [t, setT] = useState<Texts>(() => textsOf(role));
-  const [place, setPlace] = useState<Placement | undefined>(placement?.value);
   const [checked, setChecked] = useState(false);
   const start = readMonth(t.start);
   const end = readMonth(t.end);
@@ -62,18 +57,15 @@ export function RoleForm({
     e?.preventDefault();
     setChecked(true);
     if (Object.values(problems).some(Boolean) || "problem" in start || "problem" in end) return;
-    onSave(
-      {
-        employer: t.employer.trim(),
-        title: t.title.trim(),
-        alternateTitles: t.also.split(",").map((x) => x.trim()).filter(Boolean),
-        start: start.value ?? "",
-        end: end.value ?? "",
-        location: t.location.trim(),
-        change: t.change,
-      },
-      place,
-    );
+    onSave({
+      employer: t.employer.trim(),
+      title: t.title.trim(),
+      alternateTitles: t.also.split(",").map((x) => x.trim()).filter(Boolean),
+      start: start.value ?? "",
+      end: end.value ?? "",
+      location: t.location.trim(),
+      change: t.change,
+    });
   };
   const onKeyDown = (e: KeyboardEvent<HTMLFormElement>) => {
     if (e.key === "Escape") {
@@ -107,11 +99,6 @@ export function RoleForm({
         {(p) => <Input {...p} value={t.location} onChange={set("location")} placeholder="City, state or remote" />}
       </Field>
       {role && <Field label="How this role started">{() => <Select label="How this role started" value={t.change} onChange={(change) => setT({ ...t, change })} options={STARTED} className="w-full" />}</Field>}
-      {placement && (
-        <Field label="On resumes">
-          {() => <Select label="On resumes" value={place} onChange={setPlace} options={placement.options} reason={placement.reason} disabled={!!placement.reason} className="w-full" />}
-        </Field>
-      )}
       <div className="flex items-center gap-2 pt-1">
         <Button type="submit" keys="↵" detail={role ? "Saves these details. Your corrections count as approved." : "Adds this role to your record, approved as you give it."} note="Free">
           {saveLabel}

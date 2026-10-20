@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useMemo } from "react";
 import { api } from "../../../convex/_generated/api";
 import { COMPANY_SORTS, type CompanySort } from "../../../convex/companySets";
+import type { FindResult, SiteName } from "../../../convex/companyLookup";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { valuesOf, whereText } from "../../../convex/roleDetails";
 import type { Note } from "@/components/NoteBlock";
@@ -40,8 +41,7 @@ export const MUTATIONS = {
   rejudge: api.enrich.rejudge,
   checkRoles: api.roles.checkCompany,
   find: api.discovery.start,
-  setNamed: api.discovery.setNamed,
-  setSeeds: api.discovery.setSeeds,
+  setLikes: api.discovery.setLikes,
   setLens: api.discovery.setLens,
   setLearn: api.discovery.setLearn,
   addNote: api.notes.add,
@@ -69,6 +69,8 @@ export type CompaniesEnv = {
   useDemo: () => boolean;
   // How companies are found and what the web search costs (findPlan.ts); undefined while it loads.
   useFindSetup: () => FindSetup | undefined;
+  // Finding a company by name, and a typed website's name (companyLookup.ts).
+  useLookup: () => Lookup;
 };
 
 const TOP_ROLES = 3;
@@ -118,6 +120,7 @@ function useConvexFindSetup(): FindSetup | undefined {
             braveKey: finding.braveKey,
             relevantUsd: costs.findRelevant,
             hiringNowUsd: costs.findHiringNow,
+            byNameUsd: costs.findByName,
             aiLeft: budgets.aiMonthlyUsd > 0 ? { left: budgets.aiMonthlyUsd - budgets.aiSpentUsd, monthly: budgets.aiMonthlyUsd } : null,
           }
         : undefined,
@@ -130,6 +133,13 @@ function useConvexBalance() {
   const read = useAction(api.apolloKey.balance);
   const demo = useDemo();
   return useCallback(() => (demo ? Promise.resolve(null) : read({})), [demo, read]);
+}
+
+export type Lookup = { find: (name: string) => Promise<FindResult>; website: (site: string) => Promise<SiteName> };
+function useConvexLookup(): Lookup {
+  const find = useAction(api.companyLookup.find);
+  const website = useAction(api.companyLookup.website);
+  return useMemo(() => ({ find: (name) => find({ name }), website: (site) => website({ website: site }) }), [find, website]);
 }
 
 const convexEnv: CompaniesEnv = {
@@ -162,6 +172,7 @@ const convexEnv: CompaniesEnv = {
   useBalance: useConvexBalance,
   useDemo,
   useFindSetup: useConvexFindSetup,
+  useLookup: useConvexLookup,
 };
 
 export const CompaniesEnvContext = createContext<CompaniesEnv>(convexEnv);

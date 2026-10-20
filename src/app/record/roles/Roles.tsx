@@ -5,6 +5,7 @@ import { ConvexError } from "convex/values";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import { api } from "../../../../convex/_generated/api";
+import { arrange, part, PLACEMENT, recordDoc } from "../../../../convex/resumeDoc";
 import { Button } from "@/components/Button";
 import type { Command } from "@/components/CommandPalette";
 import { EmptyState } from "@/components/EmptyState";
@@ -48,6 +49,7 @@ export function Roles() {
   const small = size === "small";
   const items = useQuery(api.extract.items);
   const questions = useQuery(api.conflicts.list);
+  const presentation = useQuery(api.resume.presentation);
   const addRole = useMutation(api.extract.addRole);
   const rows = useMemo(() => items ?? [], [items]);
   const tour = useTour(RECORD_TOUR, !!items && !!questions);
@@ -76,11 +78,23 @@ export function Roles() {
   const timeline = newestFirst(roles.filter((r) => r.status !== "rejected"));
   const rejected = newestFirst(roles.filter((r) => r.status === "rejected" && !r.data.break));
   const shown = employer ? timeline.filter((r) => !r.data.break && r.data.employer === employer) : timeline;
+  // How each approved role shows on every resume, for the row: folded into another, or left out.
+  const placed = arrange(
+    recordDoc(roles.filter((r) => r.status === "approved" && r.counts).map((r) => ({ ...r.data, roleKey: r.roleKey }))),
+    { roles: (presentation?.roles ?? []).map((r) => part(r, PLACEMENT)) },
+  );
+  const placedOf = (role: Role) => {
+    if (role.status !== "approved" || !role.roleKey) return undefined;
+    const into = placed.folds.find((f) => f.roleKey === role.roleKey)?.into;
+    if (into) return `Folded into ${into.title}`;
+    return presentation?.roles.some((r) => r.roleKey === role.roleKey && r.hidden) ? "Left out" : undefined;
+  };
   const lines: Line[] = shown.map((role) => ({
     role,
     facts: rows.filter((r) => r.kind === "fact" && r.roleKey === role.roleKey && !r.projectKey && r.status !== "rejected").length,
     toReview: toReview(rows, role, questions ?? []),
     projects: rows.filter((r): r is Project => r.kind === "project" && r.status !== "rejected" && !!role.roleKey && r.roleKey === role.roleKey),
+    placed: placedOf(role),
   }));
   // What J and K move through: the rows as shown, breaks included.
   const entries = view === "rejected" ? rejected : shown;

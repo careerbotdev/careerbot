@@ -412,7 +412,7 @@ export const release = internalMutation({
       const had = row?.rolesProblems && row.rolesProblems.since === since ? row.rolesProblems.count : 0;
       const rolesProblems = { since, count: had + 1, at, error: problem.slice(0, 500) };
       if (row) await ctx.db.patch(row._id, { rolesProblems });
-      else await ctx.db.insert("discovery", { workspaceId, seeds: [], resolved: [], rolesProblems });
+      else await ctx.db.insert("discovery", { workspaceId, resolved: [], rolesProblems });
     }
     if (budget) {
       // The first refusal is kept.
@@ -420,7 +420,7 @@ export const release = internalMutation({
       if (row?.rolesBudget?.since === since) return;
       const rolesBudget = { since, at, message: budget };
       if (row) await ctx.db.patch(row._id, { rolesBudget });
-      else await ctx.db.insert("discovery", { workspaceId, seeds: [], resolved: [], rolesBudget });
+      else await ctx.db.insert("discovery", { workspaceId, resolved: [], rolesBudget });
     }
   },
 });
@@ -1624,7 +1624,7 @@ export const rankAgain = mutation({
 export async function saveSortMethod(ctx: MutationCtx, workspaceId: Id<"workspaces">, method: SortMethod) {
   const row = await settingsOf(ctx, workspaceId);
   if (row) await ctx.db.patch(row._id, { roleSort: method });
-  else await ctx.db.insert("discovery", { workspaceId, seeds: [], resolved: [], roleSort: method });
+  else await ctx.db.insert("discovery", { workspaceId, resolved: [], roleSort: method });
 }
 
 export const setSortMethod = mutation({
@@ -1643,7 +1643,7 @@ export const sortMethodChoice = query({
 export async function saveStretch(ctx: MutationCtx, workspaceId: Id<"workspaces">, on: boolean) {
   const row = await settingsOf(ctx, workspaceId);
   if (row) await ctx.db.patch(row._id, { stretch: on });
-  else await ctx.db.insert("discovery", { workspaceId, seeds: [], resolved: [], stretch: on });
+  else await ctx.db.insert("discovery", { workspaceId, resolved: [], stretch: on });
 }
 
 export const setStretch = mutation({
@@ -1820,7 +1820,7 @@ export const halt = internalMutation({
   handler: async (ctx, { workspaceId }) => {
     const row = await settingsOf(ctx, workspaceId);
     if (row) await ctx.db.patch(row._id, { rolesStoppedAt: Date.now() });
-    else await ctx.db.insert("discovery", { workspaceId, seeds: [], resolved: [], rolesStoppedAt: Date.now() });
+    else await ctx.db.insert("discovery", { workspaceId, resolved: [], rolesStoppedAt: Date.now() });
   },
 });
 

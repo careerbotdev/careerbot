@@ -139,6 +139,17 @@ export const AnswersAndAsk: Story = {
   },
 };
 
+// The cover letter written again with a note (Pursuits — large, letter, write again with guidance).
+export const LetterWriteAgain: Story = {
+  name: "Letter, write again with a note",
+  render: () => <Fixture query="status=pursuing&role=post-se-lumen" />,
+  play: async () => {
+    const pane = within(document.querySelector<HTMLElement>("[data-theme]") ?? document.body);
+    await userEvent.click(await pane.findByRole("tab", { name: /Letter/ }));
+    await userEvent.click(await pane.findByRole("button", { name: /^Write again/ }));
+  },
+};
+
 export const People: Story = {
   render: () => <Fixture query="status=pursuing&role=post-pm-load" />,
   play: async () => {

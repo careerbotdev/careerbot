@@ -2,14 +2,16 @@ import { describe, expect, test } from "vitest";
 import { findEstimate, type FindSetup, lastSearch, rowLine, searchCost, totalCost } from "./findPlan";
 
 const data = {
-  named: ["acme.com"],
-  seeds: [{ domain: "seed.com", lookup: null }],
+  likes: [
+    { domain: "acme.com", name: null, add: true, like: false, lookup: null },
+    { domain: "seed.com", name: null, add: false, like: true, lookup: null },
+  ],
   searchable: [
     { id: "d1", name: "Strategic Sales", ownSeeds: null, hasTitles: true, boardQueries: 2, targets: [] },
     { id: "d2", name: "Founding GTM", ownSeeds: null, hasTitles: false, boardQueries: 0, targets: [] },
   ],
 } as unknown as Parameters<typeof findEstimate>[0];
-const setup = (s: Partial<FindSetup>): FindSetup => ({ finding: "apollo", braveKey: true, relevantUsd: 0.03, hiringNowUsd: 0.01, aiLeft: null, ...s });
+const setup = (s: Partial<FindSetup>): FindSetup => ({ finding: "apollo", braveKey: true, relevantUsd: 0.03, hiringNowUsd: 0.01, byNameUsd: null, aiLeft: null, ...s });
 
 describe("Find companies estimate", () => {
   test("Apollo: credits only, no job boards", () => {
@@ -48,9 +50,9 @@ describe("Last search", () => {
     notes: ["Job boards weren’t searched: your Brave Search key reached its limit. Hiring now comes from web search alone."],
   };
 
-  test("AI only reads the web search's report and its notes, and says which named companies had no name", () => {
+  test("AI only reads the web search's report and its notes, and says which companies you added had no name", () => {
     const r = lastSearch({ finding: "web", report: [], named: { found: 1, added: 1, missing: ["nameless.com"] }, web });
-    expect(r.lines).toEqual(["Strategic Sales: 18 that fit, 11 new; 7 hiring now, 4 new", "Companies you named: 1 found, 1 new; no name found on their website: nameless.com"]);
+    expect(r.lines).toEqual(["Strategic Sales: 18 that fit, 11 new; 7 hiring now, 4 new", "Companies you added: 1 found, 1 new; no name found on their website: nameless.com"]);
     expect(r.notes).toEqual(web.notes);
     expect(r.lines.join(" ")).not.toContain("Apollo");
   });
@@ -63,7 +65,7 @@ describe("Last search", () => {
       web,
     });
     expect(r.lines[0]).toBe("Strategic Sales: 40 from its criteria (of 1,210 in Apollo), 12 new; 8 hiring for its titles, 3 new; 25 more from the web search, 15 new");
-    expect(r.lines[1]).toBe("Companies you named: 0 found, 0 new; not in Apollo: gone.com");
+    expect(r.lines[1]).toBe("Companies you added: 0 found, 0 new; not in Apollo: gone.com");
   });
 });
 

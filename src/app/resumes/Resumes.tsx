@@ -205,6 +205,7 @@ function Third({ found, pane, viewing, onView }: { found: Found; pane: Pane; vie
         level="tailored"
         directionId={found.row.directionId}
         length={null}
+        voice={null}
       />
     );
   }
@@ -221,6 +222,7 @@ function Third({ found, pane, viewing, onView }: { found: Found; pane: Pane; vie
       level={found.row.directionId ? "direction" : "base"}
       directionId={found.row.directionId}
       length={data.length}
+      voice={{ ...data.voice, ...data.voiceExample }}
     />
   );
 }

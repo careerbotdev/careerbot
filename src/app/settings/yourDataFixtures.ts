@@ -121,7 +121,7 @@ export function yourDataFixtures(start: YourDataState, now = Date.now()): Answer
     name: "wren@example.com",
     reset: state === "resetting" ? { step: "clearing", cleared: 92, total: 199, beat: now } : state === "reset" ? { step: "done", cleared: 199, total: 199, beat: now } : null,
   });
-  const groups = { stories: 6, record: 45, review: 10, goals: 11, companies: 6, seeds: 4, pursuits: 2, resumes: 7, notes: 1, activity: 32, exports: 1 };
+  const groups = { stories: 6, record: 45, review: 10, goals: 11, companies: 6, likes: 4, pursuits: 2, resumes: 7, notes: 1, activity: 32, exports: 1 };
   return {
     ...answer(api.yourData.status, status),
     ...answer(api.accountDelete.status, account),

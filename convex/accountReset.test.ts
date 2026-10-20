@@ -45,8 +45,8 @@ async function person(t: T, email: string) {
     await ctx.db.insert("driveConnections", { workspaceId: w, account: email, sealedRefresh: sealed, sealedAccess: sealed, accessExpiresAt: 0, at: 0 });
     await ctx.db.insert("githubInstalls", { workspaceId: w, installationId: 1, account: email, selection: "all", settingsUrl: "https://github.com/settings/installations/1", at: 0 });
     const discovery = await ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", w)).unique();
-    if (discovery) await ctx.db.patch(discovery._id, { seeds: ["acme.com"], resolved: [{ domain: "acme.com", apolloId: "1" }] });
-    else await ctx.db.insert("discovery", { workspaceId: w, seeds: ["acme.com"], resolved: [{ domain: "acme.com", apolloId: "1" }] });
+    if (discovery) await ctx.db.patch(discovery._id, { likes: [{ domain: "acme.com", add: false, like: true }], resolved: [{ domain: "acme.com", apolloId: "1" }] });
+    else await ctx.db.insert("discovery", { workspaceId: w, likes: [{ domain: "acme.com", add: false, like: true }], resolved: [{ domain: "acme.com", apolloId: "1" }] });
     await ctx.db.patch(w, { setupHidden: true, setupSkipped: ["drive"] });
     return file;
   });
@@ -86,7 +86,7 @@ test("resetting clears the workspace's work, seed companies and exports, keeps s
   const bBefore = await countsOf(t, b.w);
   const counts = await a.as.query(api.accountReset.counts, {});
   expect(counts.groups.stories).toBeGreaterThan(0);
-  expect(counts.groups.seeds).toBeGreaterThan(0);
+  expect(counts.groups.likes).toBeGreaterThan(0);
   expect(counts.groups.exports).toBe(1);
 
   await expect(a.as.mutation(api.accountReset.start, { confirm: "ben@example.com", keys: false })).rejects.toThrow("Type ana@example.com to confirm");
@@ -108,10 +108,10 @@ test("resetting clears the workspace's work, seed companies and exports, keeps s
     expect(await ctx.storage.get(a.file)).toBeNull();
     expect(await ctx.storage.get(b.file)).not.toBeNull();
     const discovery = await ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", a.w)).unique();
-    expect(discovery?.seeds).toEqual([]);
+    expect(discovery?.likes).toEqual([]);
     expect(discovery?.resolved).toEqual([]);
     const theirs = await ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", b.w)).unique();
-    expect(theirs?.seeds).toEqual(["acme.com"]);
+    expect(theirs?.likes).toEqual([{ domain: "acme.com", add: false, like: true }]);
     expect((await ctx.db.query("resumeSettings").withIndex("by_workspace", (q) => q.eq("workspaceId", a.w)).unique())?.roles ?? []).toEqual([]);
   });
   // Getting started starts from the beginning: shown, nothing skipped, no story yet.

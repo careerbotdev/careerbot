@@ -37,7 +37,7 @@ export function findingOptions(setup: FindingSetup, perDirectionUsd: number | nu
     {
       value: "apollo",
       label: FINDING_LABEL.apollo,
-      detail: "Apollo’s search for companies that fit each direction, ones hiring for its titles and ones like your seeds and targets. Finds people at a company too.",
+      detail: "Apollo’s search for companies that fit each direction, ones hiring for its titles and ones like the companies you like and your targets. Finds people at a company too.",
       note: "Apollo credits · Undo with U",
       reason,
     },

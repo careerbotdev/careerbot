@@ -1,11 +1,12 @@
 "use client";
 
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { type ReactNode, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { type Entry, LENGTHS, type ResumeDoc, type ResumeLayout, type ResumeLength, breakLine, mergeLayout } from "../../../convex/resumeDoc";
+import type { Voice as VoiceLevel } from "../../../convex/writingGuides";
 import { Button } from "@/components/Button";
 import { Checkbox } from "@/components/Checkbox";
 import { Input } from "@/components/Field";
@@ -15,10 +16,13 @@ import { SegmentedControl } from "@/components/SegmentedControl";
 import { StatusTag } from "@/components/StatusTag";
 import { Switch } from "@/components/Switch";
 import { toast } from "@/components/Toast";
-import { type Level, type Titles, titleChoices, useArrangement } from "./arrangement";
+import { useSmall } from "@/components/useSmall";
+import { aboutUsd } from "../costs";
+import { type Level, placementWords, type Titles, titleChoices, useArrangement } from "./arrangement";
+import { EXPLAIN, type ResumeData, VOICE_ABOUT, VOICE_HONESTY, VOICE_ORDER, VOICES, day } from "./words";
 
-// Layout: how this resume shows, or the default for every resume. Length (the next version's target), each role's
-// title, fold and whether it shows (a career break with or without its reason), and the projects and skills on it.
+// Layout: how this resume shows, or the default for every resume. Length and voice (the next version's target), each
+// role's title, fold and whether it shows (a career break with or without its reason), and the projects and skills on it.
 // Every choice applies at once and leaves the written resume as it is; "Use the default" puts this resume back.
 
 export type LayoutInput = {
@@ -32,6 +36,8 @@ export type LayoutInput = {
   // How long the next version is written: its own length, or the default. Null for a tailored resume (it follows its
   // direction's).
   length: { own: ResumeLength | null; record: ResumeLength } | null;
+  // The voice the next version is written in, the same way, with the example of each voice from their record.
+  voice: (ResumeData["voice"] & ResumeData["voiceExample"]) | null;
 };
 
 const failed = (e: unknown) => toast({ message: e instanceof ConvexError ? String(e.data) : "Couldn’t save that choice.", icon: "failed" });
@@ -55,6 +61,7 @@ export function LayoutPane(input: LayoutInput) {
         />
       </Group>
       {input.length && <Length directionId={input.directionId} length={input.length} every={every} />}
+      {input.voice && <Voice directionId={input.directionId} voice={input.voice} every={every} />}
       <Roles {...input} every={every} />
       <Projects {...input} every={every} />
       <Skills {...input} every={every} />
@@ -107,6 +114,79 @@ function Length({ directionId, length, every }: { directionId: Id<"items"> | nul
         {!every && <Inherit own={length.own !== null} onReset={() => void setLength({ ...scope, length: null }).catch(failed)} />}
       </div>
       <span className="text-label leading-label text-muted">For the next version written.</span>
+    </Group>
+  );
+}
+
+// Voice: Plain or Confident, what it does, and one of their facts written at every level beside the fact as
+// written (the level chosen marked). On a phone, only the fact and the level chosen.
+function Voice({ directionId, voice, every }: { directionId: Id<"items"> | null; voice: NonNullable<LayoutInput["voice"]>; every: boolean }) {
+  const setVoice = useMutation(api.resume.setVoice);
+  const setRecordVoice = useMutation(api.resume.setRecordVoice);
+  const writeExample = useMutation(api.resume.voiceExample);
+  const costs = useQuery(api.estimates.costs, {});
+  const small = useSmall();
+  const scope = directionId ? { directionId } : {};
+  const value = every ? voice.record : (voice.own ?? voice.record);
+  const amount = aboutUsd(costs?.voiceExample) ?? "Uses your AI budget";
+  const writing = voice.last?.status === "queued" || voice.last?.status === "running";
+  const example = voice.example;
+  const write = () =>
+    void writeExample({}).then(
+      (jobId) => toast(jobId ? { message: "Writing an example of each voice", icon: "running" } : { message: "An example is being written. Try again when it’s done.", icon: "failed" }),
+      (e: unknown) => toast({ message: e instanceof ConvexError ? String(e.data) : "Couldn’t start.", icon: "failed" }),
+    );
+  const levels = small ? [value] : VOICE_ORDER;
+  return (
+    <Group
+      label="Voice"
+      aside={
+        !every && voice.own ? (
+          <span className="flex items-center gap-1.5 text-label leading-label">
+            <span className="text-muted">Default: {VOICES[voice.record].label} ·</span>
+            <button type="button" onClick={() => void setVoice({ ...scope, voice: null }).catch(failed)} className="rounded-sm font-medium text-text underline decoration-border underline-offset-3 hover:decoration-text">
+              Use the default
+            </button>
+          </span>
+        ) : undefined
+      }
+    >
+      <SegmentedControl
+        label="Voice"
+        hideLabel
+        value={value}
+        onChange={(x: VoiceLevel) => void (every ? setRecordVoice({ voice: x }) : setVoice({ ...scope, voice: x })).catch(failed)}
+        options={VOICE_ORDER.map((x) => ({ value: x, label: VOICES[x].label }))}
+      />
+      <p className="pt-1 text-body-sm leading-body-sm text-text">{VOICES[value].line}</p>
+      <p className="text-body-sm leading-body-sm text-muted">{VOICE_ABOUT}</p>
+      <div className="flex min-h-5 items-center gap-2 pt-2">
+        <h4 className="text-label leading-label font-medium text-text">Example from your record</h4>
+        <span className="flex-1" />
+        {example && <span className="text-label leading-label text-muted">Written {day(example.at)} ·</span>}
+        <Button variant="ghost" size="sm" loading={writing} loadingLabel="Writing" detail={EXPLAIN.voiceExample} note={`${amount}. From your AI budget`} onClick={write}>
+          {example ? "Write another" : "Write one"}
+        </Button>
+      </div>
+      {voice.last?.status === "failed" && <p className="text-body-sm leading-body-sm text-muted">The last try failed: {voice.last.error}</p>}
+      {example && (
+        <div className="flex flex-col overflow-hidden rounded-sm border">
+          <div className="flex flex-col gap-0.5 bg-subtle px-3 py-2">
+            <span className="text-label leading-label text-muted">Your fact, as written</span>
+            <span className="text-body-sm leading-body-sm text-text">{example.fact}</span>
+          </div>
+          {levels.map((x) => (
+            <div key={x} className={`flex flex-col gap-0.5 border-t px-3 py-2 ${x === value ? "shadow-[inset_2px_0_0_var(--color-steel)]" : ""}`}>
+              <span className="flex items-center gap-1.5 text-label leading-label font-medium text-text">
+                {VOICES[x].label}
+                {x === voice.record && !small && <span className="font-normal text-muted">Default</span>}
+              </span>
+              <span className="text-body-sm leading-body-sm text-text">{example[x]}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="pt-1 text-body-sm leading-body-sm text-muted">{VOICE_HONESTY}</p>
     </Group>
   );
 }
@@ -198,6 +278,29 @@ function Roles({ id, doc, settings, layout, titles, level, every }: LayoutInput 
                 {!shown && <StatusTag tone="neutral">Left out</StatusTag>}
                 <Menu label={`${e.employer} on resumes`} items={[...titleItems, ...placement]} trigger={<Button variant="ghost" size="sm" iconOnly icon="expand" aria-label={`Title and fold for ${name(e)}`} />} />
               </div>
+              {!every && a.differs(roleKey).placement && (
+                <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-4 gap-y-1.5 pb-3 pl-7 text-body-sm leading-body-sm">
+                  <span className="text-muted">This resume</span>
+                  <span className="text-text">{placementWords(eff)}</span>
+                  <StatusTag tone="neutral">Used</StatusTag>
+                  <span className="text-muted">Your record</span>
+                  <span className="col-span-2 text-text">{placementWords(a.lowerOf(roleKey))}</span>
+                  <span className="col-span-3 pt-1">
+                    <Button
+                      size="sm"
+                      detail="Drops this resume’s own setting for this role and uses your record’s."
+                      note="Free · Undo with U"
+                      onClick={() => {
+                        const was = { fold: eff?.fold ?? undefined, hidden: eff?.hidden, showReason: eff?.showReason };
+                        a.resetPlacement(roleKey);
+                        toast({ message: `Using your record’s for ${name(e)}`, icon: "done", action: { label: "Undo", key: "U", run: () => a.place(roleKey, was) } });
+                      }}
+                    >
+                      Use your record’s
+                    </Button>
+                  </span>
+                </div>
+              )}
               {typing?.roleKey === roleKey && (
                 <form
                   className="flex items-center gap-2 pb-2 pl-6"

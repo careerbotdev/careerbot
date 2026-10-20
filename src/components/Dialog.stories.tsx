@@ -106,9 +106,9 @@ function Settings() {
           </div>
         }
       >
-        {["Seed companies", "Companies you’d name"].map((label) => (
+        {["Companies you like", "Learn from your ratings"].map((label) => (
           <div key={label} className="border-t py-4">
-            <Field label={label} hint="Add a website, like acme.com.">
+            <Field label={label} hint="A company’s name or website, like acme.com.">
               {(props) => <Input {...props} />}
             </Field>
           </div>

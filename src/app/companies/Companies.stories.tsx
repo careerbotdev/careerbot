@@ -8,7 +8,7 @@ import type { Note } from "@/components/NoteBlock";
 import { useScreenSize } from "@/components/Panes";
 import { ShellProvider, useShellState } from "../shell/ShellContext";
 import { Companies } from "./Companies";
-import { type Act, type CompaniesData, type CompaniesEnv, CompaniesEnvContext, type Company, type Coverage, type OpenRoles, type Person, type Tab } from "./env";
+import { type Act, type CompaniesData, type CompaniesEnv, CompaniesEnvContext, type Company, type Coverage, type Lookup, type OpenRoles, type Person, type Tab } from "./env";
 import type { FindSetup } from "./findPlan";
 
 // The Companies screen with fixture data. Rating, keeping, restoring, editing a website or board and notes change the
@@ -91,7 +91,7 @@ const companies: Company[] = [
     details: details("Demand-planning software for food and beverage brands, sold to their planning teams.", "orchardforecasting", { open: 12, remote: 9, matching: ["Solutions Consultant, Demand Planning", "Implementation Consultant", "Senior Solutions Consultant", "Solutions Consultant, Beverage"] }),
     goals: goals("fits", "Builds planning software for food brands."),
     fit: [fit(solutions, "strong", "Deals turn on a pilot forecast built from the customer’s own sales history."), fit(product, "some", "Product roles exist, but the whole team is four people.")],
-    found: ["Solutions Consulting (like your seeds)"],
+    found: ["Solutions Consulting (like companies you like)"],
   }),
   company("copperline", { name: "Copperline Robotics", details: details("Warehouse picking robots, leased to distribution centers.", "copperline"), fit: [fit(solutions, "strong", "Hiring deployment consultants for new sites.")], goals: goals("unknown", "Its site doesn’t say who buys its robots.") }),
   company("fernhill", { name: "Fernhill Foods", details: details("Packaged soups, sauces and snacks sold nationwide.", "fernhill"), fit: [fit(planning, "strong", "Plans the same kinds of products you plan now.")], goals: goals("fits", "Makes packaged food.") }),
@@ -177,7 +177,6 @@ const people: Record<string, Person[]> = {
 };
 
 const base: CompaniesData = {
-  named: ["parcelpoint.example.com"],
   apolloJobs: true,
   lens: { industries: "steer", judge: "hide" },
   learn: true,
@@ -186,13 +185,16 @@ const base: CompaniesData = {
     { id: did("g1"), text: "Works on food, freight or the software behind them" },
     { id: did("g2"), text: "Skip tobacco companies" },
   ],
-  seeds: [
-    { domain: "lumenplan.example.com", lookup: { apolloId: "a1", name: "Lumen Planning", domain: "lumenplan.example.com" } },
-    { domain: "orchard.example.com", lookup: null },
+  // Companies you like: one found by name in Apollo (both choices), one typed website not in Apollo (find more like
+  // it), and one only added to their companies.
+  likes: [
+    { domain: "lumenplan.example.com", name: "Lumen Planning", add: true, like: true, lookup: { apolloId: "a1", name: "Lumen Planning", domain: "lumenplan.example.com" } },
+    { domain: "orchard.example.com", name: null, add: false, like: true, lookup: { apolloId: null, domain: "orchard.example.com" } },
+    { domain: "parcelpoint.example.com", name: "Parcelpoint", add: true, like: false, lookup: null },
   ],
   searchable: [
     { id: product, name: "Supply Chain Product", ownSeeds: null, hasTitles: true, boardQueries: 2, targets: ["Loadstar Systems", "Meridian Coldchain"] },
-    { id: solutions, name: "Solutions Consulting", ownSeeds: null, hasTitles: true, boardQueries: 2, targets: ["Loadstar Systems"] },
+    { id: solutions, name: "Solutions Consulting", ownSeeds: [{ domain: "kestrelfreight.example.com", name: "Kestrel Freight" }], hasTitles: true, boardQueries: 2, targets: ["Loadstar Systems"] },
     { id: startupOps, name: "Startup Operations", ownSeeds: null, hasTitles: false, boardQueries: 0, targets: ["Parcelpoint"] },
   ],
   needCriteria: { filling: null, rows: [{ id: planning, name: "Supply Planning", state: "review" as const }] },
@@ -273,13 +275,8 @@ function createStore(initial: CompaniesData, initialParams: Params) {
     find: done,
     fillInDirections: async () => "job-fill" as Id<"jobs">,
     startOutreach: async () => "pur-outreach",
-    setNamed: async ({ named }: { named: string[] }) => {
-      data = { ...data, named: named.map((s) => s.trim()).filter(Boolean) };
-      emit();
-      return null;
-    },
-    setSeeds: async ({ seeds }: { seeds: string[] }) => {
-      data = { ...data, seeds: seeds.map((s) => s.trim()).filter(Boolean).map((domain) => ({ domain, lookup: null })) };
+    setLikes: async ({ likes }: { likes: { domain: string; name?: string; add: boolean; like: boolean }[] }) => {
+      data = { ...data, likes: likes.map((l) => ({ domain: l.domain, name: l.name ?? null, add: l.add, like: l.like, lookup: data.likes.find((x) => x.domain === l.domain)?.lookup ?? null })) };
       emit();
       return null;
     },
@@ -310,7 +307,28 @@ function createStore(initial: CompaniesData, initialParams: Params) {
   };
 }
 
-const apolloSetup: FindSetup = { finding: "apollo", braveKey: true, relevantUsd: 0.028, hiringNowUsd: 0.014, aiLeft: { left: 18.6, monthly: 25 } };
+const apolloSetup: FindSetup = { finding: "apollo", braveKey: true, relevantUsd: 0.028, hiringNowUsd: 0.014, byNameUsd: 0.004, aiLeft: { left: 18.6, monthly: 25 } };
+
+// Finding a company by name (fictional): "Kestrel" has two, "Brightwater" one from a web search, anything else none; a typed website reads its name.
+// `finds` counts searches run, so a play can check typing alone runs none.
+let finds = 0;
+const lookup: Lookup = {
+  find: async (name) => {
+    finds++;
+    if (/brightwater/i.test(name)) return { source: "ai", costUsd: 0.004, companies: [{ name: "Brightwater Labs", domain: "brightwater.example.com", line: "Water testing and lab software for city utilities." }] };
+    return {
+      source: "apollo",
+      costUsd: 0,
+      companies: /kestrel/i.test(name)
+        ? [
+            { name: "Kestrel Freight", domain: "kestrelfreight.example.com", line: "Freight brokerage software for regional carriers." },
+            { name: "Kestrel Analytics", domain: "kestrel-analytics.example.com", line: "Demand forecasting for grocery chains." },
+          ]
+        : [],
+    };
+  },
+  website: async (site) => ({ domain: site.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].toLowerCase(), name: /harborline/i.test(site) ? "Harborline" : null }),
+};
 
 // The last search on the web: Apollo + AI adds to Apollo's report; AI only has the web search's alone. Brave refused
 // partway, so job boards weren't searched for every direction.
@@ -345,6 +363,7 @@ function Fixture({ data = base, tab = null, company = null, settings = false, so
       useBalance: () => async () => ({ left: 312, limit: 500, consumed: 188 }),
       useDemo: () => false,
       useFindSetup: () => setup,
+      useLookup: () => lookup,
     };
   }, [store, setup]);
   return (
@@ -420,7 +439,7 @@ export const FindCompaniesAiOnly: Story = {
 };
 export const FindCompaniesAiOnlyNoBrave: Story = {
   name: "Find companies, AI only, no Brave key, before the first search",
-  render: () => <Fixture data={{ ...base, last: null }} setup={{ finding: "web", braveKey: false, relevantUsd: null, hiringNowUsd: null, aiLeft: null }} tab="targets" company="loadstar" />,
+  render: () => <Fixture data={{ ...base, last: null }} setup={{ finding: "web", braveKey: false, relevantUsd: null, hiringNowUsd: null, byNameUsd: null, aiLeft: null }} tab="targets" company="loadstar" />,
   play: FindCompanies.play,
 };
 export const FoundByWebSearch: Story = { name: "Found by web search", render: () => <Fixture tab="found" company="brinewell" /> };
@@ -431,6 +450,69 @@ export const SearchSettings: Story = {
     await userEvent.click(await within(firstPane(canvasElement)).findByRole("button", { name: "More for Companies" }));
     await userEvent.click(await within(document.body).findByRole("menuitem", { name: /Search settings/ }));
   },
+};
+// ⋯ > Search settings: a menu beside the button, a sheet of buttons on a phone.
+const openSettings = async (canvasElement: HTMLElement) => {
+  await userEvent.click(await within(firstPane(canvasElement)).findByRole("button", { name: "More for Companies" }));
+  const body = within(document.body);
+  await waitFor(() => expect(body.queryByRole("menuitem", { name: /Search settings/ }) ?? body.queryByRole("button", { name: /^Search settings/ })).toBeTruthy());
+  await userEvent.click(body.queryByRole("menuitem", { name: /Search settings/ }) ?? body.getByRole("button", { name: /^Search settings/ }));
+};
+// Find by name: two companies named Kestrel, each with its website and what it does, and where they came from.
+export const FindByName: Story = {
+  name: "Search settings, find a company by name",
+  render: () => <Fixture tab="targets" />,
+  play: async ({ canvasElement }) => {
+    await openSettings(canvasElement);
+    const box = await within(document.body).findByRole("textbox", { name: "Add a company you like" });
+    finds = 0;
+    await userEvent.type(box, "Kestrel");
+    // What Find costs is beside it before it runs, and typing searches nothing.
+    await within(document.body).findAllByText(/^1 Apollo credit/);
+    expect(finds).toBe(0);
+    await userEvent.click(within(document.body).getByRole("button", { name: "Find" }));
+    await waitFor(() => expect(finds).toBe(1));
+    await within(document.body).findByText("2 companies named Kestrel");
+    await within(document.body).findByText("From Apollo · 1 credit used");
+  },
+};
+// No company by that name: Use a website instead.
+export const FindByNameNone: Story = {
+  name: "Search settings, no company by that name",
+  render: () => <Fixture tab="targets" />,
+  play: async ({ canvasElement }) => {
+    await openSettings(canvasElement);
+    await userEvent.type(await within(document.body).findByRole("textbox", { name: "Add a company you like" }), "Quillfeather");
+    await userEvent.click(within(document.body).getByRole("button", { name: "Find" }));
+    await within(document.body).findByText("No company named Quillfeather found.");
+  },
+};
+// A typed website: no search, Find becomes Add, and it's free.
+export const AddByWebsite: Story = {
+  name: "Search settings, a typed website",
+  render: () => <Fixture tab="targets" />,
+  play: async ({ canvasElement }) => {
+    await openSettings(canvasElement);
+    await userEvent.type(await within(document.body).findByRole("textbox", { name: "Add a company you like" }), "harborline.example.com");
+    await within(document.body).findByRole("button", { name: "Add" });
+  },
+};
+// AI only, no Brave key: Find says it comes from the AI budget before it runs; one company by that name.
+export const FindByNameAiOnly: Story = {
+  name: "Search settings, find by name on AI only",
+  render: () => <Fixture tab="targets" setup={{ finding: "web", braveKey: false, relevantUsd: null, hiringNowUsd: null, byNameUsd: 0.004, aiLeft: null }} />,
+  play: async ({ canvasElement }) => {
+    await openSettings(canvasElement);
+    await userEvent.type(await within(document.body).findByRole("textbox", { name: "Add a company you like" }), "Brightwater Labs");
+    await userEvent.click(within(document.body).getByRole("button", { name: "Find" }));
+    await within(document.body).findByText("1 company named Brightwater Labs");
+  },
+};
+// None yet: the picker and what Find costs.
+export const SearchSettingsEmpty: Story = {
+  name: "Search settings, no companies you like yet",
+  render: () => <Fixture data={{ ...base, likes: [], searchable: base.searchable.map((d) => ({ ...d, ownSeeds: null })) }} tab="targets" />,
+  play: ({ canvasElement }) => openSettings(canvasElement),
 };
 // On a phone: full screen, with Back to Companies.
 export const SearchSettingsPhone: Story = {

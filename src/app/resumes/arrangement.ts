@@ -29,6 +29,13 @@ const plain = (r: Partial<LayoutRole> | undefined): Plain => ({
 });
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
+// How a role is placed, in a few words: "Own entry", "Fold, keep its lines", "Fold, leave its lines out", "Leave out".
+export function placementWords(p: Pick<LayoutRole, "fold" | "hidden"> | undefined) {
+  if (p?.hidden) return "Leave out";
+  if (p?.fold) return p.fold.bullets === "drop" ? "Fold, leave its lines out" : "Fold, keep its lines";
+  return "Own entry";
+}
+
 export type Arrangement = {
   // The entries as shown, where each folded entry went, and the role each project linked to one sits inside.
   shown: ResumeDoc;

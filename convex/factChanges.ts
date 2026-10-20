@@ -11,10 +11,10 @@ import { number, replyOf, string, strings } from "./replyJson";
 import { change, letterOf, letterText } from "./pursuits";
 import { pursuitHref } from "./pursuitSteps";
 import { counted } from "./recordContext";
-import { postingName } from "./resume";
+import { postingName, voiceOf } from "./resume";
 import { type Basis, type FactMarks, factMarks, markOf } from "./resumeBasis";
 import { type Bullet, type ResumeDoc, toPlain } from "./resumeDoc";
-import { FACT_STYLE, OUTREACH_STYLE, PLAIN_LANGUAGE } from "./writingGuides";
+import { letterStyle, OUTREACH_STYLE, PLAIN_LANGUAGE, resumeStyle, type Voice } from "./writingGuides";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
 
 // Fact changes flow to documents. An approved fact edited or rejected since a resume, cover letter or set of answers
@@ -255,15 +255,25 @@ export const inputs = internalQuery({
     const stale = staleLines(doc.lines, facts, gone, doc.basis);
     const ids = new Set(stale.flatMap((s) => s.factIds));
     const marks = [...facts.values()].filter((f) => ids.has(String(f._id))).map((f) => ({ id: String(f._id), mark: markOf(f.data.text) }));
-    return { name: doc.name, context: doc.context, stale, marks, gone: [...ids].filter((id) => !facts.has(id)) };
+    // The document's own voice: the one a resume was written in, else (a tailored one, or an older version) the one
+    // set for it now; a letter's own, else the record's.
+    const settings = await ctx.db.query("resumeSettings").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
+    const voice: Voice =
+      "resume" in doc && doc.resume
+        ? ((doc.resume.writtenFrom?.voice as Voice | undefined) ?? voiceOf(settings, doc.resume.directionId).voice)
+        : "letter" in doc && doc.letter?.voice
+          ? doc.letter.voice
+          : voiceOf(settings, undefined).record;
+    return { name: doc.name, context: doc.context, stale, marks, gone: [...ids].filter((id) => !facts.has(id)), voice };
   },
 });
 
-const PROMPT = (kind: Target["kind"]) => `You update lines of someone's ${kind === "resume" ? "resume" : kind === "letter" ? "cover letter" : "answers to application questions"} after approved facts they rest on changed in their career record. Each line comes with its facts: what each says now and, when known, what it said when the line was written; or that it was rejected and is no longer part of their record.
+// In the document's own voice; a line keeps its own voice and length either way.
+export const LINE_UPDATE_PROMPT = (kind: Target["kind"], voice?: Voice) => `You update lines of someone's ${kind === "resume" ? "resume" : kind === "letter" ? "cover letter" : "answers to application questions"} after approved facts they rest on changed in their career record. Each line comes with its facts: what each says now and, when known, what it said when the line was written; or that it was rejected and is no longer part of their record.
 
 Rewrite each line so it says only what its remaining facts say now, changing as few words as you can and keeping its voice and length. Take out anything that rested on a rejected fact or on words a fact no longer has; never add a claim, number, tool or title the facts don't have. A line that still reads true gets its words back unchanged. ${kind === "answers" ? "An answer always keeps an answer: rewrite it without what no longer stands rather than leaving it empty." : "When nothing is left for the line to say, reply with an empty text: the line goes."}
 
-${kind === "resume" ? FACT_STYLE : OUTREACH_STYLE}
+${kind === "resume" ? resumeStyle(voice) : kind === "letter" ? letterStyle(voice) : OUTREACH_STYLE}
 ${PLAIN_LANGUAGE}
 
 Reply with JSON only: {"lines": [{"index": 0, "text": "...", "factIds": ["..."]}]}, one for each line by its index, citing only that line's facts that still stand.`;
@@ -290,7 +300,7 @@ export async function runLineUpdate(ctx: ActionCtx, job: Doc<"jobs">) {
     reasoning: choice.reasoning,
     schema: LINE_UPDATE_SCHEMA,
     messages: [
-      { role: "system", content: PROMPT(t.kind) },
+      { role: "system", content: LINE_UPDATE_PROMPT(t.kind, input.voice) },
       { role: "user", content: `${input.name} as it stands:\n${input.context}\n\nThe lines to update (cite facts by id):\n${JSON.stringify(lines)}` },
     ],
   });

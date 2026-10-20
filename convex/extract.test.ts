@@ -143,6 +143,17 @@ test("dismissing a suggestion leaves the fact as it was", async () => {
   expect(kept.data).toMatchObject({ text: "Did a thing", suggestion: null });
   expect(kept.data.history?.map((h) => [h.how, h.text])).toEqual([["read", "Did a thing"], ["dismissed", "Worse"]]);
 });
+test("asking for a rewrite of a fact (from Review, or a resume line's Built on) queues one with the comment and marks the fact waiting", async () => {
+  const { t, asA, run } = await setup();
+  vi.stubGlobal("fetch", vi.fn(async () => modelReply(JSON.stringify({ facts: [{ roleKey: "x", text: "Did a thing" }] }))));
+  await run();
+  const [fact] = await asA.query(api.extract.items, {});
+  await asA.mutation(api.extract.rework, { id: fact.id, note: "Lead with the 58% to 86% result" });
+  const jobs = await t.run((ctx) => ctx.db.query("jobs").filter((q) => q.eq(q.field("kind"), "rework")).collect());
+  expect(jobs.map((j) => j.args)).toEqual([{ itemId: fact.id, note: "Lead with the 58% to 86% result" }]);
+  const item = (await asA.query(api.extract.items, {})).find((i) => i.id === fact.id)!;
+  expect(item.data).toMatchObject({ text: "Did a thing", suggestion: { pending: true, note: "Lead with the 58% to 86% result" } });
+});
 test("two narratives can be read at the same time", async () => {
   const { t, asA, narrativeId } = await setup();
   const other = await asA.mutation(api.narratives.create, { kind: "career", title: "Globex", body: "Ran sales at Globex." });

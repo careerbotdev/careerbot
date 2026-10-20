@@ -10,7 +10,7 @@ import { apollo, chatJson, spendingFor } from "./metering";
 import { type ReplySchema, strictObject, string, strings } from "./replyJson";
 import { change, own } from "./pursuits";
 import { beforeConversation, PURSUIT_STATUSES } from "./pursuitSteps";
-import { OUTREACH_STYLE, PLAIN_LANGUAGE } from "./writingGuides";
+import { outreachStyle, PLAIN_LANGUAGE } from "./writingGuides";
 import { PEOPLE_BY_HAND } from "./findCompanies";
 import { requireWorkspace } from "./workspaces";
 
@@ -311,7 +311,8 @@ export const unmarkReplied = mutation({
   },
 });
 
-const SYSTEM = `You write an outreach message: a short first email from someone to one person at a company, about a role there or, when there's no open role, about the kind of work they're after. You get their approved career record (the only source of claims about them), the role (or what they're after), and who they are writing to.
+// Written in the record's voice (writingGuides.outreachStyle).
+const SYSTEM = (style: string) => `You write an outreach message: a short first email from someone to one person at a company, about a role there or, when there's no open role, about the kind of work they're after. You get their approved career record (the only source of claims about them), the role (or what they're after), and who they are writing to.
 
 It has four parts, in a few sentences, short enough to read on a phone:
 1. Who they are: one line, the strongest true framing for this role.
@@ -325,7 +326,7 @@ Give it a subject line. Never add a claim, number, tool or title the record does
 
 List the ids of the approved facts it rests on ("factIds"), and say in a few words what each part says ("parts").
 
-${OUTREACH_STYLE}
+${style}
 ${PLAIN_LANGUAGE}
 
 Reply with JSON only: {"subject": "...", "text": "...", "factIds": ["..."], "parts": {"who": "...", "why": "...", "fit": "...", "ask": "..."}}.`;
@@ -372,6 +373,7 @@ export async function runOutreach(ctx: ActionCtx, job: Doc<"jobs">) {
   if (!c || !g) return null;
   if (!g.record.facts.length) throw new Error("Approve some facts first; messages are written only from your approved record.");
   const choice = await modelFor(ctx, job.workspaceId, "outreach");
+  const voice = await ctx.runQuery(internal.resume.recordVoice, { workspaceId: job.workspaceId });
   const who = `${c.name}${c.title ? `, ${c.title}` : ""}`;
   const group = { hiringManager: c.hiringManager ? "likely the hiring manager for this role" : "a possible hiring manager for this role", team: "on the team, close to the work", recruiting: "in recruiting" }[c.group];
   const wrote = c.wroteTo.length ? `\n\nThey already wrote to: ${c.wroteTo.map((x) => `${x.name}${x.title ? `, ${x.title}` : ""}`).join("; ")}` : "";
@@ -386,7 +388,7 @@ export async function runOutreach(ctx: ActionCtx, job: Doc<"jobs">) {
     reasoning: choice.reasoning,
     schema: OUTREACH_SCHEMA,
     messages: [
-      { role: "system", content: SYSTEM },
+      { role: "system", content: SYSTEM(outreachStyle(voice)) },
       {
         role: "user",
         content: `Their name: ${g.name ?? "(not given)"}\n\nTheir approved record (cite facts by id):\n${JSON.stringify(g.record)}\n\n${role}\n\nWriting to: ${who} (${group})${wrote}${applied}`,

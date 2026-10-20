@@ -179,6 +179,8 @@ export function limitsFixtures(): Answers {
     resume: null,
     directionResume: null,
     resumeLines: null,
+    voiceExample: null,
+    resumeLine: null,
     goals: 0.03,
     limitRule: 0.004,
     directionDetail: null,
@@ -187,6 +189,7 @@ export function limitsFixtures(): Answers {
     lineUpdate: null,
     findRelevant: null,
     findHiringNow: null,
+    findByName: null,
   };
   return {
     ...answer(api.goals.items, () => state),

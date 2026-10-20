@@ -16,7 +16,12 @@ import {
   arrange,
   type Bullet,
   type Entry,
-  bulletTexts,
+  inOrder,
+  keptOf,
+  bulletStates,
+  entryKey,
+  LENGTH_LINES,
+  orderFor,
   cleanDoc,
   DOC_SPEC,
   foldChoice,
@@ -38,9 +43,10 @@ import {
   TITLE,
   toPlain,
 } from "./resumeDoc";
+import { placementOf, writerRecord } from "./resumePlacement";
 import { connections } from "./sameWork";
 import { dayOf, tally } from "./tallies";
-import { FACT_STYLE, PLAIN_LANGUAGE } from "./writingGuides";
+import { DEFAULT_VOICE, DOCUMENT_HONESTY, guidanceOf, PLAIN_LANGUAGE, resumeStyle, type Voice, VOICES, voiceLevel } from "./writingGuides";
 import { syncSoon } from "./driveSoon";
 import { getInWorkspace, requireWorkspace } from "./workspaces";
 
@@ -50,36 +56,37 @@ import { getInWorkspace, requireWorkspace } from "./workspaces";
 // How each version shows is the person's choice, never a rewrite: folds, career breaks and projects left out set once on
 // the record, titles on the base resume (all in resumeSettings), and overridden per resume (layout).
 
-const SYSTEM = `You write a strong base resume for someone from their approved career record. It should read like them on a good day: specific, confident, honest.
+// Each prompt takes the style for the voice it's written in (writingGuides.resumeStyle).
+const SYSTEM = (style: string) => `You write a strong base resume for someone from their approved career record. It should read like them on a good day: specific, confident, honest.
 
 Use only what the record gives: roles, projects, approved facts, approved insights and context. Never add a claim, number, tool or title the record doesn't have. Ownership follows the facts: full strength for what they did, nothing credited to them that the facts give to a product, team or company.
 
 Shape:
 - A short summary at the top: who they are and their one or two strongest proofs, readable in ten seconds (two or three sentences, no first-person pronouns). The rest of the resume carries the detail.
-- Experience, most recent first: title, employer, dates, location when known; then the most important facts for that role as bullets, strongest first. Promotions and title changes at one employer read as a path.
-- Projects: their own repositories from the record, each with its strongest facts as bullets.
+- Experience, most recent first: title, employer, dates, location when known; then bullets written from that role's most important facts, strongest first. Promotions and title changes at one employer read as a path.
+- Projects: their own repositories from the record, each with bullets written from its strongest facts.
 - Skills: the approved skills, tools and certifications in the record, grouped plainly.
 It's a resume a hiring manager takes in within about two minutes, not the whole record: each result appears once, lines that say the same thing are merged, and routine duties give way to results. This is their base resume: a neutral account of their career, not aimed at any one direction (each direction gets its own resume later). Order bullets by strength and scope.
 
-${FACT_STYLE}
+${style}
 ${PLAIN_LANGUAGE}
 
 ${DOC_SPEC}`;
 
 // A direction resume: the same record, aimed at one kind of work.
-const DIRECTION = `You write a strong resume for someone aimed at one direction, from their approved career record and the approved positioning for that direction.
+const DIRECTION = (style: string) => `You write a strong resume for someone aimed at one direction, from their approved career record and the approved positioning for that direction.
 
 Use only what the record gives; never add a claim, number, tool or title it doesn't have. Ownership follows the facts. Choose, order and frame the stories that serve this direction: lead with what carries over, tell the reframed stories the way the positioning says, and use the direction's vocabulary where it's true to the record. Past titles stay as they were; where the title map translates one, the bullets can show the equivalent scope, but the title line itself is never changed. Two direction resumes can read like two different people, and both must be true.
 
 Shape: a summary aimed at this direction (two or three sentences, no first-person pronouns); experience, most recent first, with the bullets that matter for this direction, strongest first; projects, with what serves this direction; the approved skills, tools and certifications that this market values. A hiring manager takes it in within about two minutes: each result once, no padding.
 
-${FACT_STYLE}
+${style}
 ${PLAIN_LANGUAGE}
 
 ${DOC_SPEC}`;
 
 // A tailored resume: starts from a direction resume and bends it toward one posting, with an honest requirements map.
-const TAILOR = `You tailor a resume to one job posting. You get their direction resume (the starting point), their approved record, and the posting.
+const TAILOR = (style: string) => `You tailor a resume to one job posting. You get their direction resume (the starting point), their approved record, and the posting.
 
 Bend the direction resume toward this posting: lead with what the posting cares about most, use the posting's own terms where they are true to the record, and cut what doesn't serve it. Use only what the approved record supports; never add a claim, number, tool or title it doesn't have, and never stretch a fact to match a requirement. Past titles stay as they were. Gaps are handled by emphasis, not invention.
 
@@ -89,7 +96,7 @@ Also map the posting's requirements honestly: each requirement it states, with "
 
 And suggest a title per role (not career breaks) for this posting: a title the facts support, in the posting's wording. It names the work that role's approved facts show, at the level they show, in the terms this posting uses. Leave a role out when its facts support nothing closer to the posting than its official title. These are only offered to the person, to show beside or instead of the official title; the resume's own title lines stay as they are.
 
-${FACT_STYLE}
+${style}
 ${PLAIN_LANGUAGE}
 
 Reply with JSON only: {"resume": <the resume in the shape below>, "requirements": [{"requirement": "...", "strength": "...", "factIds": [...], "note": "..."}], "titles": [{"roleKey": "...", "title": "..."}]}.
@@ -117,8 +124,8 @@ const TAILORED_SCHEMA: ReplySchema = {
 // posting is pasted (posting) or a role from the Roles page (postingId: its title, company, place and description).
 // With no direction resume yet, tailoring writes it first, in the same run.
 export const start = mutation({
-  args: { directionId: v.optional(v.id("items")), posting: v.optional(v.string()), postingId: v.optional(v.id("postings")) },
-  handler: async (ctx, { directionId, posting, postingId }) => {
+  args: { directionId: v.optional(v.id("items")), posting: v.optional(v.string()), postingId: v.optional(v.id("postings")), note: v.optional(v.string()) },
+  handler: async (ctx, { directionId, posting, postingId, note }) => {
     const { workspaceId } = await requireWorkspace(ctx);
     if (postingId) {
       const p = await ctx.db.get(postingId);
@@ -132,7 +139,7 @@ export const start = mutation({
     if (posting !== undefined && !directionId) throw new ConvexError("Choose the direction to start from.");
     if (directionId) await checkDirection(ctx, workspaceId, directionId);
     if ((await writing(ctx, workspaceId)).length) return null;
-    const jobId = await ctx.db.insert("jobs", { workspaceId, kind: "resume", args: { directionId, posting: posting?.trim(), postingId }, status: "queued", origin: "you" });
+    const jobId = await ctx.db.insert("jobs", { workspaceId, kind: "resume", args: { directionId, posting: posting?.trim(), postingId, ...noteArg(note) }, status: "queued", origin: "you" });
     await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId });
     return jobId;
   },
@@ -145,18 +152,24 @@ async function checkDirection(ctx: QueryCtx, workspaceId: Id<"workspaces">, dire
   if (d.data.detailStatus !== "approved") throw new ConvexError("Approve this direction's positioning first.");
 }
 
-// The resume runs queued or running.
+// The resume runs queued or running (not one line written for a resume: that never holds up a whole run).
 async function writing(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
   const jobs = await ctx.db.query("jobs").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).order("desc").take(100);
-  return jobs.filter((j) => j.kind === "resume" && (j.status === "queued" || j.status === "running"));
+  return jobs.filter((j) => j.kind === "resume" && !j.args.voiceExample && !j.args.line && (j.status === "queued" || j.status === "running"));
 }
 // Whether a run writes the base resume (no direction) or this direction's resume; a tailoring run writes a tailored one,
 // and an Add what's new run only new lines.
-const writes = (job: Doc<"jobs">, directionId: Id<"items"> | undefined) => job.args.posting === undefined && !job.args.lines && job.args.directionId === directionId;
+const writes = (job: Doc<"jobs">, directionId: Id<"items"> | undefined) => job.args.posting === undefined && !job.args.lines && !job.args.line && !job.args.voiceExample && job.args.directionId === directionId;
 
-// A version written from Resume updates: queued like any run, and saved to be kept or discarded.
-async function queueRewrite(ctx: MutationCtx, workspaceId: Id<"workspaces">, directionId: Id<"items"> | undefined, delayMs: number) {
-  const jobId = await ctx.db.insert("jobs", { workspaceId, kind: "resume", args: { directionId, review: true }, status: "queued", origin: "you" });
+// A version written from Resume updates: queued like any run, and saved to be kept or discarded. With no note of their
+// own, the reason they gave for discarding the last new version (since the current one) steers it instead.
+async function queueRewrite(ctx: MutationCtx, workspaceId: Id<"workspaces">, directionId: Id<"items"> | undefined, delayMs: number, note?: string) {
+  if (!note?.trim()) {
+    const { current } = await versionsOf(ctx, workspaceId, directionId);
+    const rows = await ctx.db.query("resumes").withIndex("by_direction", (q) => q.eq("workspaceId", workspaceId).eq("directionId", directionId)).order("desc").collect();
+    note = rows.find((r) => r.posting === undefined && r.discarded?.reason && r._creationTime > (current?._creationTime ?? 0))?.discarded?.reason;
+  }
+  const jobId = await ctx.db.insert("jobs", { workspaceId, kind: "resume", args: { directionId, review: true, ...noteArg(note) }, status: "queued", origin: "you" });
   await ctx.scheduler.runAfter(delayMs, internal.jobs.run, { jobId });
   return jobId;
 }
@@ -171,10 +184,21 @@ export async function versionsOf(ctx: QueryCtx, workspaceId: Id<"workspaces">, d
   return { current: rows.find((r) => !r.toReview), waiting: rows.find((r) => r.toReview && !r.discarded) };
 }
 
+// How a base (`base`) or direction resume places the record's roles: the record's setting, then its current version's
+// own override.
+function placementFor(items: CountedRecord, settings: Doc<"resumeSettings"> | null, current: Doc<"resumes"> | undefined, base: boolean) {
+  return placementOf(
+    items.roles.map((r) => ({ ...r.data, roleKey: r.roleKey })),
+    { roles: settings?.roles ?? [] },
+    { roles: overrides(current?.layout, base) },
+  );
+}
+
 // What a run writes from: the approved record that counts and, for a direction resume, the direction with its approved
 // positioning. The basis is taken from the same items, so it says exactly what this version was written from. Pairs of
 // facts connected as the same work (sameWork.ts) are written as one line: `sameWork` maps each pair's other fact to its
-// lead.
+// lead. Roles are placed as this resume places them (the record's setting, then its current version's own): the facts
+// of a role left out, or folded with its lines left out, aren't given, so the space goes to the roles that show.
 export const inputs = internalQuery({
   args: { workspaceId: v.id("workspaces"), directionId: v.optional(v.id("items")) },
   handler: async (ctx, { workspaceId, directionId }) => {
@@ -182,16 +206,30 @@ export const inputs = internalQuery({
     const d = directionId ? items.directions.find((x) => x._id === directionId && x.data.detailStatus === "approved") : undefined;
     const direction = d ? { name: d.data.name, includes: d.data.includes, summary: d.data.summary, detail: d.data.detail } : null;
     // Tailoring starts from the direction's current resume, never one still waiting to be kept.
-    const from = directionId ? (await versionsOf(ctx, workspaceId, directionId)).current : undefined;
-    // A tailored resume is written to its direction's length (and shorter than its direction resume).
-    const { length } = lengthOf(await settingsOf(ctx, workspaceId), directionId);
-    const sameWork = Object.fromEntries([...connections(items.facts, items.projects)].flatMap(([id, c]) => (c.lead === id ? [] : [[id, c.lead] as const])));
+    const { current } = await versionsOf(ctx, workspaceId, directionId);
+    const from = directionId ? current : undefined;
+    // A tailored resume is written to its direction's length and voice (and shorter than its direction resume).
+    const settings = await settingsOf(ctx, workspaceId);
+    const { length } = lengthOf(settings, directionId);
+    const { voice } = voiceOf(settings, directionId);
+    const placement = placementFor(items, settings, current, !directionId);
+    // A project's facts go to the writer unless the project itself is hidden here (the record's setting, then this
+    // resume's own), whatever its linked role's placement.
+    const hiddenProjects = (mergeLayout({ roles: [], projects: settings?.projects ?? [] }, { roles: [], projects: current?.layout?.projects ?? [] }).projects ?? []).flatMap((p) => (p.hidden ? [p.projectKey] : []));
+    const record = writerRecord(recordOf(items), placement, hiddenProjects);
+    const kept = new Set(record.facts.map((f) => String(f.id)));
+    const sameWork = Object.fromEntries(
+      [...connections(items.facts, items.projects)].flatMap(([id, c]) => (c.lead === id || !kept.has(String(id)) || !kept.has(String(c.lead)) ? [] : [[id, c.lead] as const])),
+    );
     return {
-      record: recordOf(items),
+      record,
       sameWork,
       direction,
       length,
-      writtenFrom: basisOf(items, d, length),
+      voice,
+      writtenFrom: basisOf(items, d, length, placement, voice),
+      // The lines they pinned on the current version, each by the facts it rests on: the writer keeps them.
+      pinned: pinnedFacts(current?.doc as ResumeDoc | undefined, current?.layout),
       directionResume: (from?.doc as ResumeDoc | undefined) ?? (from?.text ? { text: from.text } : null),
     };
   },
@@ -219,6 +257,7 @@ export const save = internalMutation({
     postingId: v.optional(v.id("postings")),
     requirements: v.optional(v.any()),
     postingTitles: v.optional(v.array(v.object({ roleKey: v.string(), title: v.string() }))),
+    note: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // A retried run that already saved its version saves nothing twice.
@@ -233,28 +272,89 @@ export const save = internalMutation({
     const projects = (from?.layout?.projects ?? []).filter((p) => projectKeys.has(p.projectKey));
     const skillKeys = new Set(args.doc.skills.flatMap((g) => g.keys ?? []));
     const skills = (from?.layout?.skills ?? []).filter((k) => skillKeys.has(k.key));
-    // A bullet pinned, hidden or put in their own words stays so where the new version has the same line (without its
-    // check against facts: the new version's line may rest on other facts). A summary in their words doesn't carry: a
-    // new version is written with its own.
-    const lines = bulletTexts(args.doc);
-    const bullets = (from?.layout?.bullets ?? []).filter((b) => lines.has(b.text));
+    // Pins, hides and the order of lines carry over to the new version's lines written from the same facts (carryOver).
+    // Their own words stay only where the new version has the same line (without its check against facts: the new
+    // version's line may rest on other facts). A summary in their words doesn't carry: a new version has its own.
+    const { bullets, order } = carryOver(from?.doc as ResumeDoc | undefined, from?.layout, args.doc);
     const count = new Map<string, number>();
     for (const b of [...args.doc.experience.flatMap((e) => e.bullets), ...(args.doc.projects ?? []).flatMap((p) => p.bullets)]) count.set(b.text, (count.get(b.text) ?? 0) + 1);
     const words = (from?.layout?.words ?? []).filter((w) => count.get(w.text) === 1).map(({ text, to }) => ({ text, to }));
-    const layout = withPart(undefined, { roles, projects, skills, bullets, words });
+    const layout = withPart(undefined, { roles, projects, skills, bullets, order, words });
     // Lines skipped from Add what's new stay skipped for the next version of the same resume.
     const skipped = args.posting === undefined && from?.skipped?.length ? { skipped: from.skipped } : {};
     // Record growth: a tailored resume written, or a version kept at once (one from Resume updates waits to be kept).
     const counted = args.posting !== undefined || !args.toReview;
     // A tailored resume whose direction was merged away while it was written goes with the direction it went into.
     const directionId = args.posting !== undefined && args.directionId ? await liveDirection(ctx, args.directionId) : args.directionId;
-    const id = await ctx.db.insert("resumes", { ...args, directionId, ...(roles.length || projects.length || skills.length || bullets.length || words.length ? { layout } : {}), ...skipped, ...(counted ? { tallied: true } : {}), at: Date.now() });
+    const id = await ctx.db.insert("resumes", { ...args, directionId, ...(roles.length || projects.length || skills.length || bullets.length || order.length || words.length ? { layout } : {}), ...skipped, ...(counted ? { tallied: true } : {}), at: Date.now() });
     if (directionId && args.directionId && directionId !== args.directionId) await recordRedirect(ctx, args.workspaceId, args.directionId, { table: "resumes", docId: id, before: null });
     if (counted) await tally(ctx, args.workspaceId, args.posting !== undefined ? "tailored" : "resumeKept", dayOf(Date.now()), 1);
     if (!args.toReview) await syncSoon(ctx, args.workspaceId);
     return id;
   },
 });
+
+const linesOf = (doc: ResumeDoc) => [...doc.experience.flatMap((e) => e.bullets), ...(doc.projects ?? []).flatMap((p) => p.bullets)];
+type At = { roleKey?: string; projectKey?: string };
+// A resume's roles and projects with their lines, each by its key (`at`).
+const entriesOf = (doc: ResumeDoc) => [
+  ...doc.experience.flatMap((e) => (e.roleKey ? [{ at: { roleKey: e.roleKey } as At, bullets: e.bullets }] : [])),
+  ...(doc.projects ?? []).map((p) => ({ at: { projectKey: p.projectKey } as At, bullets: p.bullets })),
+];
+// The role or project holding a line: the one named (`at`), else the first with those words.
+const entryWith = (doc: ResumeDoc, text: string, at: At) =>
+  entriesOf(doc).find((e) => e.bullets.some((b) => b.text === text) && (!(at.roleKey || at.projectKey) || entryKey(e.at) === entryKey(at)));
+
+// The facts behind each line pinned on a version: kept with the pin, or (a pin from before that) its line's.
+function pinnedFacts(doc: ResumeDoc | undefined, layout: ResumeLayout | undefined) {
+  const of = new Map(doc ? linesOf(doc).map((b) => [b.text, b.factIds]) : []);
+  return (layout?.bullets ?? []).flatMap((b) => {
+    const ids = b.factIds ?? of.get(b.text) ?? [];
+    return b.state === "pinned" && ids.length ? [ids] : [];
+  });
+}
+
+// A new version keeps the version before's pins, hides and line order on its own lines, each within the same role or
+// project: a line with the same words there, else the line there sharing the most facts with it, each line taking one
+// choice. Each choice carried is marked kept, so the version waiting to be kept says so. An order carries for a role or
+// project the new version still has.
+export function carryOver(fromDoc: ResumeDoc | undefined, layout: ResumeLayout | undefined, doc: ResumeDoc) {
+  const was = new Map(fromDoc ? linesOf(fromDoc).map((b) => [b.text, b.factIds]) : []);
+  const match = (text: string, factIds: string[] | undefined, among: Bullet[], taken: Set<string>) => {
+    const ids = factIds?.length ? factIds : (was.get(text) ?? []);
+    let best = among.find((b) => b.text === text && !taken.has(b.text));
+    if (!best) {
+      let most = 0;
+      for (const b of among) {
+        const n = taken.has(b.text) ? 0 : b.factIds.filter((id) => ids.includes(id)).length;
+        if (n > most) {
+          most = n;
+          best = b;
+        }
+      }
+    }
+    if (best) taken.add(best.text);
+    return best;
+  };
+  const entries = new Map(entriesOf(doc).map((e) => [entryKey(e.at), e.bullets]));
+  const taken = new Map<string, Set<string>>();
+  const bullets = (layout?.bullets ?? []).flatMap((b) => {
+    // A choice from before entries were kept: the entry its line was in on the version before.
+    const at: At | undefined = b.roleKey || b.projectKey ? (b.projectKey ? { projectKey: b.projectKey } : { roleKey: b.roleKey }) : fromDoc ? entryWith(fromDoc, b.text, {})?.at : undefined;
+    const key = at && entryKey(at);
+    if (!key || !entries.has(key)) return [];
+    if (!taken.has(key)) taken.set(key, new Set());
+    const to = match(b.text, b.factIds, entries.get(key)!, taken.get(key)!);
+    return to ? [{ text: to.text, state: b.state, ...at, factIds: to.factIds, kept: true as const }] : [];
+  });
+  const order = (layout?.order ?? []).flatMap((o) => {
+    const entry = o.projectKey ? doc.projects?.find((p) => p.projectKey === o.projectKey) : doc.experience.find((e) => e.roleKey === o.roleKey);
+    const taken = new Set<string>();
+    const moved = entry ? o.lines.flatMap((l) => match(l.text, l.factIds, entry.bullets, taken) ?? []) : [];
+    return moved.length ? [{ ...(o.projectKey ? { projectKey: o.projectKey } : { roleKey: o.roleKey }), lines: moved.map((b) => ({ text: b.text, factIds: b.factIds })), kept: true as const }] : [];
+  });
+  return { bullets, order };
+}
 
 const settingsOf = (ctx: QueryCtx, workspaceId: Id<"workspaces">) => ctx.db.query("resumeSettings").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
 
@@ -266,10 +366,22 @@ function lengthOf(settings: Doc<"resumeSettings"> | null, directionId: Id<"items
   return { own, record, length: own ?? record };
 }
 
-// What the writer is asked for at each length. Bullets are counted across experience and projects.
+// The voice a base resume (no directionId) or a direction's resume is written in: its own, else the record's, else
+// confident. Cover letters and outreach use the record's.
+export function voiceOf(settings: Pick<Doc<"resumeSettings">, "voice" | "voices"> | null, directionId: Id<"items"> | undefined) {
+  const record: Voice = settings?.voice ?? DEFAULT_VOICE;
+  const own = settings?.voices?.find((x) => x.directionId === directionId)?.voice ?? null;
+  return { own, record, voice: own ?? record };
+}
+
+// What they asked a version to change, kept on its job only when they wrote something.
+const noteArg = (note: string | undefined) => (note?.trim() ? { note: note.trim().slice(0, 1000) } : {});
+
+// What the writer is asked for at each length. Bullets are counted across experience and projects (LENGTH_LINES).
+const span = (length: "one" | "two") => `about ${LENGTH_LINES[length]!.least} to ${LENGTH_LINES[length]!.most} bullets in all, projects included`;
 const LENGTH_TARGET: Record<ResumeLength, string> = {
-  one: "One page: about 12 to 15 bullets in all, projects included. The most recent roles get 4 to 6 bullets, older ones 1 or 2, and the oldest are condensed to a line with no bullets.",
-  two: "Two pages: about 20 to 25 bullets in all, projects included. Recent roles get 4 to 6 bullets, older ones 1 or 2, and the oldest are condensed to a line or a single bullet.",
+  one: `One page: ${span("one")}. The most recent roles get 4 to 6 bullets, older ones 1 or 2, and the oldest are condensed to a line with no bullets.`,
+  two: `Two pages: ${span("two")}. Recent roles get 4 to 6 bullets, older ones 1 or 2, and the oldest are condensed to a line or a single bullet.`,
   full: "Full: every result that earns its place, each told once. Recent roles get the most bullets (4 to 6 or more), older ones fewer, and the oldest are condensed.",
 };
 
@@ -279,12 +391,23 @@ const overrides = (layout: { roles: LayoutRole[] } | undefined | null, base: boo
   (layout?.roles ?? []).map((r) => (base ? part(r, PLACEMENT) : r)).filter((r) => Object.keys(r).length > 1);
 // A resume's layout with one part replaced (a list part left out when empty), the rest kept.
 function withPart(layout: ResumeLayout | undefined, part: Partial<ResumeLayout>): ResumeLayout {
-  const { roles, projects, skills, bullets, words, summary, summaryCheck } = { roles: layout?.roles ?? [], projects: layout?.projects ?? [], skills: layout?.skills ?? [], bullets: layout?.bullets ?? [], words: layout?.words ?? [], summary: layout?.summary, summaryCheck: layout?.summaryCheck, ...part };
+  const { roles, projects, skills, bullets, order, words, summary, summaryCheck } = {
+    roles: layout?.roles ?? [],
+    projects: layout?.projects ?? [],
+    skills: layout?.skills ?? [],
+    bullets: layout?.bullets ?? [],
+    order: layout?.order ?? [],
+    words: layout?.words ?? [],
+    summary: layout?.summary,
+    summaryCheck: layout?.summaryCheck,
+    ...part,
+  };
   return {
     roles,
     ...(projects.length ? { projects } : {}),
     ...(skills.length ? { skills } : {}),
     ...(bullets.length ? { bullets } : {}),
+    ...(order.length ? { order } : {}),
     ...(words.length ? { words } : {}),
     ...(summary !== undefined ? { summary } : {}),
     ...(summary !== undefined && summaryCheck ? { summaryCheck } : {}),
@@ -425,6 +548,7 @@ export const presentation = query({
       projects: settings?.projects ?? [],
       skills: settings?.skills ?? [],
       length: lengthOf(settings, undefined).record,
+      voice: voiceOf(settings, undefined).record,
     };
   },
 });
@@ -455,18 +579,237 @@ export const setLength = mutation({
   },
 });
 
-// Pin a bullet on one resume (always shown), hide it (never shown), or null to show it as written. The written resume
-// isn't touched.
+// The voice every resume, cover letter and outreach message is written in, set on the record. A resume with its own
+// voice keeps it. Like length, it's the target for the next version: the ones written stay as they are, and base and
+// direction resumes show they changed since they were written (tailored ones are frozen).
+export const setRecordVoice = mutation({
+  args: { voice: voiceLevel },
+  handler: async (ctx, { voice }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const settings = await settingsOf(ctx, workspaceId);
+    if (settings) await ctx.db.patch(settings._id, { voice });
+    else await ctx.db.insert("resumeSettings", { workspaceId, roles: [], voice });
+  },
+});
+
+// The voice the base resume (no direction) or a direction's resume is written in, or null to follow the record.
+// Choosing what the record already says follows it too.
+export const setVoice = mutation({
+  args: { directionId: v.optional(v.id("items")), voice: v.union(voiceLevel, v.null()) },
+  handler: async (ctx, { directionId, voice }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    if (directionId) await checkDirection(ctx, workspaceId, directionId);
+    const settings = await settingsOf(ctx, workspaceId);
+    const own = voice !== null && voice !== voiceOf(settings, directionId).record ? [{ ...(directionId ? { directionId } : {}), voice }] : [];
+    const voices = [...(settings?.voices ?? []).filter((x) => x.directionId !== directionId), ...own];
+    if (settings) await ctx.db.patch(settings._id, { voices });
+    else await ctx.db.insert("resumeSettings", { workspaceId, roles: [], voices });
+  },
+});
+
+// Pin a bullet on one resume (always shown), hide it (never shown), or null to show it as written. The choice keeps the
+// facts the line rests on, so it carries into new versions (carryOver). The written resume isn't touched.
 export const setBullet = mutation({
-  args: { id: v.id("resumes"), text: v.string(), state: v.union(v.literal("pinned"), v.literal("hidden"), v.null()) },
-  handler: async (ctx, { id, text, state }) => {
+  args: { id: v.id("resumes"), text: v.string(), state: v.union(v.literal("pinned"), v.literal("hidden"), v.null()), roleKey: v.optional(v.string()), projectKey: v.optional(v.string()) },
+  handler: async (ctx, { id, text, state, roleKey, projectKey }) => {
     const { workspaceId } = await requireWorkspace(ctx);
     const resume = await getInWorkspace(ctx, workspaceId, id);
-    if (!resume?.doc || !bulletTexts(resume.doc).has(text)) throw new Error("Not found.");
-    const bullets = [...(resume.layout?.bullets ?? []).filter((b) => b.text !== text), ...(state ? [{ text, state }] : [])];
+    const entry = resume?.doc ? entryWith(resume.doc, text, { roleKey, projectKey }) : undefined;
+    const line = entry?.bullets.find((b) => b.text === text);
+    if (!resume || !entry || !line) throw new Error("Not found.");
+    // This line's own choice goes, and one from before entries were kept for its words.
+    const others = (resume.layout?.bullets ?? []).filter((b) => b.text !== text || ((b.roleKey || b.projectKey) && entryKey(b) !== entryKey(entry.at)));
+    const bullets = [...others, ...(state ? [{ text, state, ...entry.at, factIds: line.factIds }] : [])];
     await ctx.db.patch(id, { layout: withPart(resume.layout, { bullets }) });
   },
 });
+
+// Move a line within its role or project on one resume (`to`: its place among the entry's lines as written, hidden
+// ones included). The order is this resume's and carries into new versions by fact (carryOver). Returns where it was,
+// for Undo. The written resume isn't touched.
+export const moveLine = mutation({
+  args: { id: v.id("resumes"), text: v.string(), to: v.number(), roleKey: v.optional(v.string()), projectKey: v.optional(v.string()) },
+  handler: async (ctx, { id, text, to, roleKey, projectKey }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const resume = await editable(ctx, workspaceId, id);
+    const order = resume.layout?.order ?? [];
+    const entry = entryWith(resume.doc, text, { roleKey, projectKey });
+    if (!entry) throw new Error("Not found.");
+    const now = inOrder(entry.bullets, orderFor(order, entry.at)?.lines);
+    const from = now.findIndex((b) => b.text === text);
+    const place = Math.max(0, Math.min(now.length - 1, Math.round(to)));
+    if (place === from) return from;
+    const next = [...now];
+    next.splice(place, 0, ...next.splice(from, 1));
+    const own = order.filter((o) => o !== orderFor(order, entry.at));
+    await ctx.db.patch(id, { layout: withPart(resume.layout, { order: [...own, { ...entry.at, lines: next.map((b) => ({ text: b.text, factIds: b.factIds })) }] }) });
+    await syncSoon(ctx, workspaceId);
+    return from;
+  },
+});
+
+// An approved fact to put on one resume by Add a line: one of its role's or project's facts that no shown line there
+// rests on yet, for an entry the resume has.
+async function factToAdd(ctx: QueryCtx, workspaceId: Id<"workspaces">, resume: Doc<"resumes"> & { doc: ResumeDoc }, factId: Id<"items">) {
+  const fact = (await counted(ctx, workspaceId, "fact")).find((f) => f._id === factId);
+  if (!fact) throw new ConvexError("This fact isn’t in your approved record any more.");
+  const entry = fact.projectKey ? resume.doc.projects?.find((p) => p.projectKey === fact.projectKey) : resume.doc.experience.find((e) => !e.break && e.roleKey && e.roleKey === fact.roleKey);
+  if (!entry) throw new ConvexError("Its role isn’t on this resume.");
+  const stateOf = bulletStates(resume.layout?.bullets);
+  const at = fact.projectKey ? { projectKey: fact.projectKey } : { roleKey: fact.roleKey };
+  if (entry.bullets.some((b) => stateOf(at, b.text) !== "hidden" && b.factIds.includes(String(factId)))) throw new ConvexError("A line on this resume already rests on this fact.");
+  return fact;
+}
+
+// The doc with a line added at the end of its fact's role or project.
+const withLine = (doc: ResumeDoc, at: { roleKey?: string; projectKey?: string }, line: Bullet): ResumeDoc =>
+  at.projectKey
+    ? { ...doc, projects: (doc.projects ?? []).map((p) => (p.projectKey === at.projectKey ? { ...p, bullets: [...p.bullets, line] } : p)) }
+    : { ...doc, experience: doc.experience.map((e) => (!e.break && e.roleKey === at.roleKey ? { ...e, bullets: [...e.bullets, line] } : e)) };
+
+// A line added to one resume from its approved fact: in the doc, marked added, and what it was written from taking the
+// fact as it reads now (so it isn't "changed since" for it).
+async function putLine(ctx: MutationCtx, workspaceId: Id<"workspaces">, resume: Doc<"resumes"> & { doc: ResumeDoc }, fact: ItemOf<"fact">, text: string) {
+  const at = fact.projectKey ? { projectKey: fact.projectKey } : { roleKey: fact.roleKey };
+  const mark = { id: fact._id, mark: markOf(fact.data.text) };
+  await ctx.db.patch(resume._id, {
+    doc: withLine(resume.doc, at, { text, factIds: [String(fact._id)], added: true }),
+    ...(resume.writtenFrom ? { writtenFrom: { ...resume.writtenFrom, facts: [...resume.writtenFrom.facts.filter((f) => f.id !== fact._id), mark] } } : {}),
+  });
+  await syncSoon(ctx, workspaceId);
+}
+
+// Add a line: an approved fact this resume doesn't use, put on it as the fact reads in the record. Free. Returns the
+// line's words, for Undo (removeLine).
+export const addLine = mutation({
+  args: { id: v.id("resumes"), factId: v.id("items") },
+  handler: async (ctx, { id, factId }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const resume = await editable(ctx, workspaceId, id);
+    const fact = await factToAdd(ctx, workspaceId, resume, factId);
+    const text = (fact.data.text ?? "").trim();
+    if (linesOf(resume.doc).some((b) => b.text === text)) throw new ConvexError("This resume already has that line.");
+    await putLine(ctx, workspaceId, resume, fact, text);
+    return text;
+  },
+});
+
+// Undo Add a line: a line added from the record comes off this resume again, with any choice made on it.
+export const removeLine = mutation({
+  args: { id: v.id("resumes"), text: v.string() },
+  handler: async (ctx, { id, text }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const resume = await editable(ctx, workspaceId, id);
+    if (!linesOf(resume.doc).some((b) => b.added && b.text === text)) throw new ConvexError("Nothing to undo.");
+    const keep = (bullets: Bullet[]) => bullets.filter((b) => !(b.added && b.text === text));
+    const doc = { ...resume.doc, experience: resume.doc.experience.map((e) => ({ ...e, bullets: keep(e.bullets) })), ...(resume.doc.projects ? { projects: resume.doc.projects.map((p) => ({ ...p, bullets: keep(p.bullets) })) } : {}) };
+    const layout = resume.layout
+      ? withPart(resume.layout, { bullets: (resume.layout.bullets ?? []).filter((b) => b.text !== text), words: (resume.layout.words ?? []).filter((w) => w.text !== text) })
+      : undefined;
+    await ctx.db.patch(id, { doc, ...(layout ? { layout } : {}) });
+    await syncSoon(ctx, workspaceId);
+  },
+});
+
+// Write it for this resume: one line written from an approved fact this resume doesn't use, in the resume's voice
+// (paid; writeOneLine). It lands at the end of the fact's role or project, marked added.
+export const writeLine = mutation({
+  args: { id: v.id("resumes"), factId: v.id("items") },
+  handler: async (ctx, { id, factId }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const resume = await editable(ctx, workspaceId, id);
+    await factToAdd(ctx, workspaceId, resume, factId);
+    const jobs = await ctx.db.query("jobs").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).order("desc").take(100);
+    if (jobs.some((j) => j.kind === "resume" && j.args.line?.resumeId === id && j.args.line?.factId === factId && (j.status === "queued" || j.status === "running"))) return null;
+    const jobId = await ctx.db.insert("jobs", {
+      workspaceId,
+      kind: "resume",
+      args: { directionId: resume.directionId, line: { resumeId: id, factId, ...(resume.posting !== undefined ? { tailored: true } : {}) } },
+      status: "queued",
+      origin: "you",
+    });
+    await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId });
+    return jobId;
+  },
+});
+
+// What writing one line reads: the resume as it stands and the fact, with the entry it goes under. Null when the
+// resume can't take it any more (a new version since, the fact rejected or used).
+export const oneLineInputs = internalQuery({
+  args: { workspaceId: v.id("workspaces"), resumeId: v.id("resumes"), factId: v.id("items") },
+  handler: async (ctx, { workspaceId, resumeId, factId }) => {
+    const r = await getInWorkspace(ctx, workspaceId, resumeId);
+    if (!r?.doc || (r.posting === undefined && (await versionsOf(ctx, workspaceId, r.directionId)).current?._id !== resumeId)) return null;
+    const resume = { ...r, doc: r.doc };
+    const fact = await factToAdd(ctx, workspaceId, resume, factId).catch(() => null);
+    if (!fact) return null;
+    const role = resume.doc.experience.find((e) => !fact.projectKey && e.roleKey === fact.roleKey);
+    const project = resume.doc.projects?.find((p) => fact.projectKey && p.projectKey === fact.projectKey);
+    const d = r.directionId ? await getInWorkspace(ctx, workspaceId, r.directionId) : null;
+    return {
+      resume: toPlain(present(resume.doc, resume.layout)),
+      direction: d?.kind === "direction" ? d.data.name : null,
+      fact: { id: String(fact._id), text: fact.data.text ?? "" },
+      entry: project ? `the project ${project.name}` : `${role!.title} at ${role!.employer}`,
+    };
+  },
+});
+
+export const saveOneLine = internalMutation({
+  args: { workspaceId: v.id("workspaces"), resumeId: v.id("resumes"), factId: v.id("items"), text: v.string() },
+  handler: async (ctx, { workspaceId, resumeId, factId, text }) => {
+    const r = await getInWorkspace(ctx, workspaceId, resumeId);
+    if (!r?.doc || (r.posting === undefined && (await versionsOf(ctx, workspaceId, r.directionId)).current?._id !== resumeId)) throw new Error("This resume has a new version since. Try again.");
+    const resume = { ...r, doc: r.doc };
+    // A retried run that already added its line adds nothing twice.
+    if (linesOf(resume.doc).some((b) => b.added && b.factIds.includes(String(factId)))) return;
+    await putLine(ctx, workspaceId, resume, await factToAdd(ctx, workspaceId, resume, factId), text);
+  },
+});
+
+// The voice a resume version is written in: the one it was written in, else (a tailored or older one) the one set for
+// it now.
+export const resumeVoice = internalQuery({
+  args: { resumeId: v.id("resumes") },
+  handler: async (ctx, { resumeId }): Promise<Voice> => {
+    const r = await ctx.db.get(resumeId);
+    const written = r?.writtenFrom?.voice as Voice | undefined;
+    return written ?? voiceOf(r ? await settingsOf(ctx, r.workspaceId) : null, r?.directionId).voice;
+  },
+});
+
+const ONE_LINE = (style: string) => `You write one new line for someone's resume from one approved fact in their career record. You get the resume as it stands and the fact, with the role or project it goes under.
+
+Write one bullet for that entry, in the resume's own voice, that tells what the fact says. Use only what the fact says; never add a claim, number, tool or title it doesn't have, and don't repeat what a line already there says.
+
+${style}
+${PLAIN_LANGUAGE}
+
+Reply with JSON only: {"text": "the line"}.`;
+const ONE_LINE_SCHEMA: ReplySchema = { name: "resume_line", schema: strictObject({ text: string }) };
+
+// Write it for this resume: one line from one fact, saved at the end of its entry (saveOneLine).
+async function writeOneLine(ctx: ActionCtx, job: Doc<"jobs">, { resumeId, factId }: { resumeId: Id<"resumes">; factId: Id<"items"> }) {
+  const input = await ctx.runQuery(internal.resume.oneLineInputs, { workspaceId: job.workspaceId, resumeId, factId });
+  if (!input) throw new Error("This resume can’t take that fact any more.");
+  const choice = await modelFor(ctx, job.workspaceId, "resume");
+  const voice = await ctx.runQuery(internal.resume.resumeVoice, { resumeId });
+  const reply = await chatJson<{ text?: unknown }>(ctx, {
+    workspaceId: job.workspaceId,
+    purpose: "resume line",
+    model: choice.model,
+    reasoning: choice.reasoning,
+    schema: ONE_LINE_SCHEMA,
+    messages: [
+      { role: "system", content: ONE_LINE(resumeStyle(voice)) },
+      { role: "user", content: `${input.direction ? `This resume is aimed at: ${input.direction}\n\n` : ""}The resume as it stands:\n${input.resume}\n\nThe line goes under ${input.entry}. The approved fact:\n${input.fact.text}` },
+    ],
+  });
+  const text = typeof reply.out.text === "string" ? reply.out.text.replace(/\s+/g, " ").trim() : "";
+  if (!text) throw new Error("The model's reply had no line. Try again.");
+  await ctx.runMutation(internal.resume.saveOneLine, { workspaceId: job.workspaceId, resumeId, factId, text });
+  return { lines: 1, costUsd: reply.costUsd, model: reply.model };
+}
 
 // The resume open to put in their own words: a tailored one, or a base or direction resume's current version (an older
 // one in History stays as it was).
@@ -523,18 +866,21 @@ export const setSummary = mutation({
 type Req = { requirement: string; strength: "strong" | "partial" | "thin"; factIds: string[]; note?: string };
 
 // review: written from Resume updates, so the version waits to be kept or discarded. lines: Add what's new, new lines
-// for the current version (writeLines).
-type ResumeArgs = { directionId?: Id<"items">; posting?: string; postingId?: Id<"postings">; review?: boolean; lines?: boolean };
+// for the current version (writeLines). note: what they asked this version to change (Write again, Tailor again).
+// voiceExample: Layout's example of each voice (writeVoiceExample).
+type ResumeArgs = { directionId?: Id<"items">; posting?: string; postingId?: Id<"postings">; review?: boolean; lines?: boolean; line?: { resumeId: Id<"resumes">; factId: Id<"items"> }; note?: string; voiceExample?: boolean };
 
 export async function runResume(ctx: ActionCtx, job: Doc<"jobs">) {
   const args = job.args as ResumeArgs;
+  if (args.line) return writeOneLine(ctx, job, args.line);
   if (args.lines) return writeLines(ctx, job, args.directionId);
+  if (args.voiceExample) return writeVoiceExample(ctx, job);
   const saved = await ctx.runQuery(internal.resume.savedBy, { runId: job._id });
   if (args.posting ? saved.tailored : saved.plain) return { alreadySaved: true };
   return writeResume(ctx, job, args);
 }
 
-async function writeResume(ctx: ActionCtx, job: Doc<"jobs">, { directionId, posting, postingId, review }: ResumeArgs): Promise<{ roles: number; facts: number; insights: number; costUsd: number; model: string }> {
+async function writeResume(ctx: ActionCtx, job: Doc<"jobs">, { directionId, posting, postingId, review, note }: ResumeArgs): Promise<{ roles: number; facts: number; insights: number; costUsd: number; model: string }> {
   const inputs: ResumeInputs = await ctx.runQuery(internal.resume.inputs, { workspaceId: job.workspaceId, directionId });
   const { record, direction, writtenFrom, directionResume } = inputs;
   if (!record.facts.length) throw new Error(NO_FACTS);
@@ -542,14 +888,14 @@ async function writeResume(ctx: ActionCtx, job: Doc<"jobs">, { directionId, post
   // Tailoring starts from the direction's resume: with none yet, it's written first.
   if (posting && !directionResume) {
     const first = await writeResume(ctx, job, { directionId });
-    const tailored = await writeResume(ctx, job, { directionId, posting, postingId });
+    const tailored = await writeResume(ctx, job, { directionId, posting, postingId, note });
     return { ...tailored, costUsd: first.costUsd + tailored.costUsd };
   }
   const choice = await modelFor(ctx, job.workspaceId, "resume");
-  const { doc, requirements, postingTitles, reply } = await draftResume(ctx, job.workspaceId, inputs, { directionId, posting }, choice);
+  const { doc, requirements, postingTitles, reply } = await draftResume(ctx, job.workspaceId, inputs, { directionId, posting, note }, choice);
   // A base or direction resume keeps what it was written from; a tailored one is frozen.
   const kept = posting ? {} : { writtenFrom, ...(review ? { toReview: true as const } : {}) };
-  await ctx.runMutation(internal.resume.save, { workspaceId: job.workspaceId, runId: job._id, doc, ...kept, model: reply.model ?? choice.model, directionId, posting, postingId, requirements, postingTitles });
+  await ctx.runMutation(internal.resume.save, { workspaceId: job.workspaceId, runId: job._id, doc, ...kept, model: reply.model ?? choice.model, directionId, posting, postingId, requirements, postingTitles, ...noteArg(note) });
   return { roles: record.roles.length, facts: record.facts.length, insights: record.insights.length, costUsd: reply.costUsd, model: reply.model };
 }
 
@@ -570,8 +916,8 @@ export async function draftBaseResume(ctx: ActionCtx, workspaceId: Id<"workspace
 async function draftResume(
   ctx: ActionCtx,
   workspaceId: Id<"workspaces">,
-  { record, sameWork, direction, length, directionResume }: ResumeInputs,
-  { directionId, posting }: { directionId?: Id<"items">; posting?: string },
+  { record, sameWork, direction, length, voice, directionResume, pinned }: ResumeInputs,
+  { directionId, posting, note }: { directionId?: Id<"items">; posting?: string; note?: string },
   choice: ModelChoice,
   purpose?: string,
 ): Promise<ResumeDraft> {
@@ -584,6 +930,9 @@ async function draftResume(
   // Skills come only from the approved skill items, never from a role's own list.
   const roles = record.roles.map((r) => ({ ...r, skills: undefined, tools: undefined }));
   const recordText = JSON.stringify({ roles, projects: record.projects, facts, skills: record.skills, insights: record.insights.map((i) => i.text), context: record.context });
+  // The lines they pinned, by the approved facts they still rest on.
+  const kept = pinned.map((ids) => ids.filter((id) => text.has(id))).filter((ids) => ids.length);
+  const pinnedNote = kept.length ? `\n\nLines they pinned on this resume, each by the approved facts it rests on. Write a line from each of these, whatever the length:\n${JSON.stringify(kept)}` : "";
   const reply = await chatJson<{ resume?: unknown; requirements?: Partial<Req>[]; titles?: unknown } & Record<string, unknown>>(ctx, {
     workspaceId,
     purpose: purpose ?? (posting ? "tailored resume" : directionId ? "direction resume" : "resume"),
@@ -592,14 +941,15 @@ async function draftResume(
     maxTokens: LONG_REPLY_TOKENS,
     schema: posting ? TAILORED_SCHEMA : RESUME_SCHEMA,
     messages: [
-      { role: "system", content: `${posting ? TAILOR : directionId ? DIRECTION : SYSTEM}\n\nLength${posting ? " (at most, since it's shorter than the direction resume)" : ""}: ${LENGTH_TARGET[length]} Skills: the strongest 12 to 20 approved ones.` },
+      { role: "system", content: `${(posting ? TAILOR : directionId ? DIRECTION : SYSTEM)(resumeStyle(voice))}\n\nLength${posting ? " (at most, since it's shorter than the direction resume)" : ""}: ${LENGTH_TARGET[length]} Skills: the strongest 12 to 20 approved ones.` },
       {
         role: "user",
-        content: posting
-          ? `Their direction resume (start from this):\n${JSON.stringify(directionResume)}\n\nThe direction:\n${JSON.stringify(direction)}\n\nTheir approved record (cite facts by id):\n${recordText}\n\nThe job posting:\n${posting}`
-          : directionId
-            ? `The direction and its approved positioning:\n${JSON.stringify(direction)}\n\nTheir approved record (cite facts by id):\n${recordText}`
-            : `Their approved record (cite facts by id):\n${recordText}`,
+        content:
+          (posting
+            ? `Their direction resume (start from this):\n${JSON.stringify(directionResume)}\n\nThe direction:\n${JSON.stringify(direction)}\n\nTheir approved record (cite facts by id):\n${recordText}\n\nThe job posting:\n${posting}`
+            : directionId
+              ? `The direction and its approved positioning:\n${JSON.stringify(direction)}\n\nTheir approved record (cite facts by id):\n${recordText}`
+              : `Their approved record (cite facts by id):\n${recordText}`) + pinnedNote + guidanceOf(note),
       },
     ],
   });
@@ -663,7 +1013,7 @@ export async function shownWith(ctx: QueryCtx, workspaceId: Id<"workspaces">, ch
     bullets.map((b) => {
       const own = b.factIds.filter(counts);
       const factIds = [...new Set([...own, ...own.flatMap((id) => (pairs.get(id)?.lead === id ? [pairs.get(id)!.other] : []))])];
-      return { text: b.text, factIds, ...(factIds.length ? {} : { unsourced: true }) };
+      return { text: b.text, factIds, ...(factIds.length ? {} : { unsourced: true }), ...(b.added ? { added: true } : {}) };
     });
   const recheck = (doc: ResumeDoc | undefined): ResumeDoc | undefined => {
     if (!doc) return doc;
@@ -685,6 +1035,8 @@ export async function shownWith(ctx: QueryCtx, workspaceId: Id<"workspaces">, ch
   };
   return {
     facts: Object.fromEntries(approvedFacts.map((f) => [String(f._id), f.data.text])),
+    // Where each approved fact is on a resume: its project's entry, else its role's.
+    places: Object.fromEntries(approvedFacts.map((f) => [String(f._id), f.projectKey ? { projectKey: f.projectKey } : f.roleKey ? { roleKey: f.roleKey } : {}])) as Record<string, { roleKey?: string; projectKey?: string }>,
     settings: { roles: settings?.roles ?? [], projects: settings?.projects ?? [], skills: settings?.skills ?? [] },
     recheck,
   };
@@ -725,6 +1077,8 @@ async function tailoredOf(ctx: QueryCtx, r: Doc<"resumes">, doc: ResumeDoc | und
     role: p ? { id: p._id, title: p.title, company: (await ctx.db.get(p.companyId))?.name ?? "", url: p.url } : null,
     requirements: r.requirements ?? [],
     at: r.at,
+    // What they asked it to change when they tailored it again.
+    note: r.note ?? null,
   };
 }
 
@@ -760,19 +1114,28 @@ export const list = query({
     const { workspaceId } = await requireWorkspace(ctx);
     const rows = await ctx.db.query("resumes").withIndex("by_direction", (q) => q.eq("workspaceId", workspaceId).eq("directionId", directionId)).order("desc").collect();
     const jobs = await ctx.db.query("jobs").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).order("desc").take(100);
-    const last = jobs.find((j) => j.kind === "resume" && j.args.directionId === directionId && !j.args.lines);
+    const last = jobs.find((j) => j.kind === "resume" && j.args.directionId === directionId && !j.args.lines && !j.args.line && !j.args.voiceExample);
     const lines = jobs.find((j) => j.kind === "resume" && j.args.directionId === directionId && j.args.lines === true);
+    const example = jobs.find((j) => j.kind === "resume" && j.args.voiceExample === true);
     const check = await sourceCheck(ctx, workspaceId);
-    const { facts, settings, recheck } = await shownWith(ctx, workspaceId, check);
-    const { own, record } = lengthOf(await settingsOf(ctx, workspaceId), directionId);
+    const { facts, places, settings, recheck } = await shownWith(ctx, workspaceId, check);
+    const resumeSettings = await settingsOf(ctx, workspaceId);
+    const { own, record } = lengthOf(resumeSettings, directionId);
+    const voice = voiceOf(resumeSettings, directionId);
     return {
       facts,
+      places,
+      writingLines: writingLines(jobs),
       last: last ? { status: last.status, error: last.error } : null,
       lines: lines ? { status: lines.status, error: lines.error } : null,
       titles: await titlesFor(ctx, workspaceId, directionId, check),
       settings,
       // How long its next version is written: its own length, or the record's.
       length: { own, record },
+      // The voice its next version is written in: its own, or the record's.
+      voice: { own: voice.own, record: voice.record },
+      // The example of each voice, from one of their facts (Layout), and its last run.
+      voiceExample: { example: resumeSettings?.voiceExample ?? null, last: example ? { status: example.status, error: example.error ?? null } : null },
       versions: rows.filter((r) => r.posting === undefined && !r.toReview).map((r, i) => ({
         id: r._id,
         doc: recheck(r.doc) ?? null,
@@ -782,6 +1145,9 @@ export const list = query({
         counts: r.writtenFrom ? { roles: r.writtenFrom.roles.length, facts: r.writtenFrom.facts.length, insights: r.writtenFrom.insights.length } : null,
         model: r.model,
         at: r.at,
+        // What they asked this version to change, and the voice it was written in (unknown on older versions).
+        note: r.note ?? null,
+        voice: (r.writtenFrom?.voice as Voice | undefined) ?? (r.writtenFrom ? DEFAULT_VOICE : null),
         // A version restored from History: when the version it copies was written.
         restoredFrom: r.restoredFrom ? (rows.find((x) => x._id === r.restoredFrom)?.at ?? null) : null,
         // Add what's new, on the current version while they go through it: each line added, skipped or not yet (null).
@@ -805,7 +1171,8 @@ export const forPosting = query({
     const jobs = await ctx.db.query("jobs").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).order("desc").take(100);
     const last = jobs.find((j) => j.kind === "resume" && j.args.postingId === postingId);
     const check = await sourceCheck(ctx, workspaceId);
-    const { facts, settings, recheck } = await shownWith(ctx, workspaceId, check);
+    const { facts, places, settings, recheck } = await shownWith(ctx, workspaceId, check);
+    const resumeSettings = await settingsOf(ctx, workspaceId);
     const byDirection = new Map(
       await Promise.all(
         [...new Set(rows.flatMap((r) => r.directionId ?? []))].map(async (id) => {
@@ -816,17 +1183,30 @@ export const forPosting = query({
     );
     return {
       facts,
+      places,
+      writingLines: writingLines(jobs),
       last: last ? { status: last.status, error: last.error, directionId: (last.args.directionId as Id<"items"> | undefined) ?? null } : null,
       settings,
       tailored: await Promise.all(
         rows.map(async (r) => {
           const d = byDirection.get(String(r.directionId));
-          return { ...(await tailoredOf(ctx, r, recheck(r.doc), facts)), direction: { id: r.directionId!, name: d?.name ?? "" }, titles: { suggested: d?.titles.suggested ?? {}, direction: d?.titles.direction ?? {}, posting: Object.fromEntries((r.postingTitles ?? []).map((t) => [t.roleKey, t.title])) } };
+          return {
+            ...(await tailoredOf(ctx, r, recheck(r.doc), facts)),
+            direction: { id: r.directionId!, name: d?.name ?? "" },
+            // The length it's held to: its direction's.
+            length: lengthOf(resumeSettings, r.directionId).length,
+            titles: { suggested: d?.titles.suggested ?? {}, direction: d?.titles.direction ?? {}, posting: Object.fromEntries((r.postingTitles ?? []).map((t) => [t.roleKey, t.title])) },
+          };
         }),
       ),
     };
   },
 });
+
+// Lines being written for a resume from a fact (Write it for this resume), by resume and fact.
+function writingLines(jobs: Doc<"jobs">[]) {
+  return jobs.flatMap((j) => (j.kind === "resume" && j.args.line && (j.status === "queued" || j.status === "running") ? [{ resumeId: j.args.line.resumeId as Id<"resumes">, factId: String(j.args.line.factId) }] : []));
+}
 
 // Resume updates: every base and direction resume with a version waiting to be kept or discarded (review, with a
 // preview), or whose current version was written before what it was written from was kept (unknown), or from a record
@@ -837,16 +1217,15 @@ type Pending = { target: Target; state: "review" | "unknown" | "changed"; versio
 
 async function pending(ctx: QueryCtx, workspaceId: Id<"workspaces">, items: CountedRecord): Promise<Pending[]> {
   const settings = await settingsOf(ctx, workspaceId);
-  const targets: { target: Target; now: Basis }[] = [
-    { target: { name: "Base resume", href: "/resumes?resume=base" }, now: basisOf(items, null, lengthOf(settings, undefined).length) },
-    ...items.directions
-      .filter((d) => d.data.detailStatus === "approved")
-      .map((d) => ({ target: { directionId: d._id, name: d.data.name, href: `/resumes?resume=${d._id}` }, now: basisOf(items, d, lengthOf(settings, d._id).length) })),
+  const targets: { target: Target; direction: (typeof items.directions)[number] | null }[] = [
+    { target: { name: "Base resume", href: "/resumes?resume=base" }, direction: null },
+    ...items.directions.filter((d) => d.data.detailStatus === "approved").map((d) => ({ target: { directionId: d._id, name: d.data.name, href: `/resumes?resume=${d._id}` }, direction: d })),
   ];
   const running = await writing(ctx, workspaceId);
   const out: Pending[] = [];
-  for (const { target, now } of targets) {
+  for (const { target, direction } of targets) {
     const { current, waiting } = await versionsOf(ctx, workspaceId, target.directionId);
+    const now = basisOf(items, direction, lengthOf(settings, target.directionId).length, placementFor(items, settings, current, !target.directionId), voiceOf(settings, target.directionId).voice);
     const entry = { target, writing: running.some((j) => writes(j, target.directionId)) };
     if (waiting) {
       // What the waiting version picked up since the current one, and how it reads.
@@ -892,17 +1271,25 @@ async function labelsFor(ctx: QueryCtx, workspaceId: Id<"workspaces">, items: Co
       const k = known.get(String(id));
       return k && isSkill(k) ? k.data.name : "";
     },
+    titled: (roleKey) => {
+      const r = items.roles.find((x) => x.roleKey === roleKey);
+      return !r ? "" : r.data.break ? "The career break" : (resumeTitle(r.data)?.text ?? "");
+    },
   };
 }
 
 // Resume updates with each one's changes in words; Review lists the waiting versions from here too. Pass the counted
-// record when it's read already.
+// record when it's read already. voiceOnly: nothing changed under it but the voice it's set to.
 export async function updatesOf(ctx: QueryCtx, workspaceId: Id<"workspaces">, record?: CountedRecord) {
   const items = record ?? (await countedRecord(ctx, workspaceId));
   const found = await pending(ctx, workspaceId, items);
   const ids = found.flatMap(({ changes: c }) => (c ? [c.facts, c.projects, c.roles, c.skills].flatMap((group) => Object.values(group).flat()) : []));
   const labels = await labelsFor(ctx, workspaceId, items, ids);
-  return found.map(({ changes, ...entry }) => ({ ...entry, summary: changes && hasChanges(changes) ? describeChanges(changes, labels) : null }));
+  return found.map(({ changes, ...entry }) => ({
+    ...entry,
+    summary: changes && hasChanges(changes) ? describeChanges(changes, labels) : null,
+    voiceOnly: !!changes?.voice && !hasChanges({ ...changes, voice: null }),
+  }));
 }
 
 export const updates = query({
@@ -936,6 +1323,7 @@ export const overview = query({
         at: current?.at ?? null,
         state,
         summary: u?.summary ?? null,
+        voiceOnly: u?.state === "changed" && u.voiceOnly,
         versionId: u?.state === "review" ? (u.versionId ?? null) : null,
         writing: running.some((j) => writes(j, directionId)),
         blocked: d && d.data.detailStatus !== "approved" ? "Approve this direction's positioning first." : null,
@@ -1019,13 +1407,13 @@ export function pastedName(posting: string): { title: string; company: string | 
 
 // Write a new version of the base resume (no direction) or a direction's, to keep or discard. One waits at a time.
 export const rewrite = mutation({
-  args: { directionId: v.optional(v.id("items")) },
-  handler: async (ctx, { directionId }) => {
+  args: { directionId: v.optional(v.id("items")), note: v.optional(v.string()) },
+  handler: async (ctx, { directionId, note }) => {
     const { workspaceId } = await requireWorkspace(ctx);
     if (directionId) await checkDirection(ctx, workspaceId, directionId);
     if ((await writing(ctx, workspaceId)).some((j) => writes(j, directionId))) throw new ConvexError("This resume is already being written.");
     if ((await versionsOf(ctx, workspaceId, directionId)).waiting) throw new ConvexError("A new version is waiting. Keep or discard it first.");
-    return queueRewrite(ctx, workspaceId, directionId, 0);
+    return queueRewrite(ctx, workspaceId, directionId, 0, note);
   },
 });
 
@@ -1127,7 +1515,10 @@ export const history = query({
           current: i === 0,
           plain: !r.doc,
           facts: r.writtenFrom?.facts.length ?? null,
+          kept: keptOf(r.layout),
           restoredFrom: r.restoredFrom ? (kept.find((x) => x._id === r.restoredFrom)?.at ?? null) : null,
+          // What they asked this version to change (Write again's note, or the reason they discarded the one before).
+          note: r.note ?? null,
           changes: r.doc && older?.doc ? versionChanges(older.doc, r.doc, statusOf(facts, older.writtenFrom)) : [],
         };
       }),
@@ -1230,14 +1621,16 @@ export const undoRestore = mutation({
 
 // ---- Add what's new ----
 
-const LINES = `You add new lines to someone's resume from facts newly approved in their career record. You get the resume as it stands (each experience entry with its roleKey, each project with its projectKey) and the new or reworded approved facts, each with the role or project it belongs to.
+const LINES = (style: string) => `You add new lines to someone's resume from facts newly approved in their career record. You get the resume as it stands (each experience entry with its roleKey, each project with its projectKey) and the new or reworded approved facts, each with the role or project it belongs to.
 
 Write one bullet per new result, in the resume's own voice, for the entry its facts belong to. Use only what the facts say; never add a claim, number, tool or title they don't have. Never repeat what the resume already says: a fact that only restates a line already there gets no line.
 
-${FACT_STYLE}
+${style}
 ${PLAIN_LANGUAGE}
 
 Reply with JSON only: {"lines": [{"text": "...", "factIds": ["..."], "roleKey": "..."}]}, with "projectKey" instead of "roleKey" for a project's line.`;
+// Every prompt that writes resume lines, for the test that they share the resume voice.
+export const RESUME_PROMPTS = { base: SYSTEM, direction: DIRECTION, tailored: TAILOR, lines: LINES, oneLine: ONE_LINE };
 // The reply's shape (structured output, metering.chat): a line's roleKey or projectKey, the other empty.
 export const LINES_SCHEMA = replyOf("resume_lines", "lines", { text: string, factIds: strings, roleKey: string, projectKey: string });
 
@@ -1301,7 +1694,9 @@ export const linesInputs = internalQuery({
       if (role) return [{ id: String(f._id), text: f.data.text, roleKey: role.roleKey!, role: { employer: role.data.employer, title: role.data.title } }];
       return [];
     });
-    return { versionId: found.current._id, doc: found.doc, direction: found.direction?.data.name ?? null, basis: found.now, facts };
+    // New lines are written in the voice the version was written in.
+    const voice = (found.current.writtenFrom?.voice as Voice | undefined) ?? DEFAULT_VOICE;
+    return { versionId: found.current._id, doc: found.doc, direction: found.direction?.data.name ?? null, basis: found.now, facts, voice };
   },
 });
 
@@ -1322,7 +1717,7 @@ async function writeLines(ctx: ActionCtx, job: Doc<"jobs">, directionId: Id<"ite
     reasoning: choice.reasoning,
     schema: LINES_SCHEMA,
     messages: [
-      { role: "system", content: LINES },
+      { role: "system", content: LINES(resumeStyle(input.voice)) },
       {
         role: "user",
         content: `${input.direction ? `This resume is aimed at: ${input.direction}\n\n` : ""}The resume as it stands:\n${toPlain(input.doc)}\n\nIts entries:\n${JSON.stringify(entries)}\n\nThe new or reworded approved facts (cite them by id):\n${JSON.stringify(input.facts)}`,
@@ -1461,3 +1856,81 @@ export const closeAdditions = mutation({
     await ctx.db.patch(id, { additions: undefined });
   },
 });
+
+// ---- Voice ----
+
+const EXAMPLE = `You show someone how their resumes read at each voice. You get some of their approved facts. Pick the one that shows the difference between the voices best (a result with a number, where they did the work), and write it as one resume line at each voice.
+
+Voice: plain.
+${VOICES.plain.resume}
+
+Voice: confident.
+${VOICES.confident.resume}
+
+${DOCUMENT_HONESTY}
+${PLAIN_LANGUAGE}
+
+Reply with JSON only: {"factId": "...", "plain": "...", "confident": "..."}.`;
+const EXAMPLE_SCHEMA: ReplySchema = { name: "voice_example", schema: strictObject({ factId: string, plain: string, confident: string }) };
+// Facts offered to pick from: enough to find a good one, few enough to keep it cheap.
+const EXAMPLE_FACTS = 30;
+
+// The record's voice, which cover letters and outreach messages are written in.
+export const recordVoice = internalQuery({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => voiceOf(await settingsOf(ctx, workspaceId), undefined).record,
+});
+
+// Example from your record (Layout): one of their facts written at every voice, side by side with the fact. Replaces
+// the one before. Refused while one is being written.
+export const voiceExample = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    if (!(await counted(ctx, workspaceId, "fact")).length) throw new ConvexError(NO_FACTS);
+    const jobs = await ctx.db.query("jobs").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).order("desc").take(100);
+    if (jobs.some((j) => j.kind === "resume" && j.args.voiceExample && (j.status === "queued" || j.status === "running"))) return null;
+    const jobId = await ctx.db.insert("jobs", { workspaceId, kind: "resume", args: { voiceExample: true }, status: "queued", origin: "you" });
+    await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId });
+    return jobId;
+  },
+});
+
+export const exampleFacts = internalQuery({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => (await counted(ctx, workspaceId, "fact")).slice(0, EXAMPLE_FACTS).map((f) => ({ id: String(f._id), text: f.data.text })),
+});
+
+export const saveVoiceExample = internalMutation({
+  args: { workspaceId: v.id("workspaces"), example: v.object({ factId: v.id("items"), fact: v.string(), plain: v.string(), confident: v.string() }) },
+  handler: async (ctx, { workspaceId, example }) => {
+    const voiceExample = { ...example, at: Date.now() };
+    const settings = await settingsOf(ctx, workspaceId);
+    if (settings) await ctx.db.patch(settings._id, { voiceExample });
+    else await ctx.db.insert("resumeSettings", { workspaceId, roles: [], voiceExample });
+  },
+});
+
+async function writeVoiceExample(ctx: ActionCtx, job: Doc<"jobs">) {
+  const facts = await ctx.runQuery(internal.resume.exampleFacts, { workspaceId: job.workspaceId });
+  if (!facts.length) throw new Error(NO_FACTS);
+  const choice = await modelFor(ctx, job.workspaceId, "resume");
+  const reply = await chatJson<{ factId?: unknown; plain?: unknown; confident?: unknown }>(ctx, {
+    workspaceId: job.workspaceId,
+    purpose: "voice example",
+    model: choice.model,
+    reasoning: choice.reasoning,
+    schema: EXAMPLE_SCHEMA,
+    messages: [
+      { role: "system", content: EXAMPLE },
+      { role: "user", content: `Their approved facts:\n${JSON.stringify(facts)}` },
+    ],
+  });
+  const out = reply.out;
+  const fact = facts.find((f) => f.id === out.factId);
+  const lines = [out.plain, out.confident].map((x) => (typeof x === "string" ? x.trim() : ""));
+  if (!fact || lines.some((x) => !x)) throw new Error("The reply wasn't an example. Try again.");
+  const [plain, confident] = lines;
+  await ctx.runMutation(internal.resume.saveVoiceExample, { workspaceId: job.workspaceId, example: { factId: fact.id as Id<"items">, fact: fact.text, plain, confident } });
+  return { costUsd: reply.costUsd, model: reply.model };
+}

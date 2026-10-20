@@ -39,7 +39,7 @@ type Searched = { candidates: Candidate[]; costUsd: number };
 type BoardsFound = { candidates: Candidate[]; queries: number; leftOut: number; refused?: string };
 
 // Hosts that are never a company's own website: job boards and job sites.
-const NOT_A_SITE = /(^|\.)(greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|smartrecruiters\.com|myworkdayjobs\.com|linkedin\.com|indeed\.com|glassdoor\.[a-z.]+|ziprecruiter\.com|builtin\.com|wellfound\.com|teamtailor\.com|breezy\.hr|bamboohr\.com|rippling\.com|icims\.com|jobvite\.com|recruitee\.com|dover\.com|google\.com|googleapis\.com|gstatic\.com|cloudflare\.com|facebook\.com|twitter\.com|x\.com|instagram\.com|youtube\.com|github\.com|w3\.org|schema\.org)$/;
+export const NOT_A_SITE = /(^|\.)(greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|smartrecruiters\.com|myworkdayjobs\.com|linkedin\.com|indeed\.com|glassdoor\.[a-z.]+|ziprecruiter\.com|builtin\.com|wellfound\.com|teamtailor\.com|breezy\.hr|bamboohr\.com|rippling\.com|icims\.com|jobvite\.com|recruitee\.com|dover\.com|google\.com|googleapis\.com|gstatic\.com|cloudflare\.com|facebook\.com|twitter\.com|x\.com|instagram\.com|youtube\.com|github\.com|w3\.org|schema\.org)$/;
 
 // Everything the prompts say about the person and each direction, beside discovery.inputs (exclusions, lens).
 export const inputs = internalQuery({
@@ -111,7 +111,9 @@ export const lookUp = internalMutation({
 });
 
 type DirectionIn = { id: Id<"items">; name: string; criteria: { titles: string[]; industries: string[]; sizes: string[] } };
-type Context = { industries: string[]; positioning: string; limits: { kind: string; value: string }[] };
+// likes: the companies this direction's search finds more like (Find more like it, and the direction's own), each as
+// "Name (website)" or the website alone.
+type Context = { industries: string[]; positioning: string; limits: { kind: string; value: string }[]; likes: string[] };
 
 const SYSTEM = `You find real employers for a job seeker, using web search. Never invent a company, a website or a URL. Skip job sites, job boards, staffing and recruiting agencies. Reply with JSON only.`;
 
@@ -134,9 +136,9 @@ function about(d: DirectionIn, c: Context) {
 }
 
 export function relevantPrompt(d: DirectionIn, c: Context) {
-  return `${about(d, c)}
+  return `${about(d, c)}${c.likes.length ? `\nCompanies they like (find more like these): ${c.likes.join("; ")}` : ""}
 
-List ${WEB_CAP} different employers whose work fits this direction: the kind of company this person should target over the next year, whether or not they are hiring today. Not job sites or staffing agencies; real companies with their own website.
+List ${WEB_CAP} different employers whose work fits this direction: the kind of company this person should target over the next year, whether or not they are hiring today.${c.likes.length ? " Include companies like the ones they like, but not those companies themselves." : ""} Not job sites or staffing agencies; real companies with their own website.
 For each give: "name"; "website" (its own homepage URL); "why" (one sentence on why it fits this direction); "sourceUrl" (a page from your search that shows what the company does).
 Reply with JSON only: {"companies":[{"name":"","website":"","why":"","sourceUrl":""}]}`;
 }
@@ -190,10 +192,15 @@ export function trustedName(raw: string | null | undefined): string | null {
 export async function siteName(domain: string): Promise<string | null> {
   const page = await get(`https://${domain}`);
   const html = page ? await page.text().catch(() => "") : "";
+  return nameInPage(domain, html, html ? undefined : (await viaReader(`https://${domain}`)).match(/^Title:\s*(.+)$/m)?.[1]);
+}
+
+// The name a homepage gives itself (siteName); a reader's page title stands in when there's no page.
+export function nameInPage(domain: string, html: string, readerTitle?: string): string | null {
   const meta = (key: string) =>
     html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${key}["'][^>]*content=["']([^"']+)["']`, "i"))?.[1] ??
     html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["']${key}["']`, "i"))?.[1];
-  const title = html ? html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] : (await viaReader(`https://${domain}`)).match(/^Title:\s*(.+)$/m)?.[1];
+  const title = html ? html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] : readerTitle;
   const base = domain.split(".")[0].replace(/[^a-z0-9]/g, "");
   const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
   const names = [meta("og:site_name"), meta("application-name"), ...(title ?? "").split(/\s+[|–—:·-]\s+/)];
@@ -215,20 +222,22 @@ const BOARD_SITES: Partial<Record<BoardProvider, { site: string[]; root: string 
 };
 const SITES = `(${Object.values(BOARD_SITES).flatMap((b) => b!.site.map((s) => `site:${s}`)).join(" OR ")})`;
 
-type Hit = { url: string; title: string };
+type Hit = { url: string; title: string; description: string };
 // One Brave search: its results, or why Brave refused (its limit, the key, or no answer).
-async function brave(key: string, q: string): Promise<{ hits: Hit[] } | { refused: string }> {
+export async function brave(key: string, q: string, count = 20): Promise<{ hits: Hit[] } | { refused: string }> {
   let res: Response;
   try {
-    res = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(q)}&count=20`, { headers: { accept: "application/json", "X-Subscription-Token": key }, signal: AbortSignal.timeout(BRAVE_TIMEOUT_MS) });
+    res = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(q)}&count=${count}`, { headers: { accept: "application/json", "X-Subscription-Token": key }, signal: AbortSignal.timeout(BRAVE_TIMEOUT_MS) });
   } catch {
     return { refused: "Brave Search didn’t answer" };
   }
   if (res.status === 429 || res.status === 402) return { refused: "your Brave Search key reached its limit" };
   if (res.status === 401 || res.status === 403) return { refused: "Brave Search didn’t accept your key" };
   if (!res.ok) return { refused: `Brave Search returned ${res.status}` };
-  const body = (await res.json().catch(() => null)) as { web?: { results?: { url?: unknown; title?: unknown }[] } } | null;
-  return { hits: (body?.web?.results ?? []).flatMap((r) => (typeof r.url === "string" ? [{ url: r.url, title: typeof r.title === "string" ? r.title : "" }] : [])) };
+  const body = (await res.json().catch(() => null)) as { web?: { results?: { url?: unknown; title?: unknown; description?: unknown }[] } } | null;
+  return {
+    hits: (body?.web?.results ?? []).flatMap((r) => (typeof r.url === "string" ? [{ url: r.url, title: typeof r.title === "string" ? r.title : "", description: typeof r.description === "string" ? r.description : "" }] : [])),
+  };
 }
 
 // The company's name from a board result's title, where the title names it (each board titles its pages its own way);
@@ -347,7 +356,12 @@ export async function runWeb(ctx: ActionCtx, job: Doc<"jobs">, { named }: { name
   for (const [i, d] of inp.directions.entries()) {
     // The lens, as Apollo's search reads it (goalIndustries.searchIndustries).
     const industries = searchIndustries(inp.goals, d.name, d.criteria.industries);
-    const c: Context = { industries, positioning: more.positioning[d.id] ?? "", limits: more.limits };
+    // The companies it finds more like, by name where known (the name they were liked with, else Apollo's).
+    const likes = [...new Set([...inp.seeds, ...(d.criteria.seeds ?? [])])].map((domain) => {
+      const name = inp.liked.find((l) => l.domain === domain)?.name ?? inp.resolved.find((r) => r.domain === domain)?.name;
+      return name ? `${name} (${domain})` : domain;
+    });
+    const c: Context = { industries, positioning: more.positioning[d.id] ?? "", limits: more.limits, likes };
     const [relevant, hiring, boards]: [Searched, Searched | null, BoardsFound | null] = await Promise.all([
       once(`web:relevant:${d.id}`, () => webSearch(ctx, ws, "relevant companies", relevantPrompt(d, c), RELEVANT_SCHEMA)),
       d.criteria.titles.length ? once(`web:hiring:${d.id}`, () => webSearch(ctx, ws, "companies hiring now", hiringPrompt(d, c), HIRING_SCHEMA)) : null,

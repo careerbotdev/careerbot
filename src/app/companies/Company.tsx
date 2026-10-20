@@ -55,7 +55,7 @@ export const WORDS = {
   unarchive: { detail: "Puts it back in the list it was archived from, with your rating as it was.", note: FREE_UNDO },
   check: "Reads its website and job board afresh, then how it fits your directions.",
   find: { detail: "Shows each search and what it costs before you start one.", note: "Free" },
-  settings: { detail: "Sets what searches look for and how found companies are sorted: seed companies, companies you’d name, industries, your goals and your ratings.", note: "Free" },
+  settings: { detail: "Sets what searches look for and how found companies are sorted: companies you like, industries, your goals and your ratings.", note: "Free" },
 } as const;
 
 export const RATINGS = [

@@ -243,7 +243,7 @@ test("with AI only, people at a company are added by hand: no people search", as
 test("a company is never saved under its website: named ones take their name from their own site, results without a name are left out", async () => {
   const s = await setup();
   await s.t.run((ctx) => ctx.db.insert("companies", { workspaceId: s.w, name: "Already Inc", domain: "already.com", found: [{ via: "hand", at: 0 }], at: 0 }));
-  await s.as.mutation(api.discovery.setNamed, { named: ["nvidia.com", "https://www.toasttab.com", "nameless.example", "already.com"] });
+  await s.as.mutation(api.discovery.setLikes, { likes: [{ domain: "nvidia.com", add: true, like: false }, { domain: "https://www.toasttab.com", add: true, like: false }, { domain: "nameless.example", add: true, like: false }, { domain: "already.com", add: true, like: false }] });
   stub({
     relevant: (dir) => (dir === "Ops" ? [{ name: "acme.com", website: "https://acme.com" }, { name: "https://beta.io", website: "https://beta.io" }, co("Gamma Co", "gamma.io")] : []),
     brave: () => Response.json({ web: { results: [{ url: "https://jobs.ashbyhq.com/zeta/123", title: "Senior Operations Manager" }] } }),
@@ -270,4 +270,23 @@ test("a company is never saved under its website: named ones take their name fro
   expect(name("beta.io")).toEqual([]);
   expect(name("zeta.com")).toEqual([]);
   expect(job.result.web.notes).toContain("2 companies from job boards were left out: no name or website to be found.");
+});
+
+test("on AI only, the relevant-companies search names the companies they like (and a direction's own); the hiring-now one doesn't", async () => {
+  const s = await setup();
+  await s.as.mutation(api.discovery.setLikes, {
+    likes: [
+      { domain: "kestrelfreight.com", name: "Kestrel Freight", add: false, like: true },
+      { domain: "lumenplan.com", add: false, like: true },
+      { domain: "nvidia.com", name: "NVIDIA", add: true, like: false },
+    ],
+  });
+  await s.as.mutation(api.discovery.setDirectionSeeds, { id: s.product, seeds: ["orchard.com"] });
+  const calls = stub({});
+  await find(s);
+  const prompt = (kind: string, dir: string) => calls.filter((c) => c.kind === kind).map((c) => (c.body!.messages as { content: string }[]).at(-1)!.content).find((p) => p.includes(`Direction: ${dir}`))!;
+  expect(prompt("relevant", "Ops")).toContain("Companies they like (find more like these): Kestrel Freight (kestrelfreight.com); lumenplan.com");
+  expect(prompt("relevant", "Ops")).not.toContain("NVIDIA");
+  expect(prompt("relevant", "Product")).toContain("Kestrel Freight (kestrelfreight.com); lumenplan.com; orchard.com");
+  expect(prompt("hiring", "Ops")).not.toContain("Companies they like");
 });

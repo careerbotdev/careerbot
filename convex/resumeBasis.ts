@@ -1,5 +1,7 @@
 import { type Infer, v } from "convex/values";
 import { LENGTHS, type ResumeLength } from "./resumeDoc";
+import type { Placed } from "./resumePlacement";
+import { DEFAULT_VOICE, type Voice } from "./writingGuides";
 
 // What a base or direction resume was written from, and what has changed in the approved record since. A resume run
 // stores its basis (resume.ts); Resume updates compares it with the record as it is now. Each entry is an approved
@@ -18,6 +20,11 @@ export const resumeBasis = v.object({
   direction: v.optional(entry),
   // The length it was written to (resumeDoc.LENGTHS); unset on versions from before there was one: two pages.
   length: v.optional(v.string()),
+  // How its roles were placed (resumePlacement.ts): each role that wasn't its own entry. Unset on versions from before
+  // placement was told to the writer; those are never marked changed by it.
+  placement: v.optional(v.array(v.object({ roleKey: v.string(), how: v.union(v.literal("out"), v.literal("fold")), into: v.optional(v.string()), lines: v.optional(v.union(v.literal("move"), v.literal("drop"))) }))),
+  // The voice it was written in (writingGuides.VOICES); unset on versions from before there was one: confident.
+  voice: v.optional(v.string()),
 });
 
 export type Basis = Infer<typeof resumeBasis>;
@@ -68,9 +75,17 @@ type SkillIn = { _id: ItemId; kind: string; data: { name: string; group?: string
 // The basis of a resume written from these approved items (the ones that count, recordContext.countedRecord) and,
 // for a direction resume, its direction. Marks cover what the resume run reads from each: a project's commit count
 // is left out, since it moves with every read of the repository.
-export function basisOf(items: { roles: RoleIn[]; facts: TextIn[]; projects: ProjectIn[]; insights: TextIn[]; skills?: SkillIn[] }, direction?: DirectionIn | null, length?: ResumeLength): Basis {
+export function basisOf(
+  items: { roles: RoleIn[]; facts: TextIn[]; projects: ProjectIn[]; insights: TextIn[]; skills?: SkillIn[] },
+  direction?: DirectionIn | null,
+  length?: ResumeLength,
+  placement?: Placed[],
+  voice?: Voice,
+): Basis {
   return {
     ...(length ? { length } : {}),
+    ...(placement ? { placement } : {}),
+    ...(voice ? { voice } : {}),
     roles: items.roles.map((r) => {
       const d = r.data;
       return { id: r._id, mark: markOf([d.employer, d.title, d.alternateTitles, d.start, d.end, d.location, d.skills, d.tools, d.break, d.reason]) };
@@ -98,6 +113,10 @@ export type Changes = {
   direction: boolean;
   // The length it's set to now, when that isn't the one it was written to.
   length: ResumeLength | null;
+  // The roles placed differently now, as they're placed now (own entry: no `how`).
+  placement: { roleKey: string; how?: Placed["how"]; into?: string; lines?: Placed["lines"] }[];
+  // The voice it's set to now, when that isn't the one it was written in.
+  voice: Voice | null;
 };
 
 function compare(before: Entry[], now: Entry[]) {
@@ -126,15 +145,31 @@ export function changesSince(before: Basis, now: Basis): Changes {
     skills: { added: skills.added, removed: skills.removed, edited: skills.changed },
     direction: (before.direction?.mark ?? null) !== (now.direction?.mark ?? null),
     length: (now.length ?? "two") !== (before.length ?? "two") ? ((now.length ?? "two") as ResumeLength) : null,
+    placement: placementChanges(before.placement, now.placement),
+    voice: (now.voice ?? DEFAULT_VOICE) !== (before.voice ?? DEFAULT_VOICE) ? ((now.voice ?? DEFAULT_VOICE) as Voice) : null,
   };
 }
 
 export const hasChanges = (c: Changes) =>
-  c.direction || !!c.length || [c.facts, c.projects, c.roles, c.insights, c.skills].some((group) => Object.values(group).some((ids) => ids.length > 0));
+  c.direction || !!c.length || !!c.voice || c.placement.length > 0 || [c.facts, c.projects, c.roles, c.insights, c.skills].some((group) => Object.values(group).some((ids) => ids.length > 0));
+
+function placementChanges(before: Placed[] | undefined, now: Placed[] | undefined): Changes["placement"] {
+  if (!before || !now) return [];
+  const key = (p: Placed | undefined) => JSON.stringify(p ? [p.how, p.into, p.lines] : null);
+  const was = new Map(before.map((p) => [p.roleKey, p]));
+  const is = new Map(now.map((p) => [p.roleKey, p]));
+  return [...new Set([...was.keys(), ...is.keys()])].filter((k) => key(was.get(k)) !== key(is.get(k))).map((k) => is.get(k) ?? { roleKey: k });
+}
 
 // Names for the items a summary mentions: a fact's project or the employer of its role; a project's, role's or skill's
-// name.
-export type Labels = { fact: (id: ItemId) => { project?: string; role?: string }; project: (id: ItemId) => string; role: (id: ItemId) => string; skill: (id: ItemId) => string };
+// name; a role's title by its roleKey (`titled`, for how it's placed).
+export type Labels = {
+  fact: (id: ItemId) => { project?: string; role?: string };
+  project: (id: ItemId) => string;
+  role: (id: ItemId) => string;
+  skill: (id: ItemId) => string;
+  titled: (roleKey: string) => string;
+};
 
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const names = (xs: (string | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))];
@@ -173,6 +208,12 @@ export function describeChanges(c: Changes, labels: Labels): string {
   named(c.skills.removed, "removed skill", labels.skill);
   if (c.direction) parts.push("changed positioning");
   if (c.length) parts.push(`length changed to ${LENGTHS[c.length]}`);
+  for (const p of c.placement) {
+    const role = labels.titled(p.roleKey) || "A role";
+    const into = p.into ? labels.titled(p.into) || "the role beside it" : "";
+    parts.push(p.how === "out" ? `${role} is now left out` : p.how === "fold" ? `${role} now folds into ${into}${p.lines === "drop" ? " with its lines left out" : ""}` : `${role} now has its own entry`);
+  }
+  if (c.voice) parts.push(`voice changed to ${c.voice.charAt(0).toUpperCase()}${c.voice.slice(1)}`);
   const text = parts.join(", ");
   return text.charAt(0).toUpperCase() + text.slice(1);
 }

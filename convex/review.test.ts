@@ -42,7 +42,7 @@ test("the summary counts each group's decisions, in review order, for the signed
   // Companies: an unrated employer, a misfit kept anyway (so just unrated) and a misfit wait; a target, one passed on
   // and one screened out don't.
   await t.run(async (ctx) => {
-    await ctx.db.insert("discovery", { workspaceId: a.w, seeds: [], resolved: [], lens: { industries: "steer", judge: "hide" } });
+    await ctx.db.insert("discovery", { workspaceId: a.w, resolved: [], lens: { industries: "steer", judge: "hide" } });
     const company = (name: string, extra: Partial<Doc<"companies">> = {}) => ctx.db.insert("companies", { workspaceId: a.w, name, found: [], at: 0, ...extra });
     await company("Loadstar Systems");
     await company("Meridian Coldchain", { rating: { value: "excited", at: 0 } });

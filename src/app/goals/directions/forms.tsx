@@ -112,8 +112,8 @@ export function DirectionForm({ d, onDone }: { d: Direction; onDone: () => void 
   );
 }
 
-// What search looks for: titles and keywords as typed, industries, sizes and stages from the shared lists, and their
-// own seed companies (websites, one per line), added to the ones in Search settings.
+// What search looks for: titles and keywords as typed, and industries, sizes and stages from the shared lists. Its own
+// companies to find more like are chosen on the Criteria itself (Parts.tsx Seeds), not here.
 export function CriteriaForm({ d, onDone }: { d: Direction; onDone: () => void }) {
   const edit = useMutation(api.directions.editCriteria);
   const c = d.data.criteria;
@@ -122,10 +122,9 @@ export function CriteriaForm({ d, onDone }: { d: Direction; onDone: () => void }
   const [sizes, setSizes] = useState<string[]>(c?.sizes ?? []);
   const [stages, setStages] = useState<string[]>(c?.stages ?? []);
   const [keywords, setKeywords] = useState<string[]>(c?.keywords ?? []);
-  const [seeds, setSeeds] = useState((c?.seeds ?? []).join("\n"));
   const avoided = industries.filter((i) => d.avoided.includes(i));
   const save = () =>
-    edit({ id: d.id, titles: tidy(titles), industries, sizes, stages, keywords: tidy(keywords), seeds: tidy(seeds.split("\n")) }).then(() =>
+    edit({ id: d.id, titles: tidy(titles), industries, sizes, stages, keywords: tidy(keywords) }).then(() =>
       toast({ message: `Saved the criteria of ${d.data.name}`, icon: "approve" }),
     );
   return (
@@ -139,9 +138,6 @@ export function CriteriaForm({ d, onDone }: { d: Direction; onDone: () => void }
         <MultiSelect label="Stages" value={stages} onChange={setStages} options={options(STAGE_LIST, stageLabel)} empty="Any" />
       </div>
       <MultiSelect label="Keywords" custom value={keywords} onChange={setKeywords} options={options(c?.keywords ?? [])} empty="None" />
-      <Field label="Own seed companies">
-        {(p) => <Textarea rows={2} value={seeds} placeholder="Websites, one per line. Adds to the ones in Search settings." onChange={(e) => setSeeds(e.target.value)} {...p} />}
-      </Field>
     </Form>
   );
 }

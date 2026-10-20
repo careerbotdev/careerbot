@@ -10,7 +10,8 @@ import { type Infer, v } from "convex/values";
 // Pure module, shared with the browser.
 
 // edited: their own words in place of CareerBot's (`original`), on this resume only; it still rests on the same facts.
-const bullet = v.object({ text: v.string(), factIds: v.array(v.string()), unsourced: v.optional(v.boolean()), edited: v.optional(v.boolean()), original: v.optional(v.string()) });
+// added: put on this resume from the record by Add a line (as the fact reads, or written for it), not by a whole run.
+const bullet = v.object({ text: v.string(), factIds: v.array(v.string()), unsourced: v.optional(v.boolean()), edited: v.optional(v.boolean()), original: v.optional(v.string()), added: v.optional(v.boolean()) });
 const entry = v.object({
   employer: v.string(),
   title: v.string(),
@@ -38,7 +39,7 @@ export const resumeDoc = v.object({
 // A resume as shown (`present`): its entries carry the projects linked to them. What a pursuit keeps as sent.
 export const shownDoc = v.object({ ...resumeDoc.fields, experience: v.array(v.object({ ...entry.fields, projects: v.optional(v.array(project)) })) });
 
-export type Bullet = { text: string; factIds: string[]; unsourced?: boolean; edited?: boolean; original?: string };
+export type Bullet = { text: string; factIds: string[]; unsourced?: boolean; edited?: boolean; original?: string; added?: boolean };
 export type Entry = {
   employer: string;
   title: string;
@@ -76,9 +77,26 @@ export const layoutRole = v.object({
 export const layoutProject = v.object({ projectKey: v.string(), hidden: v.optional(v.boolean()) });
 // A skill (an approved skill, tool or certification, by its item id) is shown or left out the same way.
 export const layoutSkill = v.object({ key: v.string(), hidden: v.optional(v.boolean()) });
-// A bullet, by its words, pinned (always shown, even when its role folds and leaves its bullets out) or hidden (never
-// shown). Only ever one resume's choice.
-export const layoutBullet = v.object({ text: v.string(), state: v.union(v.literal("pinned"), v.literal("hidden")) });
+// A bullet, by its words within its role (roleKey) or project (projectKey), pinned (always shown, even when its role
+// folds and leaves its bullets out) or hidden (never shown), with the facts it rests on (`factIds`), so a new version
+// keeps the choice on its line written from the same facts in the same entry (resume.ts, carryOver). One from before
+// entries were kept goes by its words anywhere. `kept`: carried over from the version before. Only one resume's choice.
+export const layoutBullet = v.object({
+  text: v.string(),
+  state: v.union(v.literal("pinned"), v.literal("hidden")),
+  roleKey: v.optional(v.string()),
+  projectKey: v.optional(v.string()),
+  factIds: v.optional(v.array(v.string())),
+  kept: v.optional(v.literal(true)),
+});
+// The order they set for one entry's lines (a role by roleKey, a project by projectKey): its lines by their words, with
+// the facts each rests on, so the order carries into new versions like a pin. Lines not in it follow, as written.
+export const layoutOrder = v.object({
+  roleKey: v.optional(v.string()),
+  projectKey: v.optional(v.string()),
+  lines: v.array(v.object({ text: v.string(), factIds: v.array(v.string()) })),
+  kept: v.optional(v.literal(true)),
+});
 // Check against facts, on a line or summary in their own words (lineCheck.ts): whether it says only what its facts
 // support, and its words that go beyond them, with the facts it was checked against as they read then (facts, each a
 // fact id and a mark of its words). Kept with the words it checked; editing them again clears it. It shows only while
@@ -96,6 +114,7 @@ export const resumeLayout = v.object({
   projects: v.optional(v.array(layoutProject)),
   skills: v.optional(v.array(layoutSkill)),
   bullets: v.optional(v.array(layoutBullet)),
+  order: v.optional(v.array(layoutOrder)),
   words: v.optional(v.array(layoutWords)),
   summary: v.optional(v.string()),
   summaryCheck: v.optional(lineCheck),
@@ -104,6 +123,7 @@ export type LayoutRole = Infer<typeof layoutRole>;
 export type LayoutProject = Infer<typeof layoutProject>;
 export type LayoutSkill = Infer<typeof layoutSkill>;
 export type LayoutBullet = Infer<typeof layoutBullet>;
+export type LayoutOrder = Infer<typeof layoutOrder>;
 export type ResumeLayout = Infer<typeof resumeLayout>;
 type Layer = ResumeLayout | null | undefined;
 
@@ -112,6 +132,80 @@ type Layer = ResumeLayout | null | undefined;
 export const LENGTHS = { one: "One page", two: "Two pages", full: "Full" } as const;
 export type ResumeLength = keyof typeof LENGTHS;
 export const resumeLength = v.union(v.literal("one"), v.literal("two"), v.literal("full"));
+
+// How many lines (bullets, projects' included) each length holds: what the writer is asked for (resume.ts) and what a
+// resume's lines are counted against. One page fits about 15 lines and two pages about 25; Full has no limit.
+export const LENGTH_LINES: Record<ResumeLength, { least: number; most: number } | null> = { one: { least: 12, most: 15 }, two: { least: 20, most: 25 }, full: null };
+
+// The lines a resume shows (after hides, folds and projects left out): its bullets and its projects'.
+export const shownLines = (doc: ResumeDoc) =>
+  doc.experience.reduce((n, e) => n + e.bullets.length + (e.projects ?? []).reduce((m, p) => m + p.bullets.length, 0), 0) + (doc.projects ?? []).reduce((n, p) => n + p.bullets.length, 0);
+
+// About how many pages a number of lines fills, up to the next quarter page and at least one: the first page holds
+// about 15 lines and each page after it about 10 (so two pages hold about 25, as LENGTH_LINES says).
+export function pagesFor(lines: number) {
+  const first = LENGTH_LINES.one!.most;
+  const pages = lines <= first ? lines / first : 1 + (lines - first) / (LENGTH_LINES.two!.most - first);
+  return Math.max(1, Math.ceil(pages * 4 - 1e-9) / 4);
+}
+
+const QUARTERS = ["", "¼", "½", "¾"];
+const PAST: Record<ResumeLength, string> = { one: "past one page", two: "past two pages", full: "" };
+// A resume's length in words: "14 lines · about 1 page", or past its length, "17 lines · about 1¼ pages, past one page".
+export function lengthLine(lines: number, length: ResumeLength) {
+  const pages = pagesFor(lines);
+  const most = LENGTH_LINES[length]?.most;
+  const over = most !== undefined && lines > most;
+  const about = `about ${Math.floor(pages)}${QUARTERS[Math.round((pages % 1) * 4)]} ${pages === 1 ? "page" : "pages"}`;
+  return { text: `${lines} ${lines === 1 ? "line" : "lines"} · ${about}${over ? `, ${PAST[length]}` : ""}`, over };
+}
+
+const ROOM_WORDS = ["a line", "more than one", "more than two"];
+// Before adding lines: how many the length fits and how many the resume has, once it's two lines or fewer from full.
+// Null for Full, or with more room.
+export function roomNote(lines: number, length: ResumeLength) {
+  const most = LENGTH_LINES[length]?.most;
+  if (most === undefined || most - lines > 2) return null;
+  const fits = length === "one" ? "One page fits" : "Two pages fit";
+  const past = length === "one" ? "past a page" : "past two pages";
+  return `${fits} about ${most} lines and this resume has ${lines}. ${lines > most ? `It already runs ${past}.` : `Adding ${ROOM_WORDS[most - lines]} runs ${past}.`}`;
+}
+
+// What a version kept from the version before it (resume.ts, carryOver): its pins, hidden lines and whether their order
+// of lines. Null when it kept nothing.
+export function keptOf(layout: ResumeLayout | null | undefined) {
+  const kept = (layout?.bullets ?? []).filter((b) => b.kept);
+  const pins = kept.filter((b) => b.state === "pinned").length;
+  const order = (layout?.order ?? []).some((o) => o.kept);
+  return pins || kept.length || order ? { pins, hidden: kept.length - pins, order } : null;
+}
+
+// An entry's key among a resume's roles and projects: "role:<roleKey>" or "project:<projectKey>".
+export const entryKey = (at: { roleKey?: string; projectKey?: string }) => (at.projectKey ? `project:${at.projectKey}` : `role:${at.roleKey ?? ""}`);
+// A line's place: its entry and its words.
+export const bulletKey = (at: { roleKey?: string; projectKey?: string }, text: string) => `${entryKey(at)}\n${text}`;
+// Whether a line in an entry is pinned or hidden: its own entry's choice, else one from before entries were kept.
+export function bulletStates(bullets: LayoutBullet[] | undefined) {
+  const own = new Map<string, LayoutBullet["state"]>();
+  const anywhere = new Map<string, LayoutBullet["state"]>();
+  for (const b of bullets ?? []) {
+    if (b.roleKey || b.projectKey) own.set(bulletKey(b, b.text), b.state);
+    else anywhere.set(b.text, b.state);
+  }
+  return (at: { roleKey?: string; projectKey?: string }, text: string) => own.get(bulletKey(at, text)) ?? anywhere.get(text);
+}
+
+// How many of their approved facts (each on a role or project) a resume uses, and the ones it doesn't, by entry
+// (entryKey). A fact is used when a line shown on the resume rests on it; a hidden line's facts aren't.
+export function factUse(doc: ResumeDoc, layout: ResumeLayout, places: Record<string, { roleKey?: string; projectKey?: string }>) {
+  const stateOf = bulletStates(layout.bullets);
+  const lines = [...doc.experience.flatMap((e) => e.bullets.map((b) => ({ b, at: { roleKey: e.roleKey } }))), ...(doc.projects ?? []).flatMap((p) => p.bullets.map((b) => ({ b, at: { projectKey: p.projectKey } })))];
+  const cited = new Set(lines.filter(({ b, at }) => stateOf(at, b.text) !== "hidden").flatMap(({ b }) => b.factIds));
+  const all = Object.keys(places).filter((id) => places[id].roleKey || places[id].projectKey);
+  const unused: Record<string, string[]> = {};
+  for (const id of all) if (!cited.has(id)) (unused[entryKey(places[id])] ??= []).push(id);
+  return { used: all.filter((id) => cited.has(id)).length, of: all.length, unused };
+}
 
 // The two parts of a choice: how the role is placed (set on the record) and how its title reads (set on the base
 // resume). `part` keeps one part of an entry, with its roleKey.
@@ -157,6 +251,7 @@ export function mergeLayout(...layers: Layer[]): ResumeLayout {
   const bullets = new Map<string, LayoutBullet>();
   const words = new Map<string, string>();
   let summary: string | undefined;
+  let order: LayoutOrder[] | undefined;
   for (const layer of layers) {
     for (const r of layer?.roles ?? []) {
       const set = Object.fromEntries(Object.entries(r).filter(([, x]) => x !== undefined));
@@ -164,9 +259,10 @@ export function mergeLayout(...layers: Layer[]): ResumeLayout {
     }
     for (const p of layer?.projects ?? []) if (p.hidden !== undefined) projects.set(p.projectKey, { projectKey: p.projectKey, hidden: p.hidden });
     for (const k of layer?.skills ?? []) if (k.hidden !== undefined) skills.set(k.key, { key: k.key, hidden: k.hidden });
-    for (const b of layer?.bullets ?? []) bullets.set(b.text, b);
+    for (const b of layer?.bullets ?? []) bullets.set(b.roleKey || b.projectKey ? bulletKey(b, b.text) : b.text, b);
     for (const w of layer?.words ?? []) words.set(w.text, w.to);
     if (layer?.summary !== undefined) summary = layer.summary;
+    if (layer?.order) order = layer.order;
   }
   return {
     roles: [...by.values()],
@@ -175,6 +271,33 @@ export function mergeLayout(...layers: Layer[]): ResumeLayout {
     ...(bullets.size ? { bullets: [...bullets.values()] } : {}),
     ...(words.size ? { words: [...words].map(([text, to]) => ({ text, to })) } : {}),
     ...(summary !== undefined ? { summary } : {}),
+    ...(order?.length ? { order } : {}),
+  };
+}
+
+const sameIds = (a: string[], b: string[]) => a.length > 0 && a.length === b.length && a.every((x) => b.includes(x));
+// An entry's lines in the order they set (each by its words, else by resting on the same facts, so a line brought up to
+// date still has its place); lines not in it follow, as written.
+export function inOrder<B extends Bullet>(bullets: B[], lines: LayoutOrder["lines"] | undefined): B[] {
+  if (!lines?.length) return bullets;
+  const rest = [...bullets];
+  const out: B[] = [];
+  for (const l of lines) {
+    let i = rest.findIndex((b) => b.text === l.text);
+    if (i < 0) i = rest.findIndex((b) => sameIds(b.factIds, l.factIds));
+    if (i >= 0) out.push(...rest.splice(i, 1));
+  }
+  return [...out, ...rest];
+}
+// The order set for a role's lines (by roleKey) or a project's (by projectKey).
+export const orderFor = (order: LayoutOrder[] | undefined, at: { roleKey?: string; projectKey?: string }) =>
+  order?.find((o) => (at.projectKey ? o.projectKey === at.projectKey : !o.projectKey && !!at.roleKey && o.roleKey === at.roleKey));
+function ordered(doc: ResumeDoc, order: LayoutOrder[] | undefined): ResumeDoc {
+  if (!order?.length) return doc;
+  return {
+    ...doc,
+    experience: doc.experience.map((e) => ({ ...e, bullets: inOrder(e.bullets, orderFor(order, { roleKey: e.roleKey })?.lines) })),
+    ...(doc.projects ? { projects: doc.projects.map((p) => ({ ...p, bullets: inOrder(p.bullets, orderFor(order, { projectKey: p.projectKey })?.lines) })) } : {}),
   };
 }
 
@@ -188,17 +311,19 @@ export function shownTitle(official: string, l?: Pick<LayoutRole, "title" | "tra
 // recent first, so a role's previous role is the entry after it and its next role the entry before it. A fold goes to
 // the nearest shown role on that side that isn't folded itself (never into a career break); with none there, the fold
 // is refused and the entry stays as it is. A project or skill left out is dropped (a skill group left empty with it).
-// A hidden bullet is never shown; a pinned one always is, even when its role folds and leaves its bullets out.
+// A hidden bullet is never shown; a pinned one always is, even when its role folds and leaves its bullets out. Lines go
+// in the order they set (before folds, so a folded role's lines keep theirs).
 // A project linked to a role shown here sits inside that role's entry (and goes where its bullets go when it folds);
 // with its role not shown, it stays under Projects. `placed`: each project inside a role (shown or left out), by the
 // roleKey of the entry it's in.
-export function arrange(doc: ResumeDoc, ...layers: Layer[]) {
+export function arrange(written: ResumeDoc, ...layers: Layer[]) {
   const merged = mergeLayout(...layers);
-  const bulletState = new Map((merged.bullets ?? []).map((b) => [b.text, b.state]));
+  const doc = ordered(written, merged.order);
+  const stateOf = bulletStates(merged.bullets);
   const theirs = new Map((merged.words ?? []).map((w) => [w.text, w.to]));
   // Hidden goes by CareerBot's words; a line they reworded shows in theirs, with CareerBot's kept as `original`.
-  const visible = (bullets: Bullet[]) =>
-    bullets.filter((b) => bulletState.get(b.text) !== "hidden").map((b) => (theirs.has(b.text) ? { ...b, text: theirs.get(b.text)!, edited: true, original: b.text } : b));
+  const visible = (bullets: Bullet[], at: { roleKey?: string; projectKey?: string }) =>
+    bullets.filter((b) => stateOf(at, b.text) !== "hidden").map((b) => (theirs.has(b.text) ? { ...b, text: theirs.get(b.text)!, edited: true, original: b.text } : b));
   const skillsOut = new Set((merged.skills ?? []).filter((k) => k.hidden).map((k) => k.key));
   const skills = doc.skills
     .map((g) => {
@@ -212,7 +337,7 @@ export function arrange(doc: ResumeDoc, ...layers: Layer[]) {
   const shown = doc.experience.filter((e) => !of(e)?.hidden);
   const list: Entry[] = shown.map(({ reason, ...e }) => {
     const l = of(e);
-    return { ...e, title: e.break ? e.title : shownTitle(e.title, l), ...(e.break && reason && l?.showReason ? { reason } : {}), bullets: visible(e.bullets) };
+    return { ...e, title: e.break ? e.title : shownTitle(e.title, l), ...(e.break && reason && l?.showReason ? { reason } : {}), bullets: visible(e.bullets, { roleKey: e.roleKey }) };
   });
   const fold = shown.map((e) => of(e)?.fold);
   const folded = new Set(list.flatMap((_, i) => (fold[i] ? [i] : [])));
@@ -228,9 +353,9 @@ export function arrange(doc: ResumeDoc, ...layers: Layer[]) {
     const i = p.roleKey ? list.findIndex((e) => !e.break && e.roleKey === p.roleKey) : -1;
     if (i < 0) continue;
     inside.set(p.projectKey, i);
-    if (!out.has(p.projectKey)) list[i].projects = [...(list[i].projects ?? []), { ...p, bullets: visible(p.bullets) }];
+    if (!out.has(p.projectKey)) list[i].projects = [...(list[i].projects ?? []), { ...p, bullets: visible(p.bullets, { projectKey: p.projectKey }) }];
   }
-  const pinned = (b: Bullet) => bulletState.get(b.original ?? b.text) === "pinned";
+  const pinned = (at: { roleKey?: string; projectKey?: string }) => (b: Bullet) => stateOf(at, b.original ?? b.text) === "pinned";
   const folds: { roleKey: string; into: Entry }[] = [];
   for (const i of folded) {
     const f = list[i];
@@ -242,15 +367,15 @@ export function arrange(doc: ResumeDoc, ...layers: Layer[]) {
     delete t.end;
     Object.assign(t, start ? { start } : {}, end ? { end } : {});
     const move = fold[i]!.bullets === "move";
-    t.bullets.push(...(move ? f.bullets : f.bullets.filter(pinned)));
-    const projects = (f.projects ?? []).map((p) => (move ? p : { ...p, bullets: p.bullets.filter(pinned) })).filter((p) => move || p.bullets.length);
+    t.bullets.push(...(move ? f.bullets : f.bullets.filter(pinned({ roleKey: f.roleKey }))));
+    const projects = (f.projects ?? []).map((p) => (move ? p : { ...p, bullets: p.bullets.filter(pinned({ projectKey: p.projectKey })) })).filter((p) => move || p.bullets.length);
     if (projects.length) t.projects = [...(t.projects ?? []), ...projects];
     folds.push({ roleKey: f.roleKey!, into: t });
   }
   const placed: Record<string, string> = {};
   for (const [key, i] of inside) placed[key] = list[folded.has(i) ? target(i) : i].roleKey!;
   const experience = list.filter((_, i) => !folded.has(i));
-  const projects = doc.projects?.filter((p) => !out.has(p.projectKey) && !inside.has(p.projectKey)).map((p) => ({ ...p, bullets: visible(p.bullets) }));
+  const projects = doc.projects?.filter((p) => !out.has(p.projectKey) && !inside.has(p.projectKey)).map((p) => ({ ...p, bullets: visible(p.bullets, { projectKey: p.projectKey }) }));
   return {
     doc: { ...doc, ...(merged.summary !== undefined ? { summary: merged.summary } : {}), experience, ...(projects ? { projects } : {}), skills },
     summaryEdited: merged.summary !== undefined,
@@ -261,9 +386,6 @@ export function arrange(doc: ResumeDoc, ...layers: Layer[]) {
 }
 
 export const present = (doc: ResumeDoc, ...layers: Layer[]): ResumeDoc => arrange(doc, ...layers).doc;
-
-// Every bullet's words in a resume as written: what a pinned or hidden choice is kept by.
-export const bulletTexts = (doc: ResumeDoc) => new Set([...doc.experience.flatMap((e) => e.bullets), ...(doc.projects ?? []).flatMap((p) => p.bullets)].map((b) => b.text));
 
 // A translated title to offer for a role; never invented. On a direction resume, the direction's title map when it
 // translates the title the resume uses (resumeTitle); otherwise the market title the record already has for the role.

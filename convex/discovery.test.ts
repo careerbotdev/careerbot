@@ -92,8 +92,8 @@ test("discovery searches approved-criteria directions, resolves seeds to Apollo 
   await dir("Independent Consulting", {}, "proposed");
   await dir("Solutions Consulting", { seeds: ["loadstar.io"] }, "approved");
   await t.run((ctx) => ctx.db.insert("items", { workspaceId: w, kind: "limit", status: "approved", data: { kind: "companies", label: "Companies", value: "x", rule: { exclude: ["Parcelpoint.io"], industriesAvoid: ["consulting"] } }, sources: [], at: 0 }));
-  await as.mutation(api.discovery.setSeeds, { seeds: ["https://www.copperline.io/", "kestrelfreight.com", "notreal.example"] });
-  await expect(as.mutation(api.discovery.setSeeds, { seeds: ["Copperline"] })).rejects.toThrow("website");
+  await as.mutation(api.discovery.setLikes, { likes: [{ domain: "https://www.copperline.io/", add: false, like: true }, { domain: "kestrelfreight.com", add: false, like: true }, { domain: "notreal.example", add: false, like: true }] });
+  await expect(as.mutation(api.discovery.setLikes, { likes: [{ domain: "Copperline", add: false, like: true }] })).rejects.toThrow("website");
   const calls: URLSearchParams[] = [];
   stubApollo(500, (url) => {
     calls.push(url.searchParams);
@@ -126,7 +126,10 @@ test("seed changes are validated, and a direction's own seeds can be set and cle
   const { t, w, as } = await setup();
   const d = await t.run((ctx) => ctx.db.insert("items", { workspaceId: w, kind: "direction", status: "approved", data: { name: "SE", criteria: { industries: [], sizes: [], stages: [], titles: [], keywords: [] }, criteriaStatus: "approved" }, sources: [], at: 0 }));
   await as.mutation(api.discovery.setDirectionSeeds, { id: d, seeds: ["loadstar.io", "https://orchardforecasting.com/pricing"] });
-  expect((await as.query(api.discovery.list, {})).searchable[0].ownSeeds).toEqual(["loadstar.io", "orchardforecasting.com"]);
+  expect((await as.query(api.discovery.list, {})).searchable[0].ownSeeds).toEqual([
+    { domain: "loadstar.io", name: null },
+    { domain: "orchardforecasting.com", name: null },
+  ]);
   await as.mutation(api.discovery.setDirectionSeeds, { id: d, seeds: [] });
   expect((await as.query(api.discovery.list, {})).searchable[0].ownSeeds).toBeNull();
 });
@@ -165,7 +168,7 @@ test("learning from ratings: targets seed the directions they fit, turned-down c
   expect(on.learn).toBe(true);
   expect(on.searchable.map((d) => [d.name, d.targets])).toEqual([["Sales", ["Meridian Coldchain"]], ["Ops", []]]);
   expect(lookalikes).toEqual([["R1"]]);
-  expect(on.companies.find((c) => c.name === "Northgate Grocers")!.found).toEqual(["Sales (like your seeds)"]);
+  expect(on.companies.find((c) => c.name === "Northgate Grocers")!.found).toEqual(["Sales (like companies you like)"]);
   expect(on.companies.map((c) => c.name).sort()).toEqual(["Bramblewood Home", "Fernhill Foods", "Meridian Coldchain", "Northgate Grocers", "Tidewell"]);
   expect(await zoomFound()).toBe(1);
   const todo = await t.query(internal.enrich.todo, { workspaceId: w });
@@ -189,7 +192,7 @@ test("a run that stops part-way doesn't pay again for searches it finished", asy
   const { t, w, as } = await setup();
   vi.setSystemTime(Date.parse("2026-09-24T12:00:00Z"));
   await t.run((ctx) => ctx.db.insert("items", { workspaceId: w, kind: "direction", status: "approved", data: { name: "Sales", criteria: { industries: ["ai"], sizes: [], stages: [], titles: [], keywords: [] }, criteriaStatus: "approved" }, sources: [], at: 0 }));
-  await as.mutation(api.discovery.setSeeds, { seeds: ["copperline.io"] });
+  await as.mutation(api.discovery.setLikes, { likes: [{ domain: "copperline.io", add: false, like: true }] });
   let fail = true;
   const f = stubApollo(500, (url) => {
     const q = url.searchParams;
@@ -214,7 +217,7 @@ test("directions with the same seeds share one lookalike search", async () => {
   vi.setSystemTime(Date.parse("2026-09-24T12:00:00Z"));
   for (const name of ["Sales", "Solutions"])
     await t.run((ctx) => ctx.db.insert("items", { workspaceId: w, kind: "direction", status: "approved", data: { name, criteria: { industries: ["ai"], sizes: [], stages: [], titles: [], keywords: [] }, criteriaStatus: "approved" }, sources: [], at: 0 }));
-  await as.mutation(api.discovery.setSeeds, { seeds: ["copperline.io"] });
+  await as.mutation(api.discovery.setLikes, { likes: [{ domain: "copperline.io", add: false, like: true }] });
   const f = stubApollo(500, (url) => {
     const q = url.searchParams;
     if (q.getAll("q_organization_domains_list[]").length) return Response.json({ organizations: [{ id: "A1", name: "Copperline Robotics", primary_domain: "copperline.io" }] });
@@ -224,7 +227,7 @@ test("directions with the same seeds share one lookalike search", async () => {
   await as.mutation(api.discovery.start, {});
   await t.finishAllScheduledFunctions(vi.runAllTimers);
   expect(f.mock.calls.filter(([u]) => String(u).includes("lookalike")).length).toBe(1);
-  expect((await as.query(api.discovery.list, {})).companies[0].found.sort()).toEqual(["Sales (like your seeds)", "Solutions (like your seeds)"]);
+  expect((await as.query(api.discovery.list, {})).companies[0].found.sort()).toEqual(["Sales (like companies you like)", "Solutions (like companies you like)"]);
 });
 
 test("hiring-now searches add companies hiring the direction's titles; non-employers are set aside by rule or AI and can be restored", async () => {
@@ -258,8 +261,8 @@ test("companies you name are looked up and added in one search; ones Apollo lack
   const { t, w, as } = await setup();
   vi.setSystemTime(Date.parse("2026-09-24T12:00:00Z"));
   await t.run((ctx) => ctx.db.insert("items", { workspaceId: w, kind: "direction", status: "approved", data: { name: "Sales", criteria: { industries: [], sizes: [], stages: [], titles: [], keywords: [] }, criteriaStatus: "approved" }, sources: [], at: 0 }));
-  await as.mutation(api.discovery.setNamed, { named: ["nvidia.com", "https://www.spacex.com", "nope.example"] });
-  await expect(as.mutation(api.discovery.setNamed, { named: ["NVIDIA"] })).rejects.toThrow("website");
+  await as.mutation(api.discovery.setLikes, { likes: [{ domain: "nvidia.com", add: true, like: false }, { domain: "https://www.spacex.com", add: true, like: false }, { domain: "nope.example", add: true, like: false }] });
+  await expect(as.mutation(api.discovery.setLikes, { likes: [{ domain: "NVIDIA", add: true, like: false }] })).rejects.toThrow("website");
   stubApollo(500, (url) =>
     url.searchParams.getAll("q_organization_domains_list[]").includes("nvidia.com")
       ? Response.json({ organizations: [{ id: "N1", name: "NVIDIA", primary_domain: "nvidia.com" }, { id: "S1", name: "SpaceX", primary_domain: "spacex.com" }] })
@@ -323,4 +326,51 @@ test("checking again skips a company with no website, so it never waits on a che
   const id = await t.run((ctx) => ctx.db.insert("companies", { workspaceId: w, name: "No Site", at: 0, found: [{ via: "criteria", at: 0 }] }));
   expect((await as.mutation(api.enrich.recheck, { ids: [id] })).skipped).toBe(1);
   expect((await t.run((ctx) => ctx.db.get(id)))?.recheckAt).toBeUndefined();
+});
+
+test("Companies you like: saved as a whole list, each website checked, a website given twice keeps its first place and either choice", async () => {
+  const { t, as } = await setup();
+  await as.mutation(api.discovery.setLikes, {
+    likes: [
+      { domain: "https://www.Kestrelfreight.com/about", name: "Kestrel Freight", add: true, like: false },
+      { domain: "lumenplan.com", add: false, like: true },
+      { domain: "kestrelfreight.com", add: false, like: true },
+    ],
+  });
+  const likes = () => as.query(api.discovery.list, {}).then((l) => l.likes.map(({ domain, name, add, like }) => ({ domain, name, add, like })));
+  expect(await likes()).toEqual([
+    { domain: "kestrelfreight.com", name: "Kestrel Freight", add: true, like: true },
+    { domain: "lumenplan.com", name: null, add: false, like: true },
+  ]);
+  // Changing a choice and removing one: the whole list again.
+  await as.mutation(api.discovery.setLikes, { likes: [{ domain: "kestrelfreight.com", name: "Kestrel Freight", add: false, like: true }] });
+  expect(await likes()).toEqual([{ domain: "kestrelfreight.com", name: "Kestrel Freight", add: false, like: true }]);
+  await expect(as.mutation(api.discovery.setLikes, { likes: [{ domain: "Kestrel Freight", add: true, like: true }] })).rejects.toThrow("website");
+  await as.mutation(api.discovery.setLikes, { likes: [] });
+  expect(await likes()).toEqual([]);
+  const rows = await t.run((ctx) => ctx.db.query("discovery").collect());
+  expect(rows).toHaveLength(1);
+  expect(rows[0].likes).toEqual([]);
+});
+
+test("foldLikes moves the old seed and named lists into likes, a company in both keeping both choices; running it again changes nothing", async () => {
+  const { t, w, as } = await setup();
+  await t.run((ctx) =>
+    ctx.db.insert("discovery", { workspaceId: w, seeds: ["copperline.io", "kestrelfreight.com"], named: ["kestrelfreight.com", "nvidia.com"], resolved: [{ domain: "copperline.io", apolloId: "A1", name: "Copperline Robotics" }] }),
+  );
+  const folded = [
+    { domain: "copperline.io", name: "Copperline Robotics", add: false, like: true },
+    { domain: "kestrelfreight.com", add: true, like: true },
+    { domain: "nvidia.com", add: true, like: false },
+  ];
+  // Before the fold, the old row already reads as folded.
+  expect((await as.query(api.discovery.list, {})).likes.map(({ domain, add, like }) => ({ domain, add, like }))).toEqual(folded.map(({ domain, add, like }) => ({ domain, add, like })));
+  expect(await t.mutation(internal.discovery.foldLikes, {})).toEqual({ folded: 1 });
+  const row = async () => (await t.run((ctx) => ctx.db.query("discovery").collect()))[0];
+  const once = await row();
+  expect(once.likes).toEqual(folded);
+  expect(once.seeds).toBeUndefined();
+  expect(once.named).toBeUndefined();
+  expect(await t.mutation(internal.discovery.foldLikes, {})).toEqual({ folded: 0 });
+  expect(await row()).toEqual(once);
 });

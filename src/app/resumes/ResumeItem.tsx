@@ -7,10 +7,10 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { type Contact, LENGTHS, arrange } from "../../../convex/resumeDoc";
+import { type Contact, LENGTHS, type ResumeDoc, type ResumeLayout, type ResumeLength, arrange, entryKey, factUse, lengthLine, shownLines } from "../../../convex/resumeDoc";
 import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/Button";
-import { CostAction } from "@/components/CostEstimate";
+import { CostAction, CostEstimate } from "@/components/CostEstimate";
 import { EmptyState } from "@/components/EmptyState";
 import { Icons } from "@/components/icons";
 import { Kbd } from "@/components/Kbd";
@@ -21,6 +21,7 @@ import { Properties, Property } from "@/components/Properties";
 import { StatusTag } from "@/components/StatusTag";
 import { toast } from "@/components/Toast";
 import { Tooltip } from "@/components/Tooltip";
+import { WriteAgain } from "@/components/WriteAgain";
 import { useBar } from "../shell/ShellContext";
 import { Compare, choicesOf } from "./Compare";
 import { DriveProperty } from "./Drive";
@@ -31,7 +32,8 @@ import { FactChanges, useLinesWaiting } from "./FactChanges";
 import { Requirements, strongOf } from "./Requirements";
 import { aboutUsd } from "../costs";
 import { Mark } from "./ResumesList";
-import { EXPLAIN, FREE_UNDO, type Overview, type ResumeData, type Row, STATE, type TailoredRow, day, plural, resumeHref, tailoredName } from "./words";
+import { useAgainNote } from "./againNote";
+import { EXPLAIN, FREE_UNDO, type Overview, type ResumeData, type Row, STATE, type TailoredRow, VOICES, WRITE_AGAIN, day, plural, resumeHref, tailoredName } from "./words";
 
 // One resume open: its header (what it is, how it stands, Export and Write again), then the page to work on beside its
 // details and notes. A base or direction resume can be written again, have what's new added, and be compared with or
@@ -45,6 +47,35 @@ type Costs = { resume: string; directionResume: string; tailor: string; lines: s
 
 const failed = (e: unknown, fallback = "Couldn’t start.") => toast({ message: e instanceof ConvexError ? String(e.data) : fallback, icon: "failed" });
 const busy = (s?: string) => s === "queued" || s === "running";
+
+// How many of their approved facts a resume uses, and where the most unused ones are: "19 of 24 approved facts" over
+// "5 not used · 4 at Med-Surg Staff Nurse".
+function usesOf(doc: ResumeDoc, layout: ResumeLayout, places: ResumeData["places"], shown: ResumeDoc) {
+  const use = factUse(doc, layout, places);
+  const names = [...shown.experience.flatMap((e) => [{ key: entryKey({ roleKey: e.roleKey }), name: e.title }, ...(e.projects ?? []).map((p) => ({ key: entryKey({ projectKey: p.projectKey }), name: p.name }))]), ...(shown.projects ?? []).map((p) => ({ key: entryKey({ projectKey: p.projectKey }), name: p.name }))];
+  const most = names.map((n) => ({ ...n, count: use.unused[n.key]?.length ?? 0 })).sort((a, b) => b.count - a.count)[0];
+  const unused = use.of - use.used;
+  return {
+    short: `uses ${use.used} of ${use.of} facts`,
+    line: `${use.used} of ${plural(use.of, "approved fact")}`,
+    sub: unused ? [`${unused} not used`, ...(most?.count ? [`${most.count} at ${most.name}`] : [])].join(" · ") : "All used",
+  };
+}
+
+// The Length detail: the length chosen, then the lines it shows and about how many pages, in caution past the length.
+function LengthProperty({ length, own, doc }: { length: ResumeLength; own: boolean; doc: ResumeDoc }) {
+  const { text, over } = lengthLine(shownLines(doc), length);
+  return (
+    <Property label="Length">
+      <span className="flex flex-col">
+        <span>
+          {LENGTHS[length]} · {own ? "set for this resume" : "same as every resume"}
+        </span>
+        <span className={over ? "text-caution-text" : "text-muted"}>{text}</span>
+      </span>
+    </Property>
+  );
+}
 
 // The item's 52px top: on a phone the way back; beside the list, where it is with J and K; then the pane toggle and ⋯.
 function Top({ nav, small, menu, title, pane, onPane }: { nav: ItemNav; small: boolean; menu: MenuEntry[]; title: string; pane: ReactNode; onPane?: () => void }) {
@@ -154,15 +185,19 @@ export function ResumeItem({ row, overview, view, setView, nav, small, contact }
   const name = row.directionId ? `${row.name} resume` : "Base resume";
   const cost = row.directionId ? costs.directionResume : costs.resume;
   const shown = current?.doc && data ? arrange(current.doc, data.settings, current.layout) : null;
+  const uses = current?.doc && data && shown ? usesOf(current.doc, current.layout, data.places, shown.doc) : null;
   const exportItems = useExport({ doc: shown?.doc ?? null, contact, name, resumeId: current?.id });
   const writing = row.writing || busy(data?.last?.status);
 
-  const write = () =>
-    void (current ? rewrite(scope) : start(scope)).then(
-      (jobId) =>
+  const again = useAgainNote(row.key);
+  const write = (note?: string) =>
+    void (current ? rewrite({ ...scope, ...(note ? { note } : {}) }) : start(scope)).then(
+      (jobId) => {
+        if (jobId && current) again.setNote("");
         toast(
           jobId ? { message: current ? "Writing a new version. You’ll see it beside this one before you keep it." : `Writing your ${name}`, icon: "running" } : { message: "A resume is being written. Try again when it’s done.", icon: "failed" },
-        ),
+        );
+      },
       (e: unknown) => failed(e),
     );
   const addNew = () =>
@@ -198,24 +233,52 @@ export function ResumeItem({ row, overview, view, setView, nav, small, contact }
     return () => window.removeEventListener("keydown", onKey);
   }, [current, view.pane, setView]);
 
-  const writeButton = (primary: boolean, size: "md" | "lg" = "md") => (
-    <CostAction
-      amount={cost}
-      budget="From your AI budget"
-      variant={primary ? "primary" : "secondary"}
-      size={size}
-      icon="tryAgain"
-      loading={writing}
-      loadingLabel="Writing"
-      reason={row.blocked ?? (review ? "A new version is waiting. Keep or discard it first." : undefined)}
-      detail={current ? EXPLAIN.writeAgain : EXPLAIN.write(row)}
-      onClick={write}
-    >
-      {current ? "Write again" : "Write"}
-    </CostAction>
-  );
   const linesWaiting = useLinesWaiting(current ? { kind: "resume", id: current.id } : null);
   const bannerPrimary = !compare && !view.viewing && (row.state === "changed" || row.state === "unknown" || !!current?.additions || linesWaiting);
+  // Where Write again's note opens: the banner's Write again when a banner leads with one, else the header's (the
+  // bottom bar's on a phone). The header (or bar) keeps its Write again whenever no banner offers one.
+  const inMain = !!current && !compare && !view.viewing;
+  const bannerPlace =
+    inMain && !current.additions && !busy(data?.lines?.status) && (row.state === "changed" || row.state === "unknown")
+      ? "changed"
+      : inMain && !current.doc
+        ? "plain"
+        : inMain && !writing && data?.last?.status === "failed"
+          ? "failed"
+          : null;
+  const headerWrite = !bannerPrimary || !bannerPlace;
+  const anchor = bannerPrimary && bannerPlace ? bannerPlace : small ? "bar" : "header";
+  const reason = row.blocked ?? (review ? "A new version is waiting. Keep or discard it first." : undefined);
+  const writeButton = (primary: boolean, size: "md" | "lg" = "md", place = "") => {
+    const look = { variant: primary ? ("primary" as const) : ("secondary" as const), size, icon: "tryAgain" as const, loading: writing, loadingLabel: "Writing", reason };
+    if (!current || place !== anchor)
+      return (
+        <CostAction amount={cost} budget="From your AI budget" {...look} detail={current ? EXPLAIN.writeAgain : EXPLAIN.write(row)} onClick={() => (current ? again.setOpen(true) : write())}>
+          {current ? "Write again" : "Write"}
+        </CostAction>
+      );
+    return (
+      <div className={`flex min-w-0 items-center gap-3 ${size === "lg" ? "flex-1" : ""}`}>
+        <WriteAgain
+          title="Write again"
+          examples={WRITE_AGAIN.resume}
+          line={WRITE_AGAIN.line}
+          amount={cost}
+          note={again.note}
+          onNote={again.setNote}
+          open={again.open}
+          onOpenChange={again.setOpen}
+          onWrite={write}
+          trigger={
+            <Button {...look} className={size === "lg" ? "flex-1" : ""} detail={EXPLAIN.writeAgain} note={`${cost}. From your AI budget`}>
+              Write again
+            </Button>
+          }
+        />
+        {size !== "lg" && <CostEstimate amount={cost} budget="From your AI budget" />}
+      </div>
+    );
+  };
   useBar(
     small && current
       ? {
@@ -237,7 +300,7 @@ export function ResumeItem({ row, overview, view, setView, nav, small, contact }
             ) : (
               <>
                 <ExportMenu doc={shown?.doc ?? null} contact={contact} name={name} resumeId={current?.id} primary={!bannerPrimary} size="lg" className="flex-1" />
-                {!bannerPrimary && writeButton(false, "lg")}
+                {headerWrite && writeButton(false, "lg", "bar")}
               </>
             ),
         }
@@ -245,7 +308,22 @@ export function ResumeItem({ row, overview, view, setView, nav, small, contact }
   );
 
   const menu: MenuEntry[] = [
-    ...(current ? [{ label: "Write again", icon: "tryAgain" as const, hint: cost, detail: EXPLAIN.writeAgain, note: cost, onSelect: write, ...(review ? { disabled: true, reason: "A new version is waiting" } : {}) }] : []),
+    ...(current
+      ? [
+          {
+            label: "Write again",
+            icon: "tryAgain" as const,
+            hint: cost,
+            detail: EXPLAIN.writeAgain,
+            note: cost,
+            onSelect: () => {
+              setView({ compare: "closed", viewing: null });
+              again.setOpen(true);
+            },
+            ...(review ? { disabled: true, reason: "A new version is waiting" } : {}),
+          },
+        ]
+      : []),
     ...(row.state === "changed" ? [{ label: "Add what’s new", icon: "add" as const, hint: costs.lines, detail: EXPLAIN.addNew, note: costs.lines, onSelect: addNew }] : []),
     ...(canCompare ? [{ label: "Compare versions", icon: "switch" as const, detail: "Shows two versions side by side, with what changed.", note: "Free", onSelect: () => setView({ compare: review ? null : { from: data!.versions[1].id, to: current!.id }, viewing: null }) }] : []),
     ...(current
@@ -272,7 +350,7 @@ export function ResumeItem({ row, overview, view, setView, nav, small, contact }
       title={row.name}
       line={
         current
-          ? [row.directionId ? "Direction resume" : null, `${row.directionId ? "written" : "Written"} ${day(current.at)}`, current.counts && plural(current.counts.roles, "role"), current.counts && plural(current.counts.facts, "fact")].filter(Boolean).join(" · ")
+          ? [row.directionId ? "Direction resume" : null, `${row.directionId ? "written" : "Written"} ${day(current.at)}`, current.counts && plural(current.counts.roles, "role"), uses?.short].filter(Boolean).join(" · ")
           : row.directionId
             ? "Direction resume · not written yet"
             : "Not written yet"
@@ -303,7 +381,7 @@ export function ResumeItem({ row, overview, view, setView, nav, small, contact }
       ) : current ? (
         <>
           <ExportMenu doc={shown?.doc ?? null} contact={contact} name={name} resumeId={current.id} primary={!bannerPrimary} />
-          {!bannerPrimary && writeButton(false)}
+          {headerWrite && writeButton(false, "md", "header")}
           <span className="flex-1" />
           <PaneButton label="Layout" icon="settings" keys="L" on={view.pane === "layout"} detail={EXPLAIN.layout} onClick={() => togglePane("layout")} />
           <PaneButton label="History" icon="activity" keys="H" on={view.pane === "history"} detail={EXPLAIN.history} onClick={() => togglePane("history")} />
@@ -343,7 +421,7 @@ export function ResumeItem({ row, overview, view, setView, nav, small, contact }
     main = (
       <>
         {writing && <Banner tone="steel" title="Writing a new version" line="You’ll see it beside this one before you keep it." />}
-        {!writing && data.last?.status === "failed" && <Banner tone="caution" title="The last try failed" line={data.last.error ?? undefined}>{writeButton(false)}</Banner>}
+        {!writing && data.last?.status === "failed" && <Banner tone="caution" title="The last try failed" line={data.last.error ?? undefined}>{writeButton(false, "md", "failed")}</Banner>}
         {review && (
           <Banner tone="steel" title="A new version is waiting" line={row.summary ?? undefined}>
             <Button variant="ghost" icon="switch" detail="Shows the new version beside this one, with what changed." note="Free" onClick={() => setView({ compare: null })}>
@@ -365,9 +443,19 @@ export function ResumeItem({ row, overview, view, setView, nav, small, contact }
           </Banner>
         )}
         {!adds && !busy(data.lines?.status) && (row.state === "changed" || row.state === "unknown") && (
-          <Banner tone="caution" title={row.state === "changed" ? "Changed since it was written" : "Written before changes were listed"} line={row.state === "changed" && row.summary ? `Since ${day(current.at)}: ${row.summary}.` : "Write it again to keep track of what changes under it."}>
-            {writeButton(true)}
-            {row.state === "changed" && (
+          <Banner
+            tone="caution"
+            title={row.state === "changed" ? "Changed since it was written" : "Written before changes were listed"}
+            line={
+              row.state === "changed" && row.voiceOnly
+                ? `Voice changed from ${VOICES[current.voice ?? "confident"].label} to ${VOICES[data.voice.own ?? data.voice.record].label} ${data.voice.own ? "for this resume" : "for every resume"}. Your facts haven’t changed; write it again to use the new voice. Tailored resumes stay as written.`
+                : row.state === "changed" && row.summary
+                  ? `Since ${day(current.at)}: ${row.summary}.`
+                  : "Write it again to keep track of what changes under it."
+            }
+          >
+            {writeButton(true, "md", "changed")}
+            {row.state === "changed" && !row.voiceOnly && (
               <span className="md:ml-2">
                 <CostAction amount={costs.lines} budget="From your AI budget" icon="add" detail={EXPLAIN.addNew} onClick={addNew}>
                   Add what’s new
@@ -379,10 +467,21 @@ export function ResumeItem({ row, overview, view, setView, nav, small, contact }
         {data.lines?.status === "failed" && !adds && <Banner tone="caution" title="Couldn’t write lines for what’s new" line={data.lines.error ?? undefined} />}
         <FactChanges target={{ kind: "resume", id: current.id }} />
         {current.doc ? (
-          <EditSheet id={current.id} version={current} settings={data.settings} facts={data.facts} contact={contact} small={small} canAdd />
+          <EditSheet
+            id={current.id}
+            version={current}
+            settings={data.settings}
+            facts={data.facts}
+            places={data.places}
+            length={data.length.own ?? data.length.record}
+            writing={data.writingLines.filter((l) => l.resumeId === current.id).map((l) => l.factId)}
+            contact={contact}
+            small={small}
+            canAdd
+          />
         ) : (
           <Banner tone="caution" title="This version is plain text" line="Write it again to use titles and folding.">
-            {writeButton(true)}
+            {writeButton(true, "md", "plain")}
           </Banner>
         )}
       </>
@@ -391,6 +490,7 @@ export function ResumeItem({ row, overview, view, setView, nav, small, contact }
 
   const tailored = overview.tailored.filter((t) => t.directionId === row.directionId);
   const length = data.length.own ?? data.length.record;
+  const voice = data.voice.own ?? data.voice.record;
   const folds = shown?.folds ?? [];
   const details = current && !compare && (
     <>
@@ -403,9 +503,29 @@ export function ResumeItem({ row, overview, view, setView, nav, small, contact }
           </Property>
         )}
         <Property label="Written">{day(current.at, true)}{current.restoredFrom ? ` · restored from ${day(current.restoredFrom)}` : ""}</Property>
-        {current.counts && <Property label="Built on">{[plural(current.counts.facts, "fact"), plural(current.counts.insights, "insight"), plural(current.counts.roles, "role")].join(" · ")}</Property>}
-        <Property label="Length">
-          {LENGTHS[length]} · {data.length.own ? "set for this resume" : "same as every resume"}
+        {current.note && <Property label="Asked for">“{current.note}”</Property>}
+        {uses && (
+          <Property label="Uses">
+            <span className="flex flex-col">
+              <span>{uses.line}</span>
+              <span className="text-muted">{uses.sub}</span>
+            </span>
+          </Property>
+        )}
+        {shown ? (
+          <LengthProperty length={length} own={!!data.length.own} doc={shown.doc} />
+        ) : (
+          <Property label="Length">
+            {LENGTHS[length]} · {data.length.own ? "set for this resume" : "same as every resume"}
+          </Property>
+        )}
+        <Property label="Voice">
+          <span className="flex flex-col">
+            <span>
+              {VOICES[voice].label} · {data.voice.own ? "set for this resume" : "same as every resume"}
+            </span>
+            {current.voice && current.voice !== voice && <span className="text-muted">Written in {VOICES[current.voice].label}</span>}
+          </span>
         </Property>
         {shown && (
           <Property label="Roles">
@@ -459,16 +579,48 @@ export function TailoredItem({ row, view, setView, nav, small, contact }: { row:
   const drive = useQuery(api.drive.fileFor, { id: row.id });
   const linesWaiting = useLinesWaiting({ kind: "resume", id: row.id });
   const tailoring = busy(data?.last?.status);
-  const again = () =>
-    void start({ directionId: row.directionId, ...(t?.role ? { postingId: t.role.id } : { posting: t!.posting }) }).then(
-      (jobId) => toast(jobId ? { message: "Tailoring a new resume. This one stays as it is.", icon: "running" } : { message: "A resume is being written. Try again when it’s done.", icon: "failed" }),
+  const note = useAgainNote(`tailored:${row.id}`);
+  const again = (asked?: string) =>
+    void start({ directionId: row.directionId, ...(t?.role ? { postingId: t.role.id } : { posting: t!.posting }), ...(asked ? { note: asked } : {}) }).then(
+      (jobId) => {
+        if (jobId) note.setNote("");
+        toast(jobId ? { message: "Tailoring a new resume. This one stays as it is.", icon: "running" } : { message: "A resume is being written. Try again when it’s done.", icon: "failed" });
+      },
       (e: unknown) => failed(e),
     );
-  const againButton = (size: "md" | "lg" = "md") => (
-    <CostAction amount={costs.tailor} budget="From your AI budget" size={size} icon="tryAgain" loading={tailoring} loadingLabel="Tailoring" detail={EXPLAIN.tailorAgain} onClick={again}>
-      Tailor again
-    </CostAction>
-  );
+  // The note opens under the header's Tailor again (the bottom bar's on a phone); others open it there.
+  const anchor = small ? "bar" : "header";
+  const againButton = (size: "md" | "lg" = "md", place = "") => {
+    const look = { size, icon: "tryAgain" as const, loading: tailoring, loadingLabel: "Tailoring" };
+    if (place !== anchor)
+      return (
+        <CostAction amount={costs.tailor} budget="From your AI budget" {...look} detail={EXPLAIN.tailorAgain} onClick={() => note.setOpen(true)}>
+          Tailor again
+        </CostAction>
+      );
+    return (
+      <div className={`flex min-w-0 items-center gap-3 ${size === "lg" ? "flex-1" : ""}`}>
+        <WriteAgain
+          title="Tailor again"
+          subject={`For ${row.title}`}
+          examples={WRITE_AGAIN.tailored}
+          line={WRITE_AGAIN.tailoredLine}
+          amount={costs.tailor}
+          note={note.note}
+          onNote={note.setNote}
+          open={note.open}
+          onOpenChange={note.setOpen}
+          onWrite={again}
+          trigger={
+            <Button {...look} className={size === "lg" ? "flex-1" : ""} detail={EXPLAIN.tailorAgain} note={`${costs.tailor}. From your AI budget`}>
+              Tailor again
+            </Button>
+          }
+        />
+        {size !== "lg" && <CostEstimate amount={costs.tailor} budget="From your AI budget" />}
+      </div>
+    );
+  };
   useBar(
     small && t
       ? {
@@ -476,14 +628,14 @@ export function TailoredItem({ row, view, setView, nav, small, contact }: { row:
           actions: (
             <>
               <ExportMenu doc={shown?.doc ?? null} contact={contact} name={name} resumeId={row.id} primary={!linesWaiting} size="lg" className="flex-1" />
-              {againButton("lg")}
+              {againButton("lg", "bar")}
             </>
           ),
         }
       : null,
   );
   const menu: MenuEntry[] = [
-    { label: "Tailor again", icon: "tryAgain", hint: costs.tailor, detail: EXPLAIN.tailorAgain, note: costs.tailor, onSelect: again },
+    { label: "Tailor again", icon: "tryAgain", hint: costs.tailor, detail: EXPLAIN.tailorAgain, note: costs.tailor, onSelect: () => note.setOpen(true) },
     { label: "Posting", icon: "thirdPane", detail: EXPLAIN.posting, note: "Free", onSelect: () => setView({ pane: "posting" }) },
     { label: "Layout", icon: "settings", keys: "L", detail: EXPLAIN.tailoredLayout, note: "Free", onSelect: () => setView({ pane: "layout" }) },
     { label: "Export", icon: "export", items: exportItems },
@@ -503,7 +655,7 @@ export function TailoredItem({ row, view, setView, nav, small, contact }: { row:
       />
       <Head small={small} mark={<Avatar name={row.company ?? row.title} company size={40} />} title={row.title} line={[row.company, `tailored from ${row.direction}`, day(row.at)].filter(Boolean).join(" · ")}>
         <ExportMenu doc={shown?.doc ?? null} contact={contact} name={name} resumeId={row.id} primary={!linesWaiting} />
-        {againButton()}
+        {againButton("md", "header")}
         <span className="flex-1" />
         <PaneButton label="Layout" icon="settings" keys="L" on={view.pane === "layout"} detail={EXPLAIN.tailoredLayout} onClick={() => setView({ pane: view.pane === "layout" ? null : "layout" })} />
       </Head>
@@ -513,7 +665,18 @@ export function TailoredItem({ row, view, setView, nav, small, contact }: { row:
           t.doc ? (
             <>
               <FactChanges target={{ kind: "resume", id: t.id }} />
-              <EditSheet id={t.id} version={{ doc: t.doc, layout: t.layout ?? { roles: [] }, additions: null }} settings={data.settings} facts={data.facts} contact={contact} small={small} canAdd={false} />
+              <EditSheet
+                id={t.id}
+                version={{ doc: t.doc, layout: t.layout ?? { roles: [] }, additions: null }}
+                settings={data.settings}
+                facts={data.facts}
+                places={data.places}
+                length={data.length.own ?? data.length.record}
+                writing={data.writingLines.filter((l) => l.resumeId === t.id).map((l) => l.factId)}
+                contact={contact}
+                small={small}
+                canAdd={false}
+              />
             </>
           ) : (
             <Banner tone="caution" title="This version is plain text" line="Tailor it again to use titles and folding.">
@@ -522,9 +685,10 @@ export function TailoredItem({ row, view, setView, nav, small, contact }: { row:
           )
         }
         details={
-          drive ? (
+          drive || t.note ? (
             <Properties>
-              <DriveProperty resumeId={row.id} />
+              {t.note && <Property label="Asked for">“{t.note}”</Property>}
+              {drive && <DriveProperty resumeId={row.id} />}
             </Properties>
           ) : undefined
         }

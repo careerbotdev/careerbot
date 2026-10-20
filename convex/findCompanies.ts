@@ -50,7 +50,7 @@ export const set = mutation({
     const { row, apolloKey } = await choiceOf(ctx, workspaceId);
     if (finding !== "web" && !apolloKey) throw new ConvexError(NEEDS_APOLLO);
     if (row) await ctx.db.patch(row._id, { finding });
-    else await ctx.db.insert("discovery", { workspaceId, seeds: [], resolved: [], finding });
+    else await ctx.db.insert("discovery", { workspaceId, resolved: [], finding });
   },
 });
 

@@ -410,7 +410,7 @@ export const setApolloJobs = mutation({
     const { workspaceId } = await requireWorkspace(ctx);
     const row = await ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
     if (row) await ctx.db.patch(row._id, { apolloJobs: on });
-    else await ctx.db.insert("discovery", { workspaceId, seeds: [], resolved: [], apolloJobs: on });
+    else await ctx.db.insert("discovery", { workspaceId, resolved: [], apolloJobs: on });
   },
 });
 

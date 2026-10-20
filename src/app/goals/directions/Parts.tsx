@@ -1,15 +1,20 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import { type ReactNode, useState } from "react";
 import { api } from "../../../../convex/_generated/api";
 import { cap } from "../../../../convex/limitBuckets";
 import { BuiltOnPeek, type BuiltOnSource } from "@/components/BuiltOn";
 import { Button } from "@/components/Button";
+import { CompanyLine, CompanyPicker } from "@/components/CompanyPicker";
 import { CostEstimate } from "@/components/CostEstimate";
+import { useScreenSize } from "@/components/Panes";
 import { StatusTag } from "@/components/StatusTag";
 import { Text } from "@/components/Text";
+import { toast } from "@/components/Toast";
 import { ValueTags } from "@/components/ValueTags";
+import { findWords } from "../../companies/likes";
 import { inlineLink, Notice, Section, ValueRows } from "../ui";
 import { capAll, type Direction, fillInWords, goalIndustriesLabel, RECORD_INDUSTRIES_LABEL, seniorityClashes, sizeLabel, stageLabel } from "./words";
 
@@ -54,28 +59,67 @@ export function criteriaRows(d: Direction, all = true) {
     { label: "Sizes", value: tags(c.sizes.map(sizeLabel)) },
     { label: "Stages", value: tags(c.stages.map(stageLabel)) },
     { label: "Keywords", value: c.keywords.length ? <ValueTags items={c.keywords} max={9} /> : <span className="text-muted">None</span> },
-    ...(all ? [{ label: "Seed companies", value: <Seeds d={d} /> }] : []),
+    ...(all ? [{ label: "Companies you like", value: <Seeds d={d} /> }] : []),
   ];
 }
 
-// A direction's seed companies: Search settings' for every direction (muted), then the ones it adds.
+// A direction's companies to find more like: Search settings' Companies you like with Find more like it on (for every
+// direction, muted), then its own, each with Remove, and the picker to add one with one choice: find more like it, for
+// this direction only (no Add to my companies; that's Search settings'). Each change saves its whole list, with Undo.
 function Seeds({ d }: { d: Direction }) {
-  const global = useQuery(api.discovery.seeds);
-  const own = (d.data.criteria?.seeds ?? []).filter((s) => !global?.includes(s));
+  const own = d.data.criteria?.seeds ?? [];
+  const known = useQuery(api.discovery.seeds, { domains: own });
+  const finding = useQuery(api.findCompanies.settings);
+  const costs = useQuery(api.estimates.costs, {});
+  const set = useMutation(api.discovery.setDirectionSeeds);
+  const find = useAction(api.companyLookup.find);
+  const website = useAction(api.companyLookup.website);
+  const small = useScreenSize() === "small";
+  const words = finding && costs && findWords({ finding: finding.finding, braveKey: finding.braveKey, byNameUsd: costs.findByName });
+  const name = d.data.name;
+  const save = (seeds: string[], message: string) => set({ id: d.id, seeds }).then(() => toast({ message, action: { label: "Undo", key: "U", run: () => void set({ id: d.id, seeds: own }) } }));
+  const plainly = (e: unknown, fallback: string): never => {
+    throw new Error(e instanceof ConvexError ? String(e.data) : fallback);
+  };
+  const mine = (known?.own ?? []).filter((s) => !known?.everyDirection.some((x) => x.domain === s.domain));
   return (
-    <span className="flex flex-col gap-2">
-      {global !== undefined && (
+    <span className="flex flex-col gap-3">
+      {known && (
         <span className="flex flex-col gap-1">
           <span className="text-body-sm leading-body-sm text-muted">From Search settings, for every direction</span>
-          {global.length ? <ValueTags items={global} className="opacity-70" /> : <span className="text-muted">None yet</span>}
+          {known.everyDirection.length ? <ValueTags items={known.everyDirection.map((s) => s.name ?? s.domain)} className="opacity-70" /> : <span className="text-muted">None yet</span>}
         </span>
       )}
-      {own.length > 0 && (
-        <span className="flex flex-col gap-1">
-          <span className="text-body-sm leading-body-sm text-muted">Added for {d.data.name}</span>
-          <ValueTags items={own} />
-        </span>
-      )}
+      <span className="flex flex-col gap-1">
+        <span className="text-body-sm leading-body-sm text-muted">Find more like these for {name}</span>
+        {mine.length > 0 && (
+          <ul aria-label={`Companies ${name} finds more like`} className="flex flex-col">
+            {mine.map((s) => (
+              <CompanyLine
+                key={s.domain}
+                name={s.name}
+                domain={s.domain}
+                small={small}
+                removeDetail={`${name}’s search stops looking for companies like ${s.name ?? s.domain}. Companies already found stay where they are.`}
+                onRemove={() => void save(own.filter((x) => x !== s.domain), `Removed ${s.name ?? s.domain} from ${name}`).catch(() => toast({ message: "Couldn’t remove that.", icon: "failed" }))}
+              />
+            ))}
+          </ul>
+        )}
+        {words && (
+          <CompanyPicker
+            label={`Find more like a company, for ${name}`}
+            small={small}
+            findNote={words.note}
+            findDetail={words.detail}
+            addDetail={(n) => `Searches for ${name} also find companies like ${n ?? "this website"}. It isn’t added to your companies.`}
+            addNote={words.likeNote.replace("Free to turn on", "Free to add")}
+            find={(q) => find({ name: q }).then((r) => ({ companies: r.companies, source: words.source(r.source, r.costUsd) }), (e: unknown) => plainly(e, "Couldn’t search. Try again."))}
+            website={(site) => website({ website: site }).catch((e: unknown) => plainly(e, "Couldn’t read that website. Try again."))}
+            onAdd={(c) => save([...own.filter((x) => x !== c.domain), c.domain], `${name} finds more like ${c.name ?? c.domain}`).catch((e: unknown) => plainly(e, "Couldn’t add that."))}
+          />
+        )}
+      </span>
     </span>
   );
 }
