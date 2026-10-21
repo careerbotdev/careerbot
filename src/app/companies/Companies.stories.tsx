@@ -185,12 +185,12 @@ const base: CompaniesData = {
     { id: did("g1"), text: "Works on food, freight or the software behind them" },
     { id: did("g2"), text: "Skip tobacco companies" },
   ],
-  // Companies you like: one found by name in Apollo (both choices), one typed website not in Apollo (find more like
-  // it), and one only added to their companies.
+  // Companies you like: one in Apollo, one typed website not in Apollo, and one not used to find more like it (added
+  // only, as 0.14.0's Add to my companies alone comes forward).
   likes: [
-    { domain: "lumenplan.example.com", name: "Lumen Planning", add: true, like: true, lookup: { apolloId: "a1", name: "Lumen Planning", domain: "lumenplan.example.com" } },
-    { domain: "orchard.example.com", name: null, add: false, like: true, lookup: { apolloId: null, domain: "orchard.example.com" } },
-    { domain: "parcelpoint.example.com", name: "Parcelpoint", add: true, like: false, lookup: null },
+    { domain: "lumenplan.example.com", name: "Lumen Planning", like: true, lookup: { apolloId: "a1", name: "Lumen Planning", domain: "lumenplan.example.com" } },
+    { domain: "orchard.example.com", name: null, like: true, lookup: { apolloId: null, domain: "orchard.example.com" } },
+    { domain: "parcelpoint.example.com", name: "Parcelpoint", like: false, lookup: null },
   ],
   searchable: [
     { id: product, name: "Supply Chain Product", ownSeeds: null, hasTitles: true, boardQueries: 2, targets: ["Loadstar Systems", "Meridian Coldchain"] },
@@ -275,8 +275,8 @@ function createStore(initial: CompaniesData, initialParams: Params) {
     find: done,
     fillInDirections: async () => "job-fill" as Id<"jobs">,
     startOutreach: async () => "pur-outreach",
-    setLikes: async ({ likes }: { likes: { domain: string; name?: string; add: boolean; like: boolean }[] }) => {
-      data = { ...data, likes: likes.map((l) => ({ domain: l.domain, name: l.name ?? null, add: l.add, like: l.like, lookup: data.likes.find((x) => x.domain === l.domain)?.lookup ?? null })) };
+    setLikes: async ({ likes }: { likes: { domain: string; name?: string; like: boolean }[] }) => {
+      data = { ...data, likes: likes.map((l) => ({ domain: l.domain, name: l.name ?? null, like: l.like, lookup: data.likes.find((x) => x.domain === l.domain)?.lookup ?? null })) };
       emit();
       return null;
     },
@@ -307,26 +307,34 @@ function createStore(initial: CompaniesData, initialParams: Params) {
   };
 }
 
-const apolloSetup: FindSetup = { finding: "apollo", braveKey: true, relevantUsd: 0.028, hiringNowUsd: 0.014, byNameUsd: 0.004, aiLeft: { left: 18.6, monthly: 25 } };
+const apolloSetup: FindSetup = { finding: "apollo", braveKey: true, relevantUsd: 0.028, hiringNowUsd: 0.014, aiLeft: { left: 18.6, monthly: 25 } };
 
-// Finding a company by name (fictional): "Kestrel" has two, "Brightwater" one from a web search, anything else none; a typed website reads its name.
-// `finds` counts searches run, so a play can check typing alone runs none.
-let finds = 0;
+// Free lookups (fictional): "Northw" and "Kestrel" bring companies (one of them already theirs), "Quill" none; a typed
+// website reads its name; a pasted list resolves line by line. `lookups` counts what was asked, so a play can check
+// typing waits for two characters and a pause.
+let lookups: string[] = [];
+const KNOWN = [
+  { name: "Northwind Logistics", domain: "northwind.example.com", yours: true },
+  { name: "Northwind Health", domain: "northwindhealth.example.com" },
+  { name: "Northwind Studio", domain: "northwind.example.net" },
+  { name: "Kestrel Freight", domain: "kestrelfreight.example.com" },
+  { name: "Kestrel Analytics", domain: "kestrel-analytics.example.com" },
+  { name: "Tidewell Systems", domain: "tidewell.example.com" },
+  { name: "Meridian Coldchain", domain: "meridian.example.com" },
+];
+const named = (q: string) => KNOWN.filter((k) => k.name.toLowerCase().startsWith(q.trim().toLowerCase().slice(0, 4)) && !/quill/i.test(q)).map((k) => ({ ...k, yours: !!k.yours }));
 const lookup: Lookup = {
-  find: async (name) => {
-    finds++;
-    if (/brightwater/i.test(name)) return { source: "ai", costUsd: 0.004, companies: [{ name: "Brightwater Labs", domain: "brightwater.example.com", line: "Water testing and lab software for city utilities." }] };
-    return {
-      source: "apollo",
-      costUsd: 0,
-      companies: /kestrel/i.test(name)
-        ? [
-            { name: "Kestrel Freight", domain: "kestrelfreight.example.com", line: "Freight brokerage software for regional carriers." },
-            { name: "Kestrel Analytics", domain: "kestrel-analytics.example.com", line: "Demand forecasting for grocery chains." },
-          ]
-        : [],
-    };
+  suggest: async (q) => {
+    lookups.push(q);
+    return named(q);
   },
+  resolve: async (lines) =>
+    lines.map((line) => {
+      if (/\./.test(line)) return { line, match: { domain: line.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].toLowerCase(), name: /harborline/i.test(line) ? "Harborline" : null }, check: false };
+      const found = named(line);
+      const exact = found.find((f) => f.name.toLowerCase() === line.toLowerCase());
+      return exact ? { line, match: { domain: exact.domain, name: exact.name }, check: false } : found[0] ? { line, match: { domain: found[0].domain, name: found[0].name }, check: true } : { line, match: null, check: false };
+    }),
   website: async (site) => ({ domain: site.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].toLowerCase(), name: /harborline/i.test(site) ? "Harborline" : null }),
 };
 
@@ -439,7 +447,7 @@ export const FindCompaniesAiOnly: Story = {
 };
 export const FindCompaniesAiOnlyNoBrave: Story = {
   name: "Find companies, AI only, no Brave key, before the first search",
-  render: () => <Fixture data={{ ...base, last: null }} setup={{ finding: "web", braveKey: false, relevantUsd: null, hiringNowUsd: null, byNameUsd: null, aiLeft: null }} tab="targets" company="loadstar" />,
+  render: () => <Fixture data={{ ...base, last: null }} setup={{ finding: "web", braveKey: false, relevantUsd: null, hiringNowUsd: null, aiLeft: null }} tab="targets" company="loadstar" />,
   play: FindCompanies.play,
 };
 export const FoundByWebSearch: Story = { name: "Found by web search", render: () => <Fixture tab="found" company="brinewell" /> };
@@ -458,57 +466,85 @@ const openSettings = async (canvasElement: HTMLElement) => {
   await waitFor(() => expect(body.queryByRole("menuitem", { name: /Search settings/ }) ?? body.queryByRole("button", { name: /^Search settings/ })).toBeTruthy());
   await userEvent.click(body.queryByRole("menuitem", { name: /Search settings/ }) ?? body.getByRole("button", { name: /^Search settings/ }));
 };
-// Find by name: two companies named Kestrel, each with its website and what it does, and where they came from.
-export const FindByName: Story = {
-  name: "Search settings, find a company by name",
+const likesBox = () => within(document.body).findByRole("combobox", { name: "Add a company you like" });
+// As a name is typed: nothing under two characters, then the companies it may mean a moment after typing stops, their
+// own first. Nothing about cost: looking up is free.
+export const FindAsYouType: Story = {
+  name: "Search settings, companies you like, typing",
   render: () => <Fixture tab="targets" />,
   play: async ({ canvasElement }) => {
     await openSettings(canvasElement);
-    const box = await within(document.body).findByRole("textbox", { name: "Add a company you like" });
-    finds = 0;
-    await userEvent.type(box, "Kestrel");
-    // What Find costs is beside it before it runs, and typing searches nothing.
-    await within(document.body).findAllByText(/^1 Apollo credit/);
-    expect(finds).toBe(0);
-    await userEvent.click(within(document.body).getByRole("button", { name: "Find" }));
-    await waitFor(() => expect(finds).toBe(1));
-    await within(document.body).findByText("2 companies named Kestrel");
-    await within(document.body).findByText("From Apollo · 1 credit used");
+    const box = await likesBox();
+    lookups = [];
+    await userEvent.type(box, "N");
+    expect(lookups).toEqual([]);
+    await userEvent.type(box, "orthw");
+    const list = await within(document.body).findByRole("listbox", { name: "Companies for Northw" });
+    // "In your companies" beside its name; on a phone, after its website.
+    await within(list).findByText(/in your companies/i);
+    expect(lookups).toEqual(["Northw"]);
+    // The box keeps focus as the menu that opened Search settings finishes closing.
+    expect(box).toHaveFocus();
+    expect(within(document.body).queryByRole("button", { name: "Find" })).toBeNull();
   },
 };
-// No company by that name: Use a website instead.
+// No company by that name: type its website instead.
 export const FindByNameNone: Story = {
-  name: "Search settings, no company by that name",
+  name: "Search settings, companies you like, not found",
   render: () => <Fixture tab="targets" />,
   play: async ({ canvasElement }) => {
     await openSettings(canvasElement);
-    await userEvent.type(await within(document.body).findByRole("textbox", { name: "Add a company you like" }), "Quillfeather");
-    await userEvent.click(within(document.body).getByRole("button", { name: "Find" }));
+    await userEvent.type(await likesBox(), "Quillfeather");
     await within(document.body).findByText("No company named Quillfeather found.");
   },
 };
-// A typed website: no search, Find becomes Add, and it's free.
+// A typed website: added as it is, its name from its own site.
 export const AddByWebsite: Story = {
-  name: "Search settings, a typed website",
+  name: "Search settings, companies you like, a typed website",
   render: () => <Fixture tab="targets" />,
   play: async ({ canvasElement }) => {
     await openSettings(canvasElement);
-    await userEvent.type(await within(document.body).findByRole("textbox", { name: "Add a company you like" }), "harborline.example.com");
-    await within(document.body).findByRole("button", { name: "Add" });
+    await userEvent.type(await likesBox(), "harborline.example.com");
+    await within(document.body).findByRole("option", { name: "Add harborline.example.com" });
   },
 };
-// AI only, no Brave key: Find says it comes from the AI budget before it runs; one company by that name.
-export const FindByNameAiOnly: Story = {
-  name: "Search settings, find by name on AI only",
-  render: () => <Fixture tab="targets" setup={{ finding: "web", braveKey: false, relevantUsd: null, hiringNowUsd: null, byNameUsd: 0.004, aiLeft: null }} />,
+// A row's ⋯: Don't use to find more like it, and Remove. Parcelpoint's is off, so its row says so.
+export const LikeMenu: Story = {
+  name: "Search settings, companies you like, a row’s ⋯",
+  render: () => <Fixture tab="targets" />,
   play: async ({ canvasElement }) => {
     await openSettings(canvasElement);
-    await userEvent.type(await within(document.body).findByRole("textbox", { name: "Add a company you like" }), "Brightwater Labs");
-    await userEvent.click(within(document.body).getByRole("button", { name: "Find" }));
-    await within(document.body).findByText("1 company named Brightwater Labs");
+    await within(document.body).findByText("Not used to find more like it");
+    await userEvent.click(await within(document.body).findByRole("button", { name: "More for Lumen Planning" }));
   },
 };
-// None yet: the picker and what Find costs.
+// The list's ⋯: Paste a list and Copy list.
+export const LikesListMenu: Story = {
+  name: "Search settings, companies you like, the list’s ⋯",
+  render: () => <Fixture tab="targets" />,
+  play: async ({ canvasElement }) => {
+    await openSettings(canvasElement);
+    await userEvent.click(await within(document.body).findByRole("button", { name: "More for Companies you like" }));
+  },
+};
+// Paste a list: names and websites, looked up for free, each line to check, fix or remove before adding.
+export const PasteAList: Story = {
+  name: "Search settings, companies you like, paste a list",
+  render: () => <Fixture tab="targets" />,
+  play: async ({ canvasElement }) => {
+    await openSettings(canvasElement);
+    await userEvent.click(await within(document.body).findByRole("button", { name: "Paste a list" }));
+    const area = await within(document.body).findByRole("textbox", { name: "Companies to add" });
+    await userEvent.click(area);
+    await userEvent.paste("Kestrel Freight\ntidewell\nharborline.example.com, Quillfeather Co\nlumenplan.example.com\nhttps://www.meridian.example.com/about");
+    await userEvent.click(within(document.body).getByRole("button", { name: "Look them up" }));
+    const lines = await within(document.body).findByRole("list", { name: "Companies from your list" });
+    await within(lines).findByText("Check this");
+    await within(lines).findByText("Already in your list");
+    await within(document.body).findByRole("button", { name: "Add 4 companies" });
+  },
+};
+// None yet: the search, Paste a list, and what to do.
 export const SearchSettingsEmpty: Story = {
   name: "Search settings, no companies you like yet",
   render: () => <Fixture data={{ ...base, likes: [], searchable: base.searchable.map((d) => ({ ...d, ownSeeds: null })) }} tab="targets" />,

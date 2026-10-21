@@ -1358,6 +1358,18 @@
     },
     {
       "screen": "companies",
+      "label": "Paste a list",
+      "detail": "Adds several at once: names or websites, one per line or separated by commas. You check each one before they’re added.",
+      "note": "Free"
+    },
+    {
+      "screen": "companies",
+      "label": "Copy list",
+      "detail": "Copies the websites of the companies you like, one per line.",
+      "note": "Free"
+    },
+    {
+      "screen": "companies",
       "label": "Change",
       "detail": "Opens the companies you like, industries, goals check and ratings these searches use.",
       "note": "Free"

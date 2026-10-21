@@ -14,9 +14,9 @@ import { getInWorkspace, requireWorkspace } from "./workspaces";
 import { searchReadiness } from "./directionFill";
 
 // Finds companies with Apollo for each direction whose search criteria are approved: one search from the criteria, and
-// lookalike searches from seed companies (the companies they like with Find more like it on, for every direction, plus
-// the direction's own). Seeds are websites; Apollo's lookalike filter needs its own ids, so seeds are looked up first.
-// The companies they like with Add to my companies on are looked up and added for every direction. Past employers
+// lookalike searches from seed companies (the companies they like, unless they turned off finding more like one, for
+// every direction, plus the direction's own). Seeds are websites; Apollo's lookalike filter needs its own ids, so seeds
+// are looked up first. Every company they like is looked up and added for every direction. Past employers
 // never come back. Learning from their ratings (on unless they turn it off): their targets seed lookalike searches too,
 // for each direction the target fits, and companies they turned down are never found again.
 
@@ -52,26 +52,28 @@ function targetSeeds(companies: Doc<"companies">[]) {
     .filter((t) => t.directionIds.length);
 }
 
-export type Like = { domain: string; name?: string; add: boolean; like: boolean };
+// One company they like: added to their companies at every search, and (`like`) found more like in every direction's.
+export type Like = { domain: string; name?: string; like: boolean };
 
-// The companies they like, in their order. A row from before likes reads as folded (foldLikes, and an export from
-// before likes as it's imported, exportFormat): a website in both old lists keeps both choices on, and a seed takes
-// the name Apollo knows it by. Kept until every deployment has run foldLikes (its runbook is on bead cb-e5a.88).
+// The companies they like, in their order. A row from before one list (0.14.0) reads without its `add`: every company
+// they like is added now, and one that was only added keeps `like` off, so its searches stay as they were. A row from
+// before likes reads as folded (foldLikes, and an export from before likes as it's imported, exportFormat): a seed
+// finds more like it, and takes the name Apollo knows it by. Kept until every deployment has run foldLikes (its runbook
+// is on bead cb-e5a.88).
 export function likesOf(row: Pick<Doc<"discovery">, "likes" | "seeds" | "named" | "resolved"> | null): Like[] {
   if (!row) return [];
-  if (row.likes) return row.likes;
+  if (row.likes) return row.likes.map(({ domain, name, like }) => ({ domain, ...(name ? { name } : {}), like }));
   const seeds = row.seeds ?? [];
-  const named = row.named ?? [];
-  return [...new Set([...seeds, ...named])].map((domain) => {
+  return [...new Set([...seeds, ...(row.named ?? [])])].map((domain) => {
     const name = row.resolved.find((r) => r.domain === domain)?.name;
-    return { domain, ...(name ? { name } : {}), add: named.includes(domain), like: seeds.includes(domain) };
+    return { domain, ...(name ? { name } : {}), like: seeds.includes(domain) };
   });
 }
 
 // The whole list at once, as Search settings shows it (Undo saves the list before). Each website is checked; a
-// website given twice keeps its first place and either one's choices.
+// website given twice keeps its first place and name, and finds more like it when either one does.
 export const setLikes = mutation({
-  args: { likes: v.array(v.object({ domain: v.string(), name: v.optional(v.string()), add: v.boolean(), like: v.boolean() })) },
+  args: { likes: v.array(v.object({ domain: v.string(), name: v.optional(v.string()), like: v.boolean() })) },
   handler: async (ctx, { likes }) => {
     const { workspaceId } = await requireWorkspace(ctx);
     const bad = likes.filter((l) => !toDomain(l.domain)).map((l) => l.domain);
@@ -81,7 +83,7 @@ export const setLikes = mutation({
       const domain = toDomain(l.domain)!;
       const was = kept.get(domain);
       const name = was?.name ?? l.name?.trim();
-      kept.set(domain, { domain, ...(name ? { name } : {}), add: !!was?.add || l.add, like: !!was?.like || l.like });
+      kept.set(domain, { domain, ...(name ? { name } : {}), like: !!was?.like || l.like });
     }
     const row = await settings(ctx, workspaceId);
     if (row) await ctx.db.patch(row._id, { likes: [...kept.values()], seeds: undefined, named: undefined });
@@ -89,14 +91,14 @@ export const setLikes = mutation({
   },
 });
 
-// Operator, once per deployment: every row's seeds and named websites become its likes (likesOf). Running it again
-// changes nothing.
+// Operator, once per deployment: every row's seeds and named websites become its likes, and 0.14.0's `add` goes
+// (likesOf). Running it again changes nothing.
 export const foldLikes = internalMutation({
   args: {},
   handler: async (ctx) => {
     let folded = 0;
     for (const row of await ctx.db.query("discovery").collect()) {
-      if (row.likes && row.seeds === undefined && row.named === undefined) continue;
+      if (row.likes && row.seeds === undefined && row.named === undefined && row.likes.every((l) => l.add === undefined)) continue;
       await ctx.db.patch(row._id, { likes: likesOf(row), seeds: undefined, named: undefined });
       folded++;
     }
@@ -152,8 +154,8 @@ export const inputs = internalQuery({
       // Find more like it: the websites, and each with its name for the web search ("companies like Kestrel Freight").
       seeds: likes.filter((l) => l.like).map((l) => l.domain),
       liked: likes.filter((l) => l.like).map((l) => ({ domain: l.domain, ...(l.name ? { name: l.name } : {}) })),
-      // Add to my companies.
-      named: likes.filter((l) => l.add).map((l) => l.domain),
+      // Every company they like is added to their companies.
+      named: likes.map((l) => l.domain),
       resolved: row?.resolved ?? [],
       targets: targetSeeds(companies),
       turnedDown: companies.filter((c) => c.rating?.value === "no").map((c) => ({ name: c.name, ...(c.apolloId ? { apolloId: c.apolloId } : {}), ...(c.domain ? { domain: c.domain } : {}) })),
@@ -379,9 +381,9 @@ export const list = query({
       // How many companies are filled in: what Check all again goes over.
       filledIn: companies.filter((c) => c.fitAt !== undefined).length,
       companyGoals,
-      // Companies you like: each one's name when known, its two choices, and what Apollo knows it as (null: not looked
-      // up yet; apolloId null: not in Apollo).
-      likes: likes.map((l) => ({ domain: l.domain, name: l.name ?? nameOf(l.domain), add: l.add, like: l.like, lookup: row?.resolved.find((r) => r.domain === l.domain) ?? null })),
+      // Companies you like: each one's name when known, whether searches find more like it, and what Apollo knows it as
+      // (null: not looked up yet; apolloId null: not in Apollo).
+      likes: likes.map((l) => ({ domain: l.domain, name: l.name ?? nameOf(l.domain), like: l.like, lookup: row?.resolved.find((r) => r.domain === l.domain) ?? null })),
       // A target that's already one of the direction's seeds isn't searched twice.
       searchable: directions
         .filter((d) => d.data.criteriaStatus === "approved")

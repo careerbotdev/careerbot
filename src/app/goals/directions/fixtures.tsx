@@ -1034,24 +1034,19 @@ export function directionsFixtures({
         },
       };
     }),
-    ...answer(api.companyLookup.find, ({ name }) => ({
-      source: "apollo" as const,
-      costUsd: 0,
-      companies: /kestrel/i.test(name)
+    ...answer(api.companyLookup.suggest, ({ q }) =>
+      /^tide/i.test(q)
         ? [
-            {
-              name: "Kestrel Freight",
-              domain: "kestrelfreight.example.com",
-              line: "Freight brokerage software for regional carriers.",
-            },
-            {
-              name: "Kestrel Analytics",
-              domain: "kestrel-analytics.example.com",
-              line: "Demand forecasting for grocery chains.",
-            },
+            { name: "Tidewell Systems", domain: "tidewell.example.com", yours: false },
+            { name: "Tidewater Ports", domain: "tidewaterports.example.com", yours: false },
           ]
-        : [],
-    })),
+        : /^kest/i.test(q)
+          ? [
+              { name: "Kestrel Freight", domain: "kestrelfreight.example.com", yours: true },
+              { name: "Kestrel Analytics", domain: "kestrel-analytics.example.com", yours: false },
+            ]
+          : [],
+    ),
     ...answer(api.companyLookup.website, ({ website }) => ({
       domain: website
         .replace(/^https?:\/\//, "")
@@ -1102,7 +1097,6 @@ export function directionsFixtures({
       lineUpdate: null,
       findRelevant: null,
       findHiringNow: null,
-      findByName: null,
     })),
     ...answer(api.resume.list, ({ directionId }): ResumeList => ({
       facts: FACTS,

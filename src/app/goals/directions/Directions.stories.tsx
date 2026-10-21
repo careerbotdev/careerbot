@@ -79,15 +79,14 @@ export const CriteriaEditing: Story = {
 };
 
 // Find more like, on the Criteria: Search settings' for every direction, Loadstar Systems for this one only, and the
-// picker with one choice (find more like it, for this direction). Kestrel has two companies by that name.
+// same free search as Companies you like, adding for this direction only. "Tidew" brings two companies as it's typed.
 export const CriteriaFindMoreLike: Story = {
   name: "Criteria, find more like a company",
   render: () => <Fixture query="direction=dir-product&tab=criteria" />,
   play: async ({ canvasElement }) => {
     const pane = firstPane(canvasElement);
-    await userEvent.type(await pane.findByRole("textbox", { name: "Find more like a company, for Supply Chain Product" }), "Kestrel");
-    await userEvent.click(pane.getByRole("button", { name: "Find" }));
-    await pane.findByText("2 companies named Kestrel");
+    await userEvent.type(await pane.findByRole("combobox", { name: "Find more like a company, for Supply Chain Product" }), "Tidew");
+    await pane.findByRole("option", { name: /Tidewell Systems/ });
   },
 };
 

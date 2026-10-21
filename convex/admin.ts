@@ -200,9 +200,10 @@ export const readTrialProject = internalMutation({
   },
 });
 
-// Operator: set a workspace's companies you like (websites, each with its two choices), replacing the list.
+// Operator: set a workspace's companies you like (websites, each with whether searches find more like it), replacing
+// the list.
 export const setLikes = internalMutation({
-  args: { workspaceId: v.id("workspaces"), likes: v.array(v.object({ domain: v.string(), name: v.optional(v.string()), add: v.boolean(), like: v.boolean() })) },
+  args: { workspaceId: v.id("workspaces"), likes: v.array(v.object({ domain: v.string(), name: v.optional(v.string()), like: v.boolean() })) },
   handler: async (ctx, { workspaceId, likes }) => {
     const row = await ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
     if (row) await ctx.db.patch(row._id, { likes, seeds: undefined, named: undefined });

@@ -8,15 +8,13 @@ import type { Finding } from "../../../convex/findCompanies";
 type Data = FunctionReturnType<typeof api.discovery.list>;
 type Company = Data["companies"][number];
 
-// The way companies are found, the Brave key, what the web search has cost a direction so far and finding a company by
-// name (estimates.costs: findRelevant, findHiringNow, findByName; null before the first) and the AI budget left this
-// month (null: no budget set).
+// The way companies are found, the Brave key, what the web search has cost a direction so far (estimates.costs:
+// findRelevant, findHiringNow; null before the first) and the AI budget left this month (null: no budget set).
 export type FindSetup = {
   finding: Finding;
   braveKey: boolean;
   relevantUsd: number | null;
   hiringNowUsd: number | null;
-  byNameUsd: number | null;
   aiLeft: { left: number; monthly: number } | null;
 };
 
@@ -24,10 +22,10 @@ const usd = (n: number) => (n < 0.01 ? "under $0.01" : `$${n.toFixed(2)}`);
 export const credits = (n: number) => `${n.toLocaleString("en-US")} ${n === 1 ? "credit" : "credits"}`;
 
 // Apollo: two searches per direction with approved criteria (one more when it has titles to look for hiring companies),
-// lookalike searches of up to five of the companies you like with Find more like it on (shared by every direction), of
+// lookalike searches of up to five of the companies you like that find more like them (shared by every direction), of
 // up to five a direction adds on its own (directions adding the same ones share them) and of up to five targets (when
-// learning from ratings), a lookup for those not yet looked up, and the companies with Add to my companies on by the
-// hundred. The web search: a search for companies that fit each direction and, when it has titles, one for companies
+// learning from ratings), a lookup for those not yet looked up, and every company you like, added by the hundred. The
+// web search: a search for companies that fit each direction and, when it has titles, one for companies
 // hiring now, at what each has cost on average; with a Brave key, a job-board search for each of its first titles. AI
 // only looks up the companies to add on their own websites, for free.
 export type FindEstimate = {
@@ -55,7 +53,7 @@ export function findEstimate(data: Pick<Data, "likes" | "searchable">, setup: Fi
   const seedBatches = (data.searchable.length ? Math.ceil(global.length / 5) : 0) + batchesOf(data.searchable.map((d) => (d.ownSeeds ?? []).map((s) => s.domain).filter((s) => !global.includes(s))));
   const seeds = apollo ? seedBatches + (lookups ? 1 : 0) : 0;
   const targets = apollo ? batchesOf(data.searchable.map((d) => d.targets)) : 0;
-  const named = apollo ? Math.ceil(data.likes.filter((l) => l.add).length / 100) : 0;
+  const named = apollo ? Math.ceil(data.likes.length / 100) : 0;
   const webUsd = (hasTitles: boolean) => (setup.relevantUsd === null || (hasTitles && setup.hiringNowUsd === null) ? null : setup.relevantUsd + (hasTitles ? (setup.hiringNowUsd ?? 0) : 0));
   const searches = data.searchable.map((d) => ({ name: d.name, credits: apollo ? 2 + (d.hasTitles ? 1 : 0) : null, usd: web ? webUsd(d.hasTitles) : null }));
   const totalCredits = searches.reduce((n, s) => n + (s.credits ?? 0), 0) + seeds + targets + named;

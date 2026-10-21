@@ -43,6 +43,8 @@
     [
      "q_organization_domains_list[]",
      [
+      "copperline.io",
+      "notreal.example",
       "nvidia.com",
       "nope.example"
      ]
@@ -462,6 +464,8 @@
    "added": 1,
    "found": 1,
    "missing": [
+    "copperline.io",
+    "notreal.example",
     "nope.example"
    ]
   },

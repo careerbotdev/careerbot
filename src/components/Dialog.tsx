@@ -51,11 +51,14 @@ export function Dialog({
           <RadixDialog.Overlay className="fixed inset-0 z-50 bg-backdrop transition-opacity duration-160 ease-out starting:opacity-0 data-[state=closed]:animate-[fadeOut_160ms_var(--ease-in)]" />
           <RadixDialog.Content
             aria-describedby={undefined}
-            // Focus starts on the first thing in the body (a form's first field), not the close button.
+            // Focus starts on the control the body marks `data-autofocus` (Search settings' search box), else the first
+            // thing in the body (a form's first field), not the close button.
             onOpenAutoFocus={
               onOpenAutoFocus ??
               ((e) => {
-                const first = body.current?.querySelector<HTMLElement>("input, textarea, select, button, [tabindex]:not([tabindex='-1'])");
+                const first =
+                  body.current?.querySelector<HTMLElement>("[data-autofocus]") ??
+                  body.current?.querySelector<HTMLElement>("input, textarea, select, button, [tabindex]:not([tabindex='-1'])");
                 if (!first) return;
                 e.preventDefault();
                 first.focus();

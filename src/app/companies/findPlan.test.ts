@@ -3,15 +3,15 @@ import { findEstimate, type FindSetup, lastSearch, rowLine, searchCost, totalCos
 
 const data = {
   likes: [
-    { domain: "acme.com", name: null, add: true, like: false, lookup: null },
-    { domain: "seed.com", name: null, add: false, like: true, lookup: null },
+    { domain: "acme.com", name: null, like: false, lookup: null },
+    { domain: "seed.com", name: null, like: true, lookup: null },
   ],
   searchable: [
     { id: "d1", name: "Strategic Sales", ownSeeds: null, hasTitles: true, boardQueries: 2, targets: [] },
     { id: "d2", name: "Founding GTM", ownSeeds: null, hasTitles: false, boardQueries: 0, targets: [] },
   ],
 } as unknown as Parameters<typeof findEstimate>[0];
-const setup = (s: Partial<FindSetup>): FindSetup => ({ finding: "apollo", braveKey: true, relevantUsd: 0.03, hiringNowUsd: 0.01, byNameUsd: null, aiLeft: null, ...s });
+const setup = (s: Partial<FindSetup>): FindSetup => ({ finding: "apollo", braveKey: true, relevantUsd: 0.03, hiringNowUsd: 0.01, aiLeft: null, ...s });
 
 describe("Find companies estimate", () => {
   test("Apollo: credits only, no job boards", () => {

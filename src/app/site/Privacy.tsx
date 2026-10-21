@@ -21,6 +21,7 @@ const SECTIONS: { title: string; paragraphs: ReactNode[] }[] = [
     paragraphs: [
       "AI models: to write and rank for you, CareerBot sends the needed parts of your stories, record, goals and job postings to the AI models you choose, through OpenRouter. OpenRouter and the model provider handle it under their own terms.",
       "Apollo and Brave: to find companies, job postings and people, CareerBot sends search terms such as company names, industries and titles. Your stories and record aren’t sent to them.",
+      "Wikidata: when you look up a company you like by name, CareerBot’s server sends Wikidata only the name you typed. Nothing about you or your account goes with it.",
       "Hosting: the app runs on Cloudflare and its data is stored with Convex, in the United States.",
       "Cloudflare Web Analytics: when you’re signed out, the public pages of the website (the ones you can see without signing in) tell Cloudflare the page you viewed, without anything after a ? or #, the site you came from, your browser, operating system, type of device and country, and how fast the page loaded. Cloudflare doesn’t keep your IP address, keeps this detail for 7 days and then only a sample, and uses it only in aggregate, without identifying anyone. The signed-in app isn’t measured. To opt out, turn on Global Privacy Control or Do Not Track in your browser, and your visits aren’t counted.",
     ],

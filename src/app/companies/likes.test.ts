@@ -1,20 +1,10 @@
 import { expect, test } from "vitest";
-import { findWords } from "./likes";
+import { likeWords } from "./likes";
 
-// What Find costs is said beside it before it runs, by the way companies are found; the results say what it cost.
-test("Find's cost before it runs, and its source after, by the way companies are found", () => {
-  const apollo = findWords({ finding: "apollo", braveKey: true, byNameUsd: 0.004 });
-  expect(apollo.note).toBe("1 Apollo credit");
-  expect(apollo.source("apollo", 0)).toBe("From Apollo · 1 credit used");
-  expect(findWords({ finding: "apolloWeb", braveKey: false, byNameUsd: null }).note).toBe("1 Apollo credit");
-
-  const brave = findWords({ finding: "web", braveKey: true, byNameUsd: 0.004 });
-  expect(brave.note).toBe("1 Brave search on your key");
-  expect(brave.source("brave", 0)).toBe("From a web search · 1 Brave search");
-
-  const ai = findWords({ finding: "web", braveKey: false, byNameUsd: 0.004 });
-  expect(ai.note).toBe("Under $0.01");
-  expect(ai.source("ai", 0.012)).toBe("From a web search · about $0.01");
-  // Before the first, its cost isn't known yet: it says where it comes from.
-  expect(findWords({ finding: "web", braveKey: false, byNameUsd: null }).note).toBe("Uses your AI budget");
+// Finding a company is free; what adding one or finding more like it costs depends on the way companies are found.
+test("adding a company you like says what its searches cost, by the way companies are found", () => {
+  expect(likeWords("apollo").addNote).toBe("Free to add · each search: about 1 Apollo credit for every 5 · Undo with U");
+  expect(likeWords("apolloWeb").likeVerb).toBe("search");
+  expect(likeWords("web")).toEqual({ addNote: "Free · Undo with U", likeNote: "Free to turn on · no extra cost a search · Undo with U", likeVerb: "web search" });
+  for (const f of ["apollo", "apolloWeb", "web"] as const) expect(JSON.stringify(likeWords(f))).not.toMatch(/Brave|AI budget|1 Apollo credit a search/);
 });

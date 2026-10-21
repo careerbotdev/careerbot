@@ -18,7 +18,7 @@ const LAST = 20;
 // a direction resume, new lines for Add what's new, and one line written for a resume from a fact (Add a line). Goals: reading the goals narrative, reading one limit's rule from
 // its wording, filling in directions' detail, and suggesting directions. Checking a line (or summary) in their own words
 // against its facts. Finding companies on the web: one direction's search for companies that fit, and for ones hiring
-// now (webDiscovery.ts), and finding a company by its name (companyLookup.ts).
+// now (webDiscovery.ts).
 export const costs = query({
   args: {},
   handler: async (ctx) => {
@@ -70,7 +70,6 @@ export const costs = query({
       lineUpdate: average("line update"),
       findRelevant: average("relevant companies"),
       findHiringNow: average("companies hiring now"),
-      findByName: average("find a company by name"),
     };
   },
 });

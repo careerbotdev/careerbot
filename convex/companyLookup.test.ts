@@ -1,14 +1,16 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
-import { PAGE_BYTES } from "./companyLookup";
+import type { Id } from "./_generated/dataModel";
+import { forgetSuggestions, PAGE_BYTES } from "./companyLookup";
 import { seedModelPrices } from "./modelPrices.testing";
 import schema from "./schema";
 import { seal } from "./secretBox";
 import { ensureWorkspace } from "./workspaces";
 
-// Finding a company by name (Companies you like, a direction's Criteria): the source by the way companies are found,
-// and a typed website read for free, only from a public https homepage.
+// Companies you like (Search settings, a direction's Criteria): companies for a typed name and a pasted list, always
+// free (their own companies, then Wikidata; never Apollo, a web search, an AI call or Clearbit), and a typed website
+// read for free, only from a public https homepage.
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -16,6 +18,7 @@ beforeEach(() => {
   process.env.MASTER_KEY_V1 = "66".repeat(32);
   vi.useFakeTimers();
   vi.setSystemTime(Date.parse("2026-10-14T12:00:00Z"));
+  forgetSuggestions();
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -23,113 +26,144 @@ afterEach(() => {
   delete process.env.MASTER_KEY_V1;
 });
 
-async function setup({ apollo = false, brave = false }: { apollo?: boolean; brave?: boolean } = {}) {
+// Every key is set, so a paid call would be possible if anything made one.
+async function setup(companies: { name: string; domain?: string }[] = []) {
   const t = convexTest(schema, modules);
   await seedModelPrices(t);
   const sealed = await seal("a-key");
   const { u, w } = await t.run(async (ctx) => {
     const u = await ctx.db.insert("users", { email: "a@example.com" });
     const w = await ensureWorkspace(ctx, u);
-    await ctx.db.insert("apiKeys", { workspaceId: w, service: "openrouter", sealed, last4: "test", setAt: 0 });
-    if (apollo) await ctx.db.insert("apiKeys", { workspaceId: w, service: "apollo", sealed, last4: "-key", setAt: 0 });
-    if (brave) await ctx.db.insert("apiKeys", { workspaceId: w, service: "brave", sealed, last4: "rave", setAt: 0 });
-    await ctx.db.insert("budgets", { workspaceId: w, aiMonthlyUsd: 5, apolloMonthlyCredits: 0, apolloMode: "onRequest" });
+    for (const service of ["openrouter", "apollo", "brave"] as const) await ctx.db.insert("apiKeys", { workspaceId: w, service, sealed, last4: "-key", setAt: 0 });
+    await ctx.db.insert("budgets", { workspaceId: w, aiMonthlyUsd: 5, apolloMonthlyCredits: 100, apolloMode: "onRequest" });
+    for (const c of companies) await ctx.db.insert("companies", { workspaceId: w, name: c.name, ...(c.domain ? { domain: c.domain } : {}), found: [{ via: "hand", at: 0 }], at: 0 });
     return { u, w };
   });
-  return { t, w, as: t.withIdentity({ subject: `${u}|s` }) };
+  return { t, w: w as Id<"workspaces">, as: t.withIdentity({ subject: `${u}|s` }) };
 }
 
 const home = (name: string, line: string) => `<html><head><meta property="og:site_name" content="${name}"><meta name="description" content="${line}"><title>${name}</title></head></html>`;
 
-// The world a lookup sees: Apollo's organizations, Brave's results, the AI's companies, and homepages by host.
-function stub(o: { apollo?: unknown[]; brave?: unknown[]; ai?: unknown[]; pages?: Record<string, string | (() => Response)> }) {
-  const calls: { kind: string; url: URL; body?: string }[] = [];
-  const f = vi.fn(async (input: string | URL, init?: RequestInit) => {
+// Wikidata's organisations by the words searched: each one's id, label and official website (none: not an
+// organisation with a website, so the SPARQL filter leaves it out).
+type Org = { id: string; label: string; site?: string };
+const FREE_HOSTS = ["www.wikidata.org", "query.wikidata.org"];
+
+// The world a lookup sees: Wikidata (or Wikidata down), and homepages by host. Anything else answers 500 and is
+// recorded, so a test can assert nothing paid (or Clearbit) was ever asked.
+function stub(o: { wikidata?: Record<string, Org[]>; down?: boolean; pages?: Record<string, string | (() => Response)> } = {}) {
+  const calls: URL[] = [];
+  const f = vi.fn(async (input: string | URL) => {
     const url = new URL(String(input));
-    if (url.hostname === "api.apollo.io") {
-      if (url.pathname.endsWith("credit_usage_stats")) return Response.json({ credit_usage_stats: { lead_credit: { limit: 2500, consumed: 0, left_over: 2500 } }, current_credit_cycle: {} });
-      calls.push({ kind: "apollo", url });
-      return Response.json({ organizations: o.apollo ?? [] });
+    calls.push(url);
+    if (url.hostname === "www.wikidata.org") {
+      if (o.down) return new Response("", { status: 503 });
+      const words = (url.searchParams.get("search") ?? "").toLowerCase();
+      const hits = Object.entries(o.wikidata ?? {}).find(([k]) => k.toLowerCase() === words)?.[1] ?? [];
+      return Response.json({ search: hits.map((h) => ({ id: h.id, label: h.label })) });
     }
-    if (url.hostname === "api.search.brave.com") {
-      calls.push({ kind: "brave", url });
-      return Response.json({ web: { results: o.brave ?? [] } });
+    if (url.hostname === "query.wikidata.org") {
+      if (o.down) return new Response("", { status: 503 });
+      const ids = [...(url.searchParams.get("query") ?? "").matchAll(/wd:(Q\d+)/g)].map((m) => m[1]);
+      const all = Object.values(o.wikidata ?? {}).flat();
+      return Response.json({ results: { bindings: all.filter((h) => ids.includes(h.id) && h.site).map((h) => ({ item: { value: `http://www.wikidata.org/entity/${h.id}` }, site: { value: h.site } })) } });
     }
-    if (url.hostname === "openrouter.ai") {
-      calls.push({ kind: "ai", url, body: String(init?.body ?? "") });
-      return Response.json({ choices: [{ message: { content: JSON.stringify({ companies: o.ai ?? [] }) } }], usage: { cost: 0.004 } });
-    }
-    calls.push({ kind: "page", url });
     const page = o.pages?.[url.hostname];
     if (typeof page === "function") return page();
-    return page ? new Response(page, { headers: { "content-type": "text/html" } }) : new Response("", { status: 404 });
+    if (page) return new Response(page, { headers: { "content-type": "text/html" } });
+    return new Response("", { status: url.hostname.endsWith(".com") || url.hostname.endsWith(".example") ? 404 : 500 });
   });
   vi.stubGlobal("fetch", f);
   return calls;
 }
 
-const paid = (calls: { kind: string }[]) => calls.filter((c) => c.kind !== "page").map((c) => c.kind);
+// Every outside call went to Wikidata or a company's own homepage (one of `homepages`): never Apollo, OpenRouter,
+// Brave or Clearbit.
+function onlyFree(calls: URL[], homepages: string[] = []) {
+  for (const c of calls) expect([...FREE_HOSTS, ...homepages], c.toString()).toContain(c.hostname);
+  expect(calls.some((c) => /apollo|openrouter|brave|clearbit/.test(c.hostname))).toBe(false);
+}
 
-test("with Apollo, Find searches Apollo by name: every company with that name, each with its website and line, remembered with its Apollo id", async () => {
-  const s = await setup({ apollo: true });
-  const calls = stub({
-    apollo: [
-      { id: "K1", name: "Kestrel Freight", primary_domain: "kestrelfreight.com" },
-      { id: "K2", name: "Kestrel Analytics", website_url: "https://www.kestrel-analytics.com" },
-    ],
-    pages: { "kestrelfreight.com": home("Kestrel Freight", "Freight brokerage software for regional carriers.") },
-  });
-  const r = await s.as.action(api.companyLookup.find, { name: "Kestrel" });
-  expect(r.source).toBe("apollo");
-  // Ambiguous: both come back, for them to pick the one they mean.
-  expect(r.companies).toEqual([
-    { name: "Kestrel Freight", domain: "kestrelfreight.com", line: "Freight brokerage software for regional carriers." },
-    { name: "Kestrel Analytics", domain: "kestrel-analytics.com", line: null },
+const NORTHWIND: Org[] = [
+  { id: "Q1", label: "Northwind Logistics", site: "https://www.northwind.example.com/" },
+  { id: "Q2", label: "Northwind Health", site: "https://northwindhealth.example.com" },
+  { id: "Q3", label: "Northwind (band)" },
+  { id: "Q4", label: "Northwind Jobs", site: "https://boards.greenhouse.io/northwind" },
+];
+
+test("as a name is typed: their own companies first, then Wikidata's organisations with a website, each website once, all free", async () => {
+  const s = await setup([{ name: "Northwind Logistics", domain: "northwind.example.com" }, { name: "Northwind Studio", domain: "northwind.example.net" }, { name: "Northwind Nowhere" }]);
+  const calls = stub({ wikidata: { Northw: NORTHWIND } });
+  const found = await s.as.action(api.companyLookup.suggest, { q: "  Northw " });
+  expect(found).toEqual([
+    { name: "Northwind Logistics", domain: "northwind.example.com", yours: true },
+    { name: "Northwind Studio", domain: "northwind.example.net", yours: true },
+    // Wikidata's Northwind Logistics is the same website, kept once (as theirs); a band has no website, and a job board
+    // isn't a company's own site.
+    { name: "Northwind Health", domain: "northwindhealth.example.com", yours: false },
   ]);
-  expect(paid(calls)).toEqual(["apollo"]);
-  expect(calls[0].url.searchParams.get("q_organization_name")).toBe("Kestrel");
-  const row = await s.t.run((ctx) => ctx.db.query("discovery").first());
-  expect(row?.resolved).toEqual([
-    { domain: "kestrelfreight.com", apolloId: "K1", name: "Kestrel Freight" },
-    { domain: "kestrel-analytics.com", apolloId: "K2", name: "Kestrel Analytics" },
-  ]);
+  onlyFree(calls);
+  expect(calls.map((c) => c.hostname)).toEqual(["www.wikidata.org", "query.wikidata.org"]);
+  // Only the words typed go out.
+  expect(calls[0].searchParams.get("search")).toBe("Northw");
 });
 
-test("on AI only with a Brave key, Find is one Brave search, job sites and directories left out; nothing from the AI budget", async () => {
-  const s = await setup({ brave: true });
-  const calls = stub({
-    brave: [
-      { url: "https://www.kestrelfreight.com/", title: "Kestrel Freight | Freight software", description: "Software for regional carriers." },
-      { url: "https://en.wikipedia.org/wiki/Kestrel", title: "Kestrel - Wikipedia", description: "A bird." },
-      { url: "https://jobs.lever.co/kestrel", title: "Kestrel - Jobs", description: "Open roles." },
-    ],
-  });
-  const r = await s.as.action(api.companyLookup.find, { name: "Kestrel Freight" });
-  expect(r).toEqual({ source: "brave", costUsd: 0, companies: [{ name: "Kestrel Freight", domain: "kestrelfreight.com", line: "Software for regional carriers." }] });
-  expect(paid(calls)).toEqual(["brave"]);
-});
-
-test("on AI only without Brave, Find is one small web-search call, its cost reported; no result is an empty list", async () => {
+test("nothing is looked up under two characters or for a typed website; the same words again are answered from memory", async () => {
   const s = await setup();
-  const calls = stub({ ai: [{ name: "Kestrel Freight", website: "https://kestrelfreight.com", line: "Freight software" }] });
-  const r = await s.as.action(api.companyLookup.find, { name: "Kestrel" });
-  expect(r.source).toBe("ai");
-  expect(r.companies).toEqual([{ name: "Kestrel Freight", domain: "kestrelfreight.com", line: "Freight software" }]);
-  expect(r.costUsd).toBeGreaterThan(0);
-  expect(paid(calls)).toEqual(["ai"]);
-  expect(calls[0].body).toContain("Kestrel");
+  const calls = stub({ wikidata: { Northwind: NORTHWIND } });
+  expect(await s.as.action(api.companyLookup.suggest, { q: "N" })).toEqual([]);
+  expect(await s.as.action(api.companyLookup.suggest, { q: "northwind.example.com" })).toEqual([]);
+  expect(calls).toEqual([]);
+  await s.as.action(api.companyLookup.suggest, { q: "Northwind" });
+  await s.as.action(api.companyLookup.suggest, { q: "northwind" });
+  expect(calls).toHaveLength(2);
+});
 
-  stub({ ai: [] });
-  expect((await s.as.action(api.companyLookup.find, { name: "Quillfeather" })).companies).toEqual([]);
-  await expect(s.as.action(api.companyLookup.find, { name: "  " })).rejects.toThrow("name first");
+test("with Wikidata down, their own companies still come up", async () => {
+  const s = await setup([{ name: "Kestrel Freight", domain: "kestrelfreight.com" }]);
+  const calls = stub({ down: true });
+  expect(await s.as.action(api.companyLookup.suggest, { q: "Kestrel" })).toEqual([{ name: "Kestrel Freight", domain: "kestrelfreight.com", yours: true }]);
+  onlyFree(calls);
+  // Down isn't remembered: the next try asks again.
+  stub({ wikidata: { Kestrel: [{ id: "Q9", label: "Kestrel Analytics", site: "https://kestrel-analytics.com" }] } });
+  expect((await s.as.action(api.companyLookup.suggest, { q: "Kestrel" })).map((c) => c.domain)).toEqual(["kestrelfreight.com", "kestrel-analytics.com"]);
+});
+
+test("a pasted list: a website as it is (named by their companies or its homepage), a name by its exact match, else the best one marked to check", async () => {
+  const s = await setup([{ name: "Kestrel Freight", domain: "kestrelfreight.com" }]);
+  const calls = stub({
+    wikidata: {
+      tidewell: [{ id: "Q5", label: "Tidewell Systems", site: "https://tidewell.example.com" }],
+      "Meridian Coldchain": [
+        { id: "Q6", label: "Meridian Coldchain", site: "https://meridian.example.com" },
+        { id: "Q7", label: "Meridian Coldchain Holdings", site: "https://meridianholdings.example.com" },
+      ],
+    },
+    pages: { "harborline.example.com": home("Harborline", "Port logistics.") },
+  });
+  const lines = ["Kestrel Freight", "tidewell", "https://www.Harborline.example.com/about", "quiet.example", "Meridian Coldchain", "Quillfeather Co", "localhost.internal"];
+  expect(await s.as.action(api.companyLookup.resolve, { lines })).toEqual([
+    { line: "Kestrel Freight", match: { domain: "kestrelfreight.com", name: "Kestrel Freight" }, check: false },
+    { line: "tidewell", match: { domain: "tidewell.example.com", name: "Tidewell Systems" }, check: true },
+    { line: "https://www.Harborline.example.com/about", match: { domain: "harborline.example.com", name: "Harborline" }, check: false },
+    { line: "quiet.example", match: { domain: "quiet.example", name: null }, check: false },
+    { line: "Meridian Coldchain", match: { domain: "meridian.example.com", name: "Meridian Coldchain" }, check: false },
+    { line: "Quillfeather Co", match: null, check: false },
+    { line: "localhost.internal", match: null, check: false },
+  ]);
+  onlyFree(calls, ["harborline.example.com", "quiet.example"]);
+  // A list longer than a hundred is refused before anything is looked up.
+  const before = calls.length;
+  await expect(s.as.action(api.companyLookup.resolve, { lines: Array.from({ length: 101 }, (_, i) => `Company ${i}`) })).rejects.toThrow("at most 100");
+  expect(calls).toHaveLength(before);
 });
 
 test("a typed website is free: its name from its own homepage, with no search", async () => {
-  const s = await setup({ apollo: true, brave: true });
+  const s = await setup();
   const calls = stub({ pages: { "harborline.com": home("Harborline", "Port logistics.") } });
   expect(await s.as.action(api.companyLookup.website, { website: "https://www.Harborline.com/about" })).toEqual({ domain: "harborline.com", name: "Harborline" });
-  expect(paid(calls)).toEqual([]);
-  expect(calls.map((c) => c.url.toString())).toEqual(["https://harborline.com/"]);
+  onlyFree(calls, ["harborline.com"]);
+  expect(calls.map((c) => c.toString())).toEqual(["https://harborline.com/"]);
   // A site that doesn't say its name: the website alone.
   stub({});
   expect(await s.as.action(api.companyLookup.website, { website: "quiet.com" })).toEqual({ domain: "quiet.com", name: null });
@@ -149,7 +183,7 @@ test("a typed website is only fetched as a public https homepage: no IP addresse
   // A public site that redirects somewhere private: the redirect isn't followed, and no name comes back.
   expect(await s.as.action(api.companyLookup.website, { website: "redirects.com" })).toEqual({ domain: "redirects.com", name: null });
   expect(await s.as.action(api.companyLookup.website, { website: "toprivate.com" })).toEqual({ domain: "toprivate.com", name: null });
-  expect(calls.map((c) => c.url.hostname)).toEqual(["redirects.com", "toprivate.com"]);
+  expect(calls.map((c) => c.hostname)).toEqual(["redirects.com", "toprivate.com"]);
 });
 
 test("only the start of a homepage is read", async () => {

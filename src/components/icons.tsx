@@ -30,6 +30,7 @@ import {
   CircleHelp,
   CirclePause,
   CircleStop,
+  ClipboardPaste,
   Clock,
   Coins,
   Command,
@@ -168,6 +169,8 @@ export const Icons = {
   cost: Coins,
   export: Download,
   copy: Copy,
+  // Paste a list (Companies you like).
+  paste: ClipboardPaste,
   link: Link,
   // Voice: Talk, and Stop while listening.
   talk: Mic,

@@ -32,3 +32,13 @@ test("a newer format or CareerBot, and anything that isn't an export, are refuse
   expect(() => readExport(file(FORMAT, VERSION, { tables: { apiKeys: [] } }))).toThrow(WRONG_FILE);
   expect(() => readExport(file(FORMAT, VERSION, { tables: { notes: [{ _id: "x" }] } }))).toThrow(WRONG_FILE);
 });
+
+test("Companies you like come forward: old seed and named lists, and 0.14.0's two choices, become one list", () => {
+  const discovery = (format: number, row: Record<string, unknown>) =>
+    readExport(file(format, "0.8.0", { tables: { discovery: [{ _id: "d", _creationTime: 1, workspaceId: "w", resolved: [], ...row }] } })).file.tables.discovery[0] as unknown as { likes: unknown; seeds?: unknown };
+  const fromLists = discovery(1, { seeds: ["copperline.io"], named: ["copperline.io", "nvidia.com"] });
+  expect(fromLists.likes).toEqual([{ domain: "copperline.io", like: true }, { domain: "nvidia.com", like: false }]);
+  expect(fromLists.seeds).toBeUndefined();
+  const twoChoices = discovery(2, { likes: [{ domain: "nvidia.com", add: true, like: false }, { domain: "copperline.io", add: false, like: true }] });
+  expect(twoChoices.likes).toEqual([{ domain: "nvidia.com", like: false }, { domain: "copperline.io", like: true }]);
+});

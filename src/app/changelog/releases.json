@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.15.0",
+    "date": "2026-10-21",
+    "summary": "Companies you like now searches as you type, for free, from your own companies and Wikidata, takes a pasted list of names or websites, and copies the list back out. Every company you like is added and used to find more like it, unless you turn that off.",
+    "new": [],
+    "better": [
+      "Companies you like are found free as you type or pasted as a list; each is added to your companies and used to find more like it unless you turn that off."
+    ],
+    "fixed": [],
+    "selfHost": [
+      "After deploying, run `npx convex run discovery:foldLikes` once. Companies you like that were only added to your companies keep \"find more like it\" off, so their searches don't change; ones that were only used to find more like them are now added to your companies too."
+    ],
+    "needsAction": true,
+    "shots": []
+  },
+  {
     "version": "0.14.0",
     "date": "2026-10-20",
     "summary": "Resumes get their own engaging voice with a Plain or Confident setting, Write again takes your guidance, and you can add any fact, reorder lines and keep pins across versions. Companies you like replaces seed and named companies, with Find by name.",

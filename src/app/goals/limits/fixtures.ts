@@ -189,7 +189,6 @@ export function limitsFixtures(): Answers {
     lineUpdate: null,
     findRelevant: null,
     findHiringNow: null,
-    findByName: null,
   };
   return {
     ...answer(api.goals.items, () => state),

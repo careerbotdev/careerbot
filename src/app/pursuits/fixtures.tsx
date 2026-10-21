@@ -1404,7 +1404,6 @@ export function pursuitsFixtures({
       lineUpdate: 0.01,
       findRelevant: null,
       findHiringNow: null,
-      findByName: null,
     })),
     ...answer(api.followUpEmails.forPursuit, ({ pursuitId: pid }) =>
       pid === pursuitId("sc-coldchain")

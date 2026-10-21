@@ -1627,7 +1627,6 @@ export function recordAnswers(state: RecordState): Answers {
     lineUpdate: 0.01,
     findRelevant: null,
     findHiringNow: null,
-    findByName: null,
   };
   return {
     ...answer(api.estimates.costs, () => COSTS),

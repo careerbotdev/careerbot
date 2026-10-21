@@ -596,15 +596,15 @@ model {
         }
       }
       discovery = service 'Company discovery' {
-        description 'One run: look up the companies they like with Add to my companies on and any new ones with Find more like it on; then per direction with approved criteria, four Apollo searches: criteria (industries as goalIndustries.searchIndustries reads them under the lens: the goals\u2019 wanted ones for the direction, scoped like limits, then its own; sizes), large companies (1,001+), hiring now (active postings for its target titles, steered into the goals’ wanted industries, added alongside, never narrowing) and lookalikes of the companies they like (the workspace\u2019s, for every direction, plus its own on top, each batched on its own; identical batches shared). Past employers dropped; avoided industries never searched. Each finished search is checkpointed so a resumed run never repays. Ends by screening new companies. Every call goes through the Apollo credit guard: never past the account balance, fails closed if it cannot be read. The lens (workspace setting on Home): industries Steer (goals’ wanted industries added to each search; default) / Only (wanted industries alone, lookalikes too) / Ignore (no industry filter); avoided industries and past employers always excluded.'
+        description 'One run: look up every company they like and add it to their companies (each is also used to find more like it unless they turned that off); then per direction with approved criteria, four Apollo searches: criteria (industries as goalIndustries.searchIndustries reads them under the lens: the goals\u2019 wanted ones for the direction, scoped like limits, then its own; sizes), large companies (1,001+), hiring now (active postings for its target titles, steered into the goals’ wanted industries, added alongside, never narrowing) and lookalikes of the companies they like (the workspace\u2019s, for every direction, plus its own on top, each batched on its own; identical batches shared). Past employers dropped; avoided industries never searched. Each finished search is checkpointed so a resumed run never repays. Ends by screening new companies. Every call goes through the Apollo credit guard: never past the account balance, fails closed if it cannot be read. The lens (workspace setting on Home): industries Steer (goals’ wanted industries added to each search; default) / Only (wanted industries alone, lookalikes too) / Ignore (no industry filter); avoided industries and past employers always excluded.'
         metadata {
           functions 'discovery:companySettings, discovery:seeds, discovery:setLikes, discovery:foldLikes, discovery:setDirectionSeeds, discovery:start, discovery:inputs, discovery:saveSeeds, discovery:saveCompanies, discovery:list, discovery:setLens, discovery:setLearn'
         }
       }
       companyLookup = service 'Find a company by name' {
-        description 'Search settings\u2019 Companies you like picker, run only on Find (find) or a typed website (website). find: with an Apollo key, Apollo mixed_companies/search by q_organization_name (1 credit); without, a Brave web search on their key, or else an OpenRouter Perplexity Sonar web-search call from the AI budget (purpose find a company by name); returns every company with that name, each with its website, one line on what it does and where the results came from. website: free, no search; the name is read from the site\u2019s own homepage: public https hosts only (no IP addresses, localhost or internal names), redirects to such hosts not followed, only the start of the page read.'
+        description 'Search settings\u2019 Companies you like and a direction\u2019s Criteria. Free: never Apollo, Brave or an AI call. suggest: as a name is typed (from 2 characters, 250ms after typing stops): their own companies first (yours, the companies search index by name), then Wikidata (wbsearchentities, then SPARQL for organisations with an official website, P856); only the typed text is sent, server-side with CareerBot\u2019s user agent, nothing about the person or workspace; Wikidata answers cached a few minutes in server memory. resolve: a pasted list (up to 100 lines, names or websites): a website as is (yoursAt for their own company there), a name matched exactly, else the best match marked Check this, or none found. website: the name is read from the site\u2019s own homepage: public https hosts only (no IP addresses, localhost or internal names), redirects to such hosts not followed, only the start of the page read. Clearbit autocomplete is not used: its terms forbid storing its data without paying.'
         metadata {
-          functions 'companyLookup:find, companyLookup:website'
+          functions 'companyLookup:suggest, companyLookup:resolve, companyLookup:website, companyLookup:yours, companyLookup:yoursAt'
           files 'convex/companyLookup.ts'
         }
       }
@@ -1639,14 +1639,14 @@ model {
     description 'Public pages and the public job board data each provider’s own careers page loads (convex/boards.ts lists them). Free; read only for companies the person targets.'
   }
   careerbot.platform.discovery -[calls]-> careerbot.platform.enrich 'after each run'
-  careerbot.ui.companiesScreen -[calls]-> careerbot.platform.companyLookup 'Search settings: Companies you like, Find and a typed website'
+  careerbot.ui.companiesScreen -[calls]-> careerbot.platform.companyLookup 'Search settings: Companies you like, typing a name or website, and Paste a list'
   careerbot.ui.goalsScreen -[calls]-> careerbot.platform.companyLookup 'a direction\u2019s Criteria: Companies you like, find more like these for this direction'
-  careerbot.platform.companyLookup -[uses]-> careerbot.platform.metering 'Apollo credit guard; AI budget for the web-search call'
-  careerbot.platform.companyLookup -[calls]-> apolloApi 'mixed_companies/search by q_organization_name'
-  careerbot.platform.companyLookup -[uses]-> careerbot.platform.braveKey 'web search on their key'
-  careerbot.platform.companyLookup -[calls]-> braveSearch 'web search for a company name'
-  careerbot.platform.companyLookup -[calls]-> openrouter 'Perplexity Sonar web search for a company name'
-  careerbot.platform.companyLookup -[calls]-> companyWebsites 'a typed website\u2019s homepage, for its name; public https only, redirects to internal hosts not followed, start of the page only'
+  wikidata = external 'Wikidata' {
+    description 'Public knowledge base (www.wikidata.org search and query.wikidata.org SPARQL). Free; sent only the company name being searched.'
+  }
+  careerbot.platform.companyLookup -[calls]-> wikidata 'organisations by name, with an official website; the typed text only'
+  careerbot.platform.companyLookup -[reads]-> careerbot.data.tCompanies 'their own companies by name or website'
+  careerbot.platform.companyLookup -[calls]-> companyWebsites 'a typed website\u2019s homepage and pasted website lines, for the name; public https only, redirects to internal hosts not followed, start of the page only'
   careerbot.ui.companiesScreen -[calls]-> careerbot.platform.enrich 'Fill in details'
   careerbot.ui.companiesScreen -[calls]-> careerbot.platform.enrich 'Archive and Restore'
   careerbot.ui.companiesScreen -[calls]-> careerbot.platform.enrich 'Search settings: Check all again'

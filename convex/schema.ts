@@ -457,7 +457,9 @@ export default defineSchema({
   })
     .index("by_workspace", ["workspaceId", "at"])
     .index("by_workspace_apollo", ["workspaceId", "apolloId"])
-    .index("by_workspace_domain", ["workspaceId", "domain"]),
+    .index("by_workspace_domain", ["workspaceId", "domain"])
+    // Companies you like: their own companies as a name is typed (companyLookup.suggest).
+    .searchIndex("search_name", { searchField: "name", filterFields: ["workspaceId"] }),
 
   // Every role read from the job boards of Targets and Maybe companies. One row per role at a company: a role listed
   // twice (same board id, or same title and location) is one row. closedAt: gone from a complete read of the board.
@@ -601,9 +603,11 @@ export default defineSchema({
   // Company search settings: the companies they like (by website), and what Apollo knows the ones to find more like as.
   discovery: defineTable({
     workspaceId: v.id("workspaces"),
-    // Companies you like (Search settings): each one's website, its name when known, and its two choices: add it to
-    // their companies at every search (`add`) and find more like it in every direction's search (`like`).
-    likes: v.optional(v.array(v.object({ domain: v.string(), name: v.optional(v.string()), add: v.boolean(), like: v.boolean() }))),
+    // Companies you like (Search settings): each one's website and its name when known. Every one is added to their
+    // companies at every search; `like`: every direction's search also finds more like it (on unless they turn it off).
+    // `add` is from before one list (0.14.0's Add to my companies): discovery.foldLikes drops it, a row not folded yet
+    // reads without it (discovery.likesOf), and it goes once every deployment has folded.
+    likes: v.optional(v.array(v.object({ domain: v.string(), name: v.optional(v.string()), like: v.boolean(), add: v.optional(v.boolean()) }))),
     // Before likes: seed websites (find more like) and websites they'd name (add). discovery.foldLikes moves them into
     // likes; a row not folded yet reads as folded (discovery.likesOf). Dropped once every deployment has folded.
     seeds: v.optional(v.array(v.string())),

@@ -16,7 +16,7 @@ import { CARRIED, type Row } from "./workspaceCopy";
 // that it doesn't carry (work that hadn't finished), with their tables. files: stored files by id, and where each is in
 // the ZIP. tables: every carried table's rows (workspaceCopy.CARRIED), oldest first, with their ids as they were.
 
-export const FORMAT = 2;
+export const FORMAT = 3;
 export const DATA_FILE = "careerbot-export.json";
 
 export type WorkspaceAbout = { _id: string; name: string; began: number; setupHidden?: boolean; setupSkipped?: ("drive" | "apollo" | "people")[]; toursOffered?: string[] };
@@ -35,16 +35,19 @@ type Loose = Record<string, unknown>;
 // Each brings a file of format n (its key) to n + 1.
 export const MIGRATIONS: Record<number, (file: Loose) => Loose> = {
   // 1 → 2: Search settings' seed and named websites became Companies you like (discovery.likesOf).
-  1: (f) => {
-    const tables = (f.tables ?? {}) as Record<string, Loose[]>;
-    if (!Array.isArray(tables.discovery)) return f;
-    const discovery = tables.discovery.map((row) => {
-      const { seeds: _seeds, named: _named, ...rest } = row;
-      return { ...rest, likes: likesOf({ resolved: [], ...row } as Parameters<typeof likesOf>[0]) };
-    });
-    return { ...f, tables: { ...tables, discovery } };
-  },
+  // 2 → 3: Companies you like became one list, every one added to their companies: each like's `add` goes, and one
+  // that was only added keeps finding more like it off (discovery.likesOf).
+  1: (f) => likesForward(f, ({ seeds: _seeds, named: _named, ...rest }) => rest),
+  2: (f) => likesForward(f, (row) => row),
 };
+
+// The file with each discovery row's likes as discovery.likesOf reads them, `keep` choosing what else of the row stays.
+function likesForward(f: Loose, keep: (row: Loose) => Loose): Loose {
+  const tables = (f.tables ?? {}) as Record<string, Loose[]>;
+  if (!Array.isArray(tables.discovery)) return f;
+  const discovery = tables.discovery.map((row) => ({ ...keep(row), likes: likesOf({ resolved: [], ...row } as Parameters<typeof likesOf>[0]) }));
+  return { ...f, tables: { ...tables, discovery } };
+}
 
 // Why a file can't be imported, in words for the person importing it.
 export class Refusal extends Error {}

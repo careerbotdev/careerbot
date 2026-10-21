@@ -243,7 +243,7 @@ test("with AI only, people at a company are added by hand: no people search", as
 test("a company is never saved under its website: named ones take their name from their own site, results without a name are left out", async () => {
   const s = await setup();
   await s.t.run((ctx) => ctx.db.insert("companies", { workspaceId: s.w, name: "Already Inc", domain: "already.com", found: [{ via: "hand", at: 0 }], at: 0 }));
-  await s.as.mutation(api.discovery.setLikes, { likes: [{ domain: "nvidia.com", add: true, like: false }, { domain: "https://www.toasttab.com", add: true, like: false }, { domain: "nameless.example", add: true, like: false }, { domain: "already.com", add: true, like: false }] });
+  await s.as.mutation(api.discovery.setLikes, { likes: [{ domain: "nvidia.com", like: false }, { domain: "https://www.toasttab.com", like: false }, { domain: "nameless.example", like: false }, { domain: "already.com", like: false }] });
   stub({
     relevant: (dir) => (dir === "Ops" ? [{ name: "acme.com", website: "https://acme.com" }, { name: "https://beta.io", website: "https://beta.io" }, co("Gamma Co", "gamma.io")] : []),
     brave: () => Response.json({ web: { results: [{ url: "https://jobs.ashbyhq.com/zeta/123", title: "Senior Operations Manager" }] } }),
@@ -276,9 +276,9 @@ test("on AI only, the relevant-companies search names the companies they like (a
   const s = await setup();
   await s.as.mutation(api.discovery.setLikes, {
     likes: [
-      { domain: "kestrelfreight.com", name: "Kestrel Freight", add: false, like: true },
-      { domain: "lumenplan.com", add: false, like: true },
-      { domain: "nvidia.com", name: "NVIDIA", add: true, like: false },
+      { domain: "kestrelfreight.com", name: "Kestrel Freight", like: true },
+      { domain: "lumenplan.com", like: true },
+      { domain: "nvidia.com", name: "NVIDIA", like: false },
     ],
   });
   await s.as.mutation(api.discovery.setDirectionSeeds, { id: s.product, seeds: ["orchard.com"] });

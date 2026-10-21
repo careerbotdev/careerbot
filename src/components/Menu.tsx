@@ -282,8 +282,9 @@ type RowProps = Record<string, unknown> & {
 };
 
 // A field an entry opened (the Why? box after Reject…) takes focus, and keeps it. While the menu is up it holds on to
-// focus, so the field's ask is only seen as the menu losing focus to it; the menu hands focus over as it closes. It
-// gives focus back to the button that opened it only when nothing else has taken it.
+// focus, so the field's ask is only seen as the menu losing focus to it; the menu hands focus over as it closes. Its
+// close ends a moment later (after it fades), so whatever has taken focus by then (a dialog the entry opened, the box
+// the person clicked in it) keeps it: focus goes to the field, else back to the button, only when nothing has it.
 function useFocusHandoff() {
   const wanted = useRef<HTMLElement | null>(null);
   return {
@@ -295,10 +296,11 @@ function useFocusHandoff() {
       const field = wanted.current;
       wanted.current = null;
       const taken = document.activeElement;
-      if (field?.isConnected) {
+      if (taken && taken !== document.body) e.preventDefault();
+      else if (field?.isConnected) {
         e.preventDefault();
         field.focus();
-      } else if (taken && taken !== document.body) e.preventDefault();
+      }
     },
   };
 }
