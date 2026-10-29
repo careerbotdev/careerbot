@@ -3,6 +3,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internalQuery, type MutationCtx, query, type QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { inOrder } from "./contactGroups";
+import { sameTitle } from "./directions";
 import { itemsOf } from "./itemShapes";
 import { CLOSED_REASONS, type ClosedReason, DONE, isSent, PATHS, pathOf, PURSUIT_STATUSES, reachedOf, REMINDER_RULES, type ReminderRule, wentOut } from "./pursuitSteps";
 import { countedRecord, recordOf } from "./recordContext";
@@ -84,20 +85,22 @@ export const grounding = internalQuery({
   },
 });
 
-// Start a pursuit of a role: for the direction it was opened from (else its best fit), with the role's score for that
-// direction kept. A role already started returns its pursuit.
+// Start a pursuit of a role: for the direction they chose (any approved direction, whether or not the role was matched
+// to it), else its best fit, with the role's score for that direction kept when it has one. A role already started
+// returns its pursuit.
 export const start = mutation({
   args: { postingId: v.id("postings"), directionId: v.optional(v.id("items")) },
   handler: async (ctx, { postingId, directionId }) => {
     const { workspaceId } = await requireWorkspace(ctx);
     const posting = await getInWorkspace(ctx, workspaceId, postingId);
     if (!posting) throw new ConvexError("Not found.");
+    const directions = new Map((await itemsOf(ctx, workspaceId, "direction", "approved")).map((d) => [String(d._id), d.data.name]));
+    if (directionId && !directions.has(directionId)) throw new ConvexError("Not found.");
     const existing = await ctx.db.query("pursuits").withIndex("by_posting", (q) => q.eq("workspaceId", workspaceId).eq("postingId", postingId)).first();
     if (existing) return existing._id;
-    const directions = new Map((await itemsOf(ctx, workspaceId, "direction", "approved")).map((d) => [String(d._id), d.data.name]));
     const fits = (posting.fit ?? []).filter((f) => directions.has(String(f.directionId)));
-    const best = [...fits].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))[0];
-    const fit = fits.find((f) => f.directionId === directionId) ?? best;
+    const chosen = directionId ?? [...fits].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))[0]?.directionId;
+    const fit = fits.find((f) => f.directionId === chosen);
     const company = await ctx.db.get(posting.companyId);
     const at = Date.now();
     return ctx.db.insert("pursuits", {
@@ -106,7 +109,8 @@ export const start = mutation({
       companyId: posting.companyId,
       title: posting.title,
       company: company?.name ?? "",
-      ...(fit ? { directionId: fit.directionId, direction: directions.get(String(fit.directionId)), level: fit.level, ...(fit.score !== undefined ? { score: fit.score } : {}) } : {}),
+      ...(chosen ? { directionId: chosen, direction: directions.get(String(chosen)) } : {}),
+      ...(fit ? { level: fit.level, ...(fit.score !== undefined ? { score: fit.score } : {}) } : {}),
       status: "preparing",
       timeline: [{ at, event: "started" }],
       changedAt: at,
@@ -309,6 +313,24 @@ export const unsnooze = mutation({
   },
 });
 
+// The direction a pursuit is for, as its page shows it: whether its role was matched to it (has a score for it, from
+// ranking or Score it for …); for a role that wasn't, whether its title is already one of the direction's titles (then
+// there's nothing to add, directions.addTitle) and whether those titles are approved. Roles of other workspaces' and
+// directions no longer approved offer nothing to add.
+async function directionOf(ctx: QueryCtx, p: Doc<"pursuits">, posting: Doc<"postings"> | null) {
+  if (!p.directionId) return null;
+  const d = await getInWorkspace(ctx, p.workspaceId, p.directionId);
+  const dir = d?.kind === "direction" && d.status === "approved" ? d : null;
+  const titles = [...(dir?.data.criteria?.titles ?? []), ...(dir?.data.detail?.targetTitles ?? [])];
+  return {
+    id: p.directionId,
+    name: p.direction ?? "",
+    matched: !posting || !!posting.fit?.some((f) => f.directionId === p.directionId),
+    titled: !posting || !dir || titles.some((t) => sameTitle(t, posting.title)),
+    criteriaApproved: dir?.data.criteriaStatus === "approved",
+  };
+}
+
 // With no open role, its direction's summary for the Role tab; none with an open role.
 async function directionSummaryOf(ctx: QueryCtx, p: Doc<"pursuits">) {
   if (p.postingId || !p.directionId) return null;
@@ -345,7 +367,7 @@ export const get = query({
       applyUrl: posting?.applyUrl ?? null,
       closed: !!posting?.closedAt,
       brief: posting?.brief ? { job: posting.brief.job, forYou: posting.brief.forYou } : null,
-      direction: p.directionId ? { id: p.directionId, name: p.direction ?? "" } : null,
+      direction: await directionOf(ctx, p, posting),
       // With no open role, what the Role tab shows instead: what the company does and what the direction is.
       companySummary: p.postingId ? null : ((await ctx.db.get(p.companyId))?.details?.summary ?? null),
       directionSummary: await directionSummaryOf(ctx, p),

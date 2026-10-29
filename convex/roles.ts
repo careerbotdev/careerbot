@@ -11,16 +11,16 @@ import { Boilerplate } from "./boilerplate";
 import { aiRunning, BUDGET_REACHED, type BudgetReached, HELD_BY_RUNNING } from "./budgets";
 import { refuseCancelled, stopIfCancelled, wasCancelled } from "./cancel";
 import { HELD_BY_PLATFORM } from "./plan";
-import { learns } from "./discovery";
+import { learns, refreshesFit } from "./discovery";
 import { type Board, interleave, type Read, readBoard, readDescription, setSearchTitles } from "./boards";
-import { apolloJobsFor, inWorkArea, jobCountries, workAreaOf } from "./enrich";
+import { apolloJobsFor, freshenJobs, inWorkArea, jobCountries, type WorkArea, workAreaOf } from "./enrich";
 import { activeLimits, itemsOf } from "./itemShapes";
 import { CLEARANCES, eligibilityProblems, firmProblems, LEVELS, limitsFor, type Problem, problemText, ROLE_CHECKED } from "./limitBuckets";
-import { chatJson, OpenRouterError, spendingFor, withBackoff } from "./metering";
+import { chatJson, giveBack, isConflict, OpenRouterError, retryConflicts, spendingFor, withBackoff } from "./metering";
 import { listOf, number, orNull, type ReplySchema, replyOf, strictObject, string, strings } from "./replyJson";
 import { inPlace, locationProblems, placeOptions } from "./places";
 import { approvedRecord } from "./recordContext";
-import { cleanDetails, type Clearance, type Details, detailsValidator, EMPLOYMENT_TYPES, mergeDetails, SETUPS, valuesOf, yearlyUsd } from "./roleDetails";
+import { cleanDetails, type Clearance, type Details, detailsValidator, EMPLOYMENT_TYPES, mergeDetails, SETUPS, valuesOf, whereText, yearlyUsd } from "./roleDetails";
 import { UnreadableReply } from "./replyJson";
 import { resumeTitle, yearsWorked } from "./resumeDoc";
 import { cleanStretch, compareRow, compareSummary, type Rubric, rubric, rubricOf, scoreChange } from "./roleRubric";
@@ -98,7 +98,10 @@ const STEPS: Step[] = ["text", "sort", "judge"];
 // Targets (excited) and Maybe companies that are places to work and aren't archived: the ones whose roles are watched,
 // with their rating.
 const watched = (c: Doc<"companies">): Rated | null =>
-  (c.rating?.value === "excited" || c.rating?.value === "maybe") && c.screened?.employer !== false && !c.archived ? c.rating.value : null;
+  (c.rating?.value === "excited" || c.rating?.value === "maybe") && readable(c) ? c.rating.value : null;
+// A place to work that isn't archived: its board may be read, every day while it's a Target or Maybe, else once when
+// they ask (checkCompany).
+const readable = (c: Doc<"companies">) => c.screened?.employer !== false && !c.archived;
 // A role listed again under another id (or another board) is the same role when its title and location match.
 const sameRole = (title: string, location?: string) => [title, location ?? ""].map((s) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()).join("|");
 
@@ -278,12 +281,14 @@ function stepFor(p: Doc<"postings">, approved: Map<string, number>): Step | unde
   return undefined;
 }
 
-// Watched companies whose board a pass reads, those someone asked to check first, then Targets: every one they asked to
-// check, and with `boards`, every one not read since the pass started.
+// Companies whose board a pass reads, those someone asked to check first, then Targets: every one they asked to check
+// (a company that isn't watched only then, once), and with `boards`, every watched one not read since the pass started.
 async function boardsToRead(ctx: QueryCtx, workspaceId: Id<"workspaces">, since: number, boards: boolean, only?: Id<"companies">[]) {
   const settings = await settingsOf(ctx, workspaceId);
   const useApollo = !!settings?.apolloJobs;
-  const companies = (await ctx.db.query("companies").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect()).filter((c) => watched(c) && (!only || only.includes(c._id)));
+  const companies = (await ctx.db.query("companies").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect()).filter(
+    (c) => (watched(c) || (c.rolesCheckAt && readable(c))) && (!only || only.includes(c._id)),
+  );
   // A company found only through Apollo's postings is read again only while they have that turned on.
   const left = companies
     .filter((c) => c.details?.board && (c.details.board.provider !== "apollo" || useApollo))
@@ -520,22 +525,26 @@ export const saveJobs = internalMutation({
 });
 
 // A board read all the way through: roles not seen in it are closed. A partial read (a board searched by title, or one
-// with more roles than were read) closes nothing.
+// with more roles than were read) closes nothing. Either way the company's open-role counts and matching roles follow
+// what's open now, for free (enrich.freshenJobs), which marks its fit to judge again when its matching roles changed.
 export const finishRead = internalMutation({
-  args: { workspaceId: v.id("workspaces"), companyId: v.id("companies"), touched: v.array(v.id("postings")), complete: v.boolean(), read: v.number(), total: v.optional(v.number()), at: v.number() },
-  handler: async (ctx, { workspaceId, companyId, touched, complete, read, total, at }) => {
+  args: { workspaceId: v.id("workspaces"), companyId: v.id("companies"), touched: v.array(v.id("postings")), complete: v.boolean(), read: v.number(), total: v.optional(v.number()), searched: v.optional(v.boolean()), at: v.number() },
+  handler: async (ctx, { workspaceId, companyId, touched, complete, read, total, searched, at }) => {
     const c = await ctx.db.get(companyId);
     if (!c || c.workspaceId !== workspaceId) return;
+    let open = await openAt(ctx, companyId);
     if (complete) {
       const seen = new Set<Id<"postings">>(touched);
-      for (const p of await openAt(ctx, companyId))
+      for (const p of open)
         if (!seen.has(p._id)) {
           await ctx.db.patch(p._id, { closedAt: at });
           await syncRanks(ctx, p, new Map(), null, () => []);
         }
+      open = open.filter((p) => seen.has(p._id));
     }
+    await freshenJobs(ctx, c, open, { complete, ...(total !== undefined ? { total } : {}), at });
     // A request to check again made while this read ran still stands.
-    await ctx.db.patch(companyId, { roles: { at, read, ...(total !== undefined ? { total } : {}) }, ...((c.rolesCheckAt ?? 0) > at ? {} : { rolesCheckAt: undefined }) });
+    await ctx.db.patch(companyId, { roles: { at, read, ...(total !== undefined ? { total } : {}), ...(searched ? { searched } : {}) }, ...((c.rolesCheckAt ?? 0) > at ? {} : { rolesCheckAt: undefined }) });
   },
 });
 
@@ -1093,14 +1102,14 @@ class Unfinished extends Error {
     super(messageOf(failure));
   }
 }
-// Whether a write lost to other workers' writes on every one of Convex's own retries (many claiming the same roles at once).
-const conflicted = (e: unknown) => /changed while this mutation was being run/.test(messageOf(e));
 
 // One worker: claims roles, does their next step, saves, and claims again until nothing is left, the pass is stopped,
-// the AI budget runs out, or its time is up. A claim that keeps losing to other workers' claims is tried again after a
-// short, random pause. When a few roles fail together in a way their input could cause, each is tried alone: only a
-// role that fails alone counts toward being set aside, and if every one fails alone the cause is taken to be ours, not
-// theirs. Its paid calls are spent on the pass's job, for whoever started the pass.
+// the AI budget runs out, or its time is up. A write that keeps losing to other workers' writes at once (isConflict: a
+// claim, a call reserving or settling, a save) says nothing about the roles or the pass: they're let go as they are and
+// claimed again after a short, random pause, never counted as a failure. When a few roles fail together in a way their
+// input could cause, each is tried alone: only a role that fails alone counts toward being set aside, and if every one
+// fails alone the cause is taken to be ours, not theirs. Its paid calls are spent on the pass's job, for whoever started
+// the pass, and take what they hold from the worker's lease of the budget (budgets.ts), given back when it waits or stops.
 // A call the budget refuses for what calls still running hold frees its roles to be claimed again after a random pause,
 // longer each time in a row (HELD_WAIT_MS): those calls settle and give back what they didn't spend, so the next try
 // fits or meets a refusal that waiting won't change (what's left is too little, or the rest is held by calls that aren't
@@ -1110,11 +1119,11 @@ const conflicted = (e: unknown) => /changed while this mutation was being run/.t
 export const work = internalAction({
   args: { workspaceId: v.id("workspaces"), since: v.number(), worker: v.string(), until: v.number(), jobId: v.optional(v.id("jobs")), origin: v.optional(origin) },
   handler: async (actionCtx, { workspaceId: ws, since, worker, until, jobId, origin }) => {
-    const ctx = spendingFor(actionCtx, { jobId, origin });
+    const ctx = spendingFor(actionCtx, { jobId, origin }, worker);
     let done = 0;
     let heldWait = WAIT_MS;
     const release = (ids: Id<"postings">[], why: { error: string } | { problem: string } | { budget: string } | Record<string, never> = {}) =>
-      ids.length ? ctx.runMutation(internal.roles.release, { workspaceId: ws, since, worker, ids, ...why }) : null;
+      ids.length ? retryConflicts(() => ctx.runMutation(internal.roles.release, { workspaceId: ws, since, worker, ids, ...why })) : null;
     const refusedBy = async (ids: Id<"postings">[], e: unknown) => {
       const { message } = (e as ConvexError<BudgetReached>).data;
       // Waiting on calls running now, the workspace's or (on CareerBot's key) any workspace's: they'll settle soon.
@@ -1123,70 +1132,82 @@ export const work = internalAction({
       await sleep(heldWait * (0.5 + Math.random()));
       heldWait = Math.min(2 * heldWait, HELD_WAIT_MS);
     };
-    while (Date.now() < until) {
-      let got;
-      try {
-        got = await ctx.runMutation(internal.roles.claim, { workspaceId: ws, since, worker, jobId });
-      } catch (e) {
-        if (!conflicted(e)) throw e;
-        await sleep(Math.random() * WAIT_MS);
-        continue;
-      }
-      if (!got) break;
-      if ("wait" in got) {
-        await sleep(WAIT_MS);
-        continue;
-      }
-      let left = got.ids;
-      try {
-        const later = await runStep(ctx, ws, worker, got.step, got.ids);
-        done += got.ids.length - later.length;
-        heldWait = WAIT_MS;
-        if (later.length) {
-          await release(later);
+    try {
+      while (Date.now() < until) {
+        let got;
+        try {
+          got = await ctx.runMutation(internal.roles.claim, { workspaceId: ws, since, worker, jobId });
+        } catch (e) {
+          if (!isConflict(e)) throw e;
+          await sleep(Math.random() * WAIT_MS);
+          continue;
+        }
+        if (!got) break;
+        if ("wait" in got) {
+          await giveBack(ctx, ws);
           await sleep(WAIT_MS);
+          continue;
         }
-        continue;
-      } catch (caught) {
-        const e = caught instanceof Unfinished ? caught.failure : caught;
-        if (caught instanceof Unfinished) {
-          done += left.length - caught.left.length;
-          left = caught.left;
+        let left = got.ids;
+        try {
+          const later = await runStep(ctx, ws, worker, got.step, got.ids);
+          done += got.ids.length - later.length;
+          heldWait = WAIT_MS;
+          if (later.length) {
+            await release(later);
+            await sleep(WAIT_MS);
+          }
+          continue;
+        } catch (caught) {
+          const e = caught instanceof Unfinished ? caught.failure : caught;
+          if (caught instanceof Unfinished) {
+            done += left.length - caught.left.length;
+            left = caught.left;
+          }
+          // Its job was cancelled from Activity: what this worker holds is let go, and it stops.
+          if (wasCancelled(e)) {
+            await release(left);
+            break;
+          }
+          if (budgetStop(e)) {
+            await refusedBy(left, e);
+            continue;
+          }
+          if (isConflict(e)) {
+            await release(left);
+            await sleep(Math.random() * WAIT_MS);
+            continue;
+          }
+          if (!inputFault(e)) {
+            await release(left, { problem: messageOf(e) });
+            await sleep(WAIT_MS);
+            continue;
+          }
+          if (left.length === 1) {
+            await release(left, { error: messageOf(e) });
+            continue;
+          }
         }
-        // Its job was cancelled from Activity: what this worker holds is let go, and it stops.
-        if (wasCancelled(e)) {
-          await release(left);
+        const alone = await Promise.allSettled(left.map((id) => runStep(ctx, ws, worker, got.step, [id])));
+        const failed = alone.flatMap((r, i) => (r.status === "rejected" ? [{ id: left[i], e: r.reason as unknown }] : []));
+        await release(alone.flatMap((r) => (r.status === "fulfilled" ? r.value : [])));
+        done += alone.length - failed.length;
+        if (failed.some((f) => wasCancelled(f.e))) {
+          await release(failed.map((f) => f.id));
           break;
         }
-        if (budgetStop(e)) {
-          await refusedBy(left, e);
+        const refused = failed.find((f) => budgetStop(f.e));
+        if (refused) {
+          await refusedBy(failed.map((f) => f.id), refused.e);
           continue;
         }
-        if (!inputFault(e)) {
-          await release(left, { problem: messageOf(e) });
-          await sleep(WAIT_MS);
-          continue;
-        }
-        if (left.length === 1) {
-          await release(left, { error: messageOf(e) });
-          continue;
-        }
+        await release(failed.filter((f) => isConflict(f.e)).map((f) => f.id));
+        const faults = failed.filter((f) => !isConflict(f.e));
+        if (faults.length === got.ids.length) await release(got.ids, { problem: messageOf(faults[0].e) });
+        else for (const f of faults) await release([f.id], inputFault(f.e) ? { error: messageOf(f.e) } : { problem: messageOf(f.e) });
       }
-      const alone = await Promise.allSettled(left.map((id) => runStep(ctx, ws, worker, got.step, [id])));
-      const failed = alone.flatMap((r, i) => (r.status === "rejected" ? [{ id: left[i], e: r.reason as unknown }] : []));
-      await release(alone.flatMap((r) => (r.status === "fulfilled" ? r.value : [])));
-      done += alone.length - failed.length;
-      if (failed.some((f) => wasCancelled(f.e))) {
-        await release(failed.map((f) => f.id));
-        break;
-      }
-      const refused = failed.find((f) => budgetStop(f.e));
-      if (refused) {
-        await refusedBy(failed.map((f) => f.id), refused.e);
-        continue;
-      }
-      if (failed.length === got.ids.length) await release(got.ids, { problem: messageOf(failed[0].e) });
-      else for (const f of failed) await release([f.id], inputFault(f.e) ? { error: messageOf(f.e) } : { problem: messageOf(f.e) });
+    } finally {
+      await giveBack(ctx, ws);
     }
     return done;
   },
@@ -1252,14 +1273,17 @@ export const start = mutation({
   handler: async (ctx) => startPass(ctx, (await requireWorkspace(ctx)).workspaceId, "you"),
 });
 
-// Check one company's roles again: its board is read first, and roles that had no description are looked up again.
+// Check one company's roles again: its board is read first, and roles that had no description are looked up again. A
+// company that isn't a Target or Maybe has its board read once, and its roles listed unscored.
 export const checkCompany = mutation({
   args: { companyId: v.id("companies") },
   handler: async (ctx, { companyId }) => {
     const { workspaceId } = await requireWorkspace(ctx);
     const c = await ctx.db.get(companyId);
     if (!c || c.workspaceId !== workspaceId) throw new ConvexError("Not found.");
-    if (!watched(c)) throw new ConvexError("Roles are read for Targets and Maybe companies. Rate it first.");
+    if (c.archived) throw new ConvexError("Restore it first.");
+    if (c.screened?.employer === false) throw new ConvexError("It’s set aside as not a place to work. Restore it first.");
+    if (!watched(c) && !c.details?.board) throw new ConvexError("No job board found for it yet. Add one in Details.");
     await ctx.db.patch(companyId, { rolesCheckAt: Date.now() });
     for (const p of await openAt(ctx, companyId)) if (p.descriptionAt && !p.hasDescription) await ctx.db.patch(p._id, { descriptionAt: undefined });
     return startPass(ctx, workspaceId, "you");
@@ -1481,12 +1505,107 @@ export const against = query({
   },
 });
 
+// How much of a company's board was read and when: roles read and the board's own total, whether it was searched by
+// their titles rather than read whole (reads from before that was kept: Workday and Oracle boards are), whether the
+// last read was complete, and whether a check they asked for is waiting.
+function coverageOf(c: Doc<"companies">, now: number) {
+  const searched = c.roles?.searched ?? (c.details?.board?.provider === "workday" || c.details?.board?.provider === "oracle");
+  const read = c.roles?.read ?? 0;
+  const boardTotal = c.roles?.total ?? null;
+  return {
+    id: c._id,
+    name: c.name,
+    board: c.details?.board ? { provider: c.details.board.provider, url: c.details.board.url } : null,
+    searched,
+    read,
+    boardTotal,
+    complete: !!c.roles?.at && !searched && (boardTotal === null || read >= boardTotal),
+    lastRead: c.roles?.at ?? null,
+    lastFailed: c.roles?.failedAt && c.roles.failedAt > (c.roles.at ?? 0) ? c.roles.failedAt : null,
+    stale: !c.roles?.at || now - c.roles.at > STALE_MS,
+    checking: !!c.rolesCheckAt,
+  };
+}
+
+// One company's coverage (coverageOf), for its page in Companies, whether or not it's a Target or Maybe (watched:
+// whether its board is read every day).
+export const companyCoverage = query({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, { companyId }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const c = await ctx.db.get(companyId);
+    if (!c || c.workspaceId !== workspaceId) throw new ConvexError("Not found.");
+    return { ...coverageOf(c, await clockOf(ctx, workspaceId)), watched: !!watched(c) };
+  },
+});
+
+// Where a role stands on its company's page, across every approved direction: "fit" (its best verdict, as the Roles
+// page ranks it: not against a limit first, then the highest score), "against" (that verdict is against a firm limit
+// of theirs, or the role is outside where they'll work), "other" (not the work of any direction: sorted out of every
+// one it was ranked for, or judged a fit for none), or "waiting" (not ranked yet; at a company that isn't a Target or
+// Maybe, not ranked at all).
+export type CompanyGroup = "fit" | "against" | "other" | "waiting";
+type CompanyStanding = { group: CompanyGroup; directionId: Id<"items"> | null; level: Level | null; score: number | null; problems: string[] };
+function companyStanding(p: Doc<"postings">, approved: Id<"items">[], problemsOf: ProblemsOf, area: WorkArea | null, employer: string): CompanyStanding {
+  const d = valuesOf(detailsOf(p));
+  const judged = [];
+  let out = false;
+  for (const dir of approved) {
+    const s = standing(p, dir);
+    if (s.level) {
+      const problems = problemsOf(dir, d, p.location, employer);
+      judged.push({ dir, level: s.level, score: s.score, problems, firm: problems.some((x) => x.firm) });
+    } else if (s.sortedOut) out = true;
+  }
+  const best = judged.sort((a, b) => Number(a.firm) - Number(b.firm) || Number(!!a.problems.length) - Number(!!b.problems.length) || (b.score ?? -1) - (a.score ?? -1) || LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level])[0];
+  const verdict = best ? { directionId: best.dir, level: best.level, score: best.score, problems: best.problems.map(problemText) } : { directionId: null, level: null, score: null, problems: [] as string[] };
+  if (!inWorkArea(p, area)) return { group: "against" as CompanyGroup, ...verdict, problems: ["Outside where you’ll work", ...verdict.problems] };
+  if (best) return { group: (best.firm ? "against" : best.level === "none" ? "other" : "fit") as CompanyGroup, ...verdict };
+  return { group: (out ? "other" : "waiting") as CompanyGroup, ...verdict };
+}
+
+// One page of a company's open roles, every one read from its board whatever it was ranked (or not), newest read
+// first; with `search`, those whose title matches it, best match first. Each with where it stands (companyStanding),
+// its place and when it was posted, their rating, and its pursuit when it was started.
+export const atCompany = query({
+  args: { companyId: v.id("companies"), search: v.optional(v.string()), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { companyId, search, paginationOpts }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const c = await ctx.db.get(companyId);
+    if (!c || c.workspaceId !== workspaceId) throw new ConvexError("Not found.");
+    const words = search?.trim();
+    const page = words
+      ? await ctx.db.query("postings").withSearchIndex("search_title", (q) => q.search("title", words).eq("companyId", companyId)).paginate(paginationOpts)
+      : await ctx.db.query("postings").withIndex("by_company", (q) => q.eq("companyId", companyId).eq("closedAt", undefined)).order("desc").paginate(paginationOpts);
+    const approved = [...(await directionTimes(ctx, workspaceId)).keys()] as Id<"items">[];
+    const problemsOf = await problemsFor(ctx, workspaceId);
+    const area = await workAreaOf(ctx, workspaceId);
+    const rows = [];
+    for (const p of page.page) {
+      if (p.closedAt) continue;
+      const pursuit = await ctx.db.query("pursuits").withIndex("by_posting", (q) => q.eq("workspaceId", workspaceId).eq("postingId", p._id)).first();
+      rows.push({
+        id: p._id,
+        title: p.title,
+        ...companyStanding(p, approved, problemsOf, area, c.name),
+        place: whereText(valuesOf(detailsOf(p)), p.location),
+        postedAt: p.postedAt ?? null,
+        firstSeen: p.firstSeen,
+        rating: p.rating?.value ?? null,
+        pursuit: pursuit ? { id: pursuit._id, status: pursuit.status } : null,
+      });
+    }
+    return { ...page, page: rows };
+  },
+});
+
 // The Roles page apart from its roles. The approved directions; for the one asked for, or all of them: whether any
 // roles were ranked, whether some were ranked before a direction last changed (stale; rankAgain ranks them afresh),
 // how many were sorted out, how many are set apart for being against a firm limit (against), and the filters their
 // firm eligibility limits start the page with (fromLimits: the clearance they hold; only roles that sponsor a visa).
 // The watched companies, to filter by. Coverage: per watched company, how much of its board was read and when. pass:
-// the last roles pass. stretch: whether judging counts how big a stretch a role is (saveStretch).
+// the last roles pass. stretch: whether judging counts how big a stretch a role is (saveStretch). fitRefresh: whether a
+// company whose matching roles change in a pass has its fit checked again (Update fit as roles change).
 export const overview = query({
   args: { directionId: v.optional(v.id("items")) },
   handler: async (ctx, { directionId }) => {
@@ -1506,31 +1625,20 @@ export const overview = query({
     const jobs = await ctx.db.query("jobs").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).order("desc").take(100);
     const last = jobs.find((j) => j.kind === "roles");
     const now = await clockOf(ctx, workspaceId);
+    const settings = await settingsOf(ctx, workspaceId);
     return {
       directions: directions.map((x) => ({ id: x._id, name: x.data.name })),
       ranked: !!(await ctx.db.query("roleRanks").withIndex("by_ranked", (q) => q.eq("workspaceId", workspaceId).eq("directionId", directionId)).first()),
       stale,
-      stretch: rubricOf(await settingsOf(ctx, workspaceId)) === "v2",
+      stretch: rubricOf(settings) === "v2",
+      fitRefresh: refreshesFit(settings),
       sortedOut: { count: Math.min(COUNT_CAP, out.length), more: out.length > COUNT_CAP },
       against: { count: Math.min(COUNT_CAP, against.length), more: against.length > COUNT_CAP },
       fromLimits: { clearance: held ?? null, visa: eligibility.some((l) => l.rule?.sponsorshipNeeded === true) },
       companies: companies.map((c) => ({ id: c._id, name: c.name, rating: watched(c)! })).sort((a, b) => a.name.localeCompare(b.name)),
       pass: last ? { status: last.status, error: last.error ?? null } : null,
       coverage: companies
-        .map((c) => ({
-          id: c._id,
-          name: c.name,
-          rating: c.rating!.value,
-          board: c.details?.board ? { provider: c.details.board.provider, url: c.details.board.url } : null,
-          // Workday and Oracle boards are searched by their titles, not read whole.
-          searched: c.details?.board?.provider === "workday" || c.details?.board?.provider === "oracle",
-          read: c.roles?.read ?? 0,
-          boardTotal: c.roles?.total ?? null,
-          lastRead: c.roles?.at ?? null,
-          lastFailed: c.roles?.failedAt && c.roles.failedAt > (c.roles.at ?? 0) ? c.roles.failedAt : null,
-          stale: !c.roles?.at || now - c.roles.at > STALE_MS,
-          checking: !!c.rolesCheckAt,
-        }))
+        .map((c) => ({ ...coverageOf(c, now), rating: c.rating!.value }))
         .sort((a, b) => Number(a.rating !== "excited") - Number(b.rating !== "excited") || a.name.localeCompare(b.name)),
     };
   },
@@ -1710,6 +1818,126 @@ export const rate = mutation({
   },
 });
 
+// ---- Scoring one role for a direction they chose (Score it for …) ----
+
+// Score one role for one approved direction, whatever the sort said: one judging call, in Activity. A role they started
+// a pursuit of for a direction it wasn't matched to gets its score, why, and what it means for them this way. Asking
+// again while it's being scored returns that job.
+export const score = mutation({
+  args: { postingId: v.id("postings"), directionId: v.id("items") },
+  handler: async (ctx, { postingId, directionId }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const p = await ctx.db.get(postingId);
+    if (!p || p.workspaceId !== workspaceId) throw new ConvexError("Not found.");
+    if (!(await directionTimes(ctx, workspaceId)).has(directionId)) throw new ConvexError("Not found.");
+    const jobs = await ctx.db.query("jobs").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).order("desc").take(100);
+    const same = jobs.find((j) => j.kind === "roleFit" && (j.status === "queued" || j.status === "running") && j.args?.postingId === postingId && j.args?.directionId === directionId);
+    if (same) return same._id;
+    const jobId = await ctx.db.insert("jobs", { workspaceId, kind: "roleFit", args: { postingId, directionId }, status: "queued", origin: "you" });
+    await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId });
+    return jobId;
+  },
+});
+
+// What scoring one role reads: what every judging call reads (judgeContext, and the roles they turned down), then the
+// role for the one direction (postingInput); and where to look up its description when it hasn't been yet. Null when
+// the role, or the direction's approval, is gone.
+export const scoreInput = internalQuery({
+  args: { workspaceId: v.id("workspaces"), postingId: v.id("postings"), directionId: v.id("items") },
+  handler: async (ctx, { workspaceId, postingId, directionId }) => {
+    const p = await ctx.db.get(postingId);
+    if (!p || p.workspaceId !== workspaceId) return null;
+    const context = await judgeContext(ctx, workspaceId);
+    if (!context.directions.some((d) => d.id === directionId)) return null;
+    const c = await ctx.db.get(p.companyId);
+    const board = c?.details?.board?.provider === p.provider ? c.details.board : null;
+    return {
+      ...context,
+      turnedDown: await turnedDownRoles(ctx, workspaceId),
+      postings: [await postingInput(ctx, p, [directionId])],
+      lookUp: !p.descriptionAt && board ? { board, externalId: p.externalId, url: p.url } : null,
+    };
+  },
+});
+
+// One role's description, looked up to score it (a pass's workers save theirs with saveTexts). Kept only when it
+// hasn't been looked up meanwhile; "" means the board had none.
+export const saveText = internalMutation({
+  args: { workspaceId: v.id("workspaces"), postingId: v.id("postings"), text: v.string(), postedAt: v.optional(v.number()), facts: v.optional(detailsValidator), at: v.number() },
+  handler: async (ctx, { workspaceId, postingId, text, postedAt, facts, at }) => {
+    const p = await ctx.db.get(postingId);
+    if (!p || p.workspaceId !== workspaceId || p.descriptionAt) return;
+    const row = await textOf(ctx, postingId);
+    if (row && text) await ctx.db.patch(row._id, { text, clean: undefined });
+    else if (text) await ctx.db.insert("postingTexts", { workspaceId, postingId, text });
+    const patch = { descriptionAt: at, hasDescription: !!text || !!row, boardDetails: boardFacts(p.boardDetails, facts), ...(postedAt && !p.postedAt ? { postedAt } : {}) };
+    await ctx.db.patch(postingId, patch);
+    await (await ranker(ctx, workspaceId)).sync({ ...p, ...patch });
+  },
+});
+
+// The verdict for the one direction scored, replacing any it had, with what its description says and its brief; its
+// pursuit for that direction takes the score. A role never sorted stays waiting for the sort for the other directions
+// (its fitAt unset: a verdict with no sort would otherwise read as one from before sorting, "none" for the rest).
+export const saveScore = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    jobId: v.id("jobs"),
+    rubric,
+    directionAt: v.number(),
+    result: v.object({
+      id: v.id("postings"),
+      judged: v.array(v.id("items")),
+      fit: v.array(v.object({ directionId: v.id("items"), level, score: v.optional(v.number()), reason: v.string() })),
+      stretch: v.array(v.string()),
+      details: v.optional(detailsValidator),
+      brief: v.optional(v.object({ job: v.string(), forYou: v.string() })),
+    }),
+  },
+  handler: async (ctx, { workspaceId, jobId, rubric: judgedBy, directionAt, result }) => {
+    await refuseCancelled(ctx, jobId);
+    const p = await ctx.db.get(result.id);
+    const rank = await ranker(ctx, workspaceId);
+    const dir = result.judged[0];
+    if (!p || p.workspaceId !== workspaceId || !dir || !rank.approved.has(dir)) return null;
+    const f = result.fit.find((x) => x.directionId === dir);
+    const verdict = {
+      directionId: dir, level: f?.level ?? ("none" as const), ...(f ? { reason: f.reason } : {}), ...(f?.score !== undefined ? { score: f.score } : {}), method: "model" as const,
+      directionAt, rubric: judgedBy, ...(f && result.stretch.length ? { stretch: result.stretch } : {}),
+    };
+    const at = Date.now();
+    const next = {
+      ...p,
+      fit: [...(p.fit ?? []).filter((x) => x.directionId !== dir), verdict],
+      ...(p.sort || p.fitAt !== undefined ? { fitAt: at } : {}),
+      ...(result.details ? { details: { ...result.details, at } } : {}),
+      ...(result.brief ? { brief: { ...result.brief, at } } : {}),
+    };
+    await ctx.db.patch(p._id, { fit: next.fit, fitAt: next.fitAt, details: next.details, brief: next.brief });
+    await rank.sync(next);
+    for (const pursuit of await ctx.db.query("pursuits").withIndex("by_posting", (q) => q.eq("workspaceId", workspaceId).eq("postingId", p._id)).collect())
+      if (pursuit.directionId === dir) await ctx.db.patch(pursuit._id, { level: verdict.level, score: verdict.score });
+    return { level: verdict.level, score: verdict.score ?? null };
+  },
+});
+
+// Score it for …: the role's description first when it hasn't been looked up, then one judging call for the one
+// direction, paid from their AI budget like any judging call ("role fit").
+export async function runRoleFit(ctx: ActionCtx, job: Doc<"jobs">) {
+  const ws = job.workspaceId;
+  const args = { workspaceId: ws, postingId: job.args.postingId as Id<"postings">, directionId: job.args.directionId as Id<"items"> };
+  let input = await ctx.runQuery(internal.roles.scoreInput, args);
+  if (input?.lookUp) {
+    const d = await readDescription(input.lookUp.board, input.lookUp);
+    await ctx.runMutation(internal.roles.saveText, { ...args, text: d?.text ?? "", ...(d?.postedAt ? { postedAt: d.postedAt } : {}), ...(d?.facts ? { facts: d.facts } : {}), at: Date.now() });
+    input = await ctx.runQuery(internal.roles.scoreInput, args);
+  }
+  if (!input) throw new ConvexError("That role or direction is no longer there.");
+  const { results } = await judgeCall(ctx, ws, input, "role fit");
+  const directionAt = input.times.find((t) => t.id === args.directionId)?.changedAt ?? Date.now();
+  return ctx.runMutation(internal.roles.saveScore, { workspaceId: ws, jobId: job._id, rubric: input.rubric, directionAt, result: results[0] });
+}
+
 // Read one company's board and save what's on it. Returns whether the board could be read.
 async function readCompany(ctx: ActionCtx, ws: Id<"workspaces">, c: { id: Id<"companies">; board: Board }, apolloJobs: ((id: string) => Promise<Read | null>) | null) {
   const at = Date.now();
@@ -1729,7 +1957,7 @@ async function readCompany(ctx: ActionCtx, ws: Id<"workspaces">, c: { id: Id<"co
     touched = await ctx.runMutation(internal.roles.saveJobs, { workspaceId: ws, companyId: c.id, provider: r.board.provider, jobs: jobs.slice(i, i + SAVE_CHUNK), touched, at });
   // Workday and Oracle are searched by title, and some boards list only so many: those reads are partial.
   const complete = !r.searched && (r.total === undefined || r.jobs.length >= r.total);
-  await ctx.runMutation(internal.roles.finishRead, { workspaceId: ws, companyId: c.id, touched, complete, read: touched.length, ...(r.total !== undefined ? { total: r.total } : {}), at });
+  await ctx.runMutation(internal.roles.finishRead, { workspaceId: ws, companyId: c.id, touched, complete, read: touched.length, ...(r.total !== undefined ? { total: r.total } : {}), ...(r.searched ? { searched: true } : {}), at });
   return true;
 }
 
@@ -1753,7 +1981,9 @@ export async function runRoles(ctx: ActionCtx, job: Doc<"jobs">) {
     await ctx.runMutation(internal.roles.next, { ...scope, boards, origin: job.origin, after: job._id });
     return { companies: batch.length, read, companiesLeft: remaining - batch.length };
   }
-  // Boards read: descriptions, sorting and judging go to the workers.
+  // Boards read: companies whose matching roles changed have their fit judged again (enrich.refreshFit); descriptions,
+  // sorting and judging go to the workers.
+  await ctx.runMutation(internal.enrich.refreshFit, { workspaceId: ws });
   const queued = { text: 0, sort: 0, judge: 0, method: "model" as SortMethod };
   for (let cursor: string | null = null, done = false; !done; ) {
     const page: { text: number; sort: number; judge: number; method: SortMethod; isDone: boolean; cursor: string } = await ctx.runMutation(internal.roles.plan, { ...scope, cursor });

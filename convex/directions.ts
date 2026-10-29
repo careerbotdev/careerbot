@@ -391,3 +391,48 @@ export const editCriteria = mutation({
     await ctx.db.patch(id, { data: { ...d.data, criteria: { ...(seeds?.length ? { seeds } : {}), industries: c.industries, sizes: c.sizes, stages: c.stages, titles: tidy(c.titles), keywords: tidy(c.keywords) }, criteriaStatus: "approved", changedAt: Date.now() } });
   },
 });
+
+// Two titles are the same title whatever their case, spacing and punctuation.
+export const sameTitle = (a: string, b: string) => a.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() === b.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+// Add a role's title to a direction's titles (its criteria), so roles named like it are matched to the direction from
+// the next check. Approved criteria follow the edit rule (editCriteria): the change is approved as made, and the
+// direction counts as changed, so Rank again sorts the roles already read. Criteria waiting for review stay waiting,
+// with the title among them; a direction with none gets criteria with just the title, to review. Returns what Undo
+// (removeTitle) puts back, or null when the title was already there.
+export const addTitle = mutation({
+  args: { id: v.id("items"), title: v.string() },
+  handler: async (ctx, { id, title }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const d = await getInWorkspace(ctx, workspaceId, id);
+    if (!d || d.kind !== "direction" || d.status !== "approved") throw new ConvexError("Not found.");
+    await refuseWhileMerging(ctx, workspaceId, [id]);
+    const t = title.trim();
+    if (!t) throw new ConvexError("Not found.");
+    const c = d.data.criteria;
+    if (c?.titles.some((x) => sameTitle(x, t))) return null;
+    const approved = d.data.criteriaStatus === "approved";
+    const criteria = c ? { ...c, titles: [...c.titles, t] } : { industries: [], sizes: [], stages: [], titles: [t], keywords: [] };
+    await ctx.db.patch(id, { data: { ...d.data, criteria, criteriaStatus: approved ? "approved" : "proposed", ...(approved ? { changedAt: Date.now() } : {}) } });
+    return { approved, created: !c, changedAt: d.data.changedAt ?? null };
+  },
+});
+
+// Undo addTitle: the title comes off the direction's titles, criteria it made go again, and the direction counts as
+// changed when it did before (changedAt as addTitle returned it), so roles ranked meanwhile aren't marked to rank again.
+export const removeTitle = mutation({
+  args: { id: v.id("items"), title: v.string(), created: v.boolean(), changedAt: v.union(v.number(), v.null()) },
+  handler: async (ctx, { id, title, created, changedAt }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const d = await getInWorkspace(ctx, workspaceId, id);
+    if (!d || d.kind !== "direction") throw new ConvexError("Not found.");
+    await refuseWhileMerging(ctx, workspaceId, [id]);
+    const c = d.data.criteria;
+    if (!c?.titles.some((x) => sameTitle(x, title))) return;
+    const titles = c.titles.filter((x) => !sameTitle(x, title));
+    const empty = !titles.length && !c.industries.length && !c.sizes.length && !c.stages.length && !c.keywords.length && !c.seeds?.length;
+    const { criteria: _criteria, criteriaStatus: _status, changedAt: _changed, ...rest } = d.data;
+    const data = { ...rest, ...(created && empty ? {} : { criteria: { ...c, titles }, criteriaStatus: d.data.criteriaStatus }), ...(changedAt !== null ? { changedAt } : {}) };
+    await ctx.db.patch(id, { data });
+  },
+});

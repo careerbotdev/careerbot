@@ -924,6 +924,24 @@ test("a failure that isn't about any role sets none aside; when it keeps happeni
   expect((await s.postings()).every((p) => p.fitAt && !p.failed)).toBe(true);
 });
 
+test("a write that keeps losing to other workers' writes at once frees its roles without counting as a failure, however often it happens", async () => {
+  const s = await setup();
+  const { judged } = stubWorld({ jobs: [{ id: 1, title: "Account Executive", location: "New York, NY" }] });
+  // More times than a pass takes failures that aren't about any role before it stops (MAX_PROBLEMS), judging fails
+  // with what Convex says of a write that lost on every one of its retries.
+  const conflict = 'Documents read from or written to the "aiSpend" table changed while this mutation was being run and on every subsequent retry.';
+  judgeAnswers((n) => {
+    if (n <= 25) throw new Error(conflict);
+    return null;
+  });
+  await s.pass("2026-09-20T09:00:00Z");
+  expect(await lastPass(s)).toMatchObject({ status: "done", result: { judged: 1 } });
+  expect(judged).toHaveLength(1);
+  const [role] = await s.postings();
+  expect([role.failed, role.fitAt, role.queue]).toEqual([undefined, expect.any(Number), undefined]);
+  expect(await s.t.run(async (ctx) => (await ctx.db.query("discovery").collect()).some((d) => d.rolesProblems))).toBe(false);
+});
+
 test("the operator can clear roles set aside, and the next pass takes them up again", async () => {
   const s = await setup();
   stubWorld({ jobs: [{ id: 1, title: "Account Executive", location: "New York, NY" }] });

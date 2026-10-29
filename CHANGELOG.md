@@ -2,6 +2,24 @@
 
 What changed in each version of CareerBot, newest first. The same notes are at https://careerbot.dev/changelog.
 
+## 0.16.0 · 2026-10-29
+
+Every role CareerBot reads at a company is listed on its page, and a pursuit can be started for any direction. Company fit follows board changes, and large scoring passes no longer stop on budget conflicts.
+
+### New
+
+- A company's page lists every open role read from its board, and you can start a pursuit of any role for any of your directions.
+
+### Better
+
+- A company's open roles and its fit stay current as its roles open and close, and its page shows when its roles were read and its fit checked.
+
+### Fixed
+
+- Judging many roles at once no longer stops with "Roles stopped after … failures" when AI calls check the budget together; the budget is still never exceeded.
+
+All releases: https://careerbot.dev/changelog#v0.16.0
+
 ## 0.15.0 · 2026-10-21
 
 Companies you like now searches as you type, for free, from your own companies and Wikidata, takes a pasted list of names or websites, and copies the list back out. Every company you like is added and used to find more like it, unless you turn that off.

@@ -252,7 +252,7 @@ export const AI_STEPS: Record<string, StepWords> = {
   enrich: {
     name: "Fill in companies",
     stage: "companies",
-    starts: "After a company search, or when you choose Fill in details, Check again or Check all again.",
+    starts: "After a company search, or when you choose Fill in details, Check again or Check all again; and after the daily roles check finds roles matching your titles opened or closed at a company, unless Update fit as roles change is off.",
     may: "Add what each company builds, its size and its fit, and find its job board.",
     mayNot: "Spend Apollo credits past the credits you set aside each month.",
     reads: {

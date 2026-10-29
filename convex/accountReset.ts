@@ -28,6 +28,7 @@ export const KEPT: Record<string, string> = {
   usage: "spending: this month's budget and the platform allowance count it",
   spendTotals: "spending: Reports show what was paid",
   aiSpend: "spending: this month's AI budget counts it",
+  aiLeases: "spending: what running AI work holds of this month's AI budget, given back when it stops",
   aiDefaults: "a setting",
   aiSettings: "a setting",
   budgets: "a setting",

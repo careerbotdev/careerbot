@@ -59,7 +59,7 @@ An Apollo call is never made past your Apollo account's balance, and nothing is 
 ## What runs on a schedule
 
 <Terms>
-  <Term title="Every morning, 9:00 UTC">The job boards of every workspace with Targets or Maybe companies are read again for new and closed roles, and new roles are sorted and ranked.</Term>
+  <Term title="Every morning, 9:00 UTC">The job boards of every workspace with Targets or Maybe companies are read again for new and closed roles, and new roles are sorted and ranked. A company whose roles matching your titles opened or closed has its fit judged again, at about a cent for every 40 companies from your AI budget, unless **Update fit as roles change** is off.</Term>
   <Term title="Every ten minutes">With Google Drive connected, your CareerBot folder is compared with what it should hold, and synced only when something differs. Each change also syncs soon after it's made.</Term>
   <Term title="Every five minutes">Work cut off by an update or a crash is picked up again quietly, up to three tries. After that it fails with "This kept getting interrupted. Try again."</Term>
   <Term title="Every hour">Model prices are read again from OpenRouter, so what a call reserves follows the providers' prices.</Term>
@@ -81,7 +81,7 @@ On its own:
   about what it costs. Changing a fact you already approved (an edit, a rewrite, rejecting it) starts neither.
 - When you rate a company or approve, change or switch a limit, the list of roles is brought in step at once (no new AI
   calls).
-- The daily roles pass, and Google Drive syncing.
+- The daily roles pass, with updating company fit as roles change, and Google Drive syncing.
 
 Only when you ask, each with its estimate shown first:
 

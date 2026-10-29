@@ -829,7 +829,7 @@ export function pursuitsFixtures({
       applyUrl: null,
       closed: false,
       brief: s.noRole ? null : roleOf(s).brief,
-      direction: { id: s.direction, name: nameOf(s.direction) },
+      direction: { id: s.direction, name: nameOf(s.direction), matched: true, titled: true, criteriaApproved: true },
       companySummary: s.noRole ? (company(s.company).summary ?? null) : null,
       directionSummary: s.noRole
         ? "Build the planning and logistics software you used to work around, as a product manager who has run it on a real plant floor."
@@ -1040,6 +1040,7 @@ export function pursuitsFixtures({
     ranked: !empty,
     stale: directionId === dir.solutions,
     stretch: true,
+    fitRefresh: true,
     sortedOut: { count: 212, more: false },
     against: { count: 14, more: false },
     fromLimits: { clearance: null, visa: false },
@@ -1382,6 +1383,7 @@ export function pursuitsFixtures({
       ask: 0.01,
       tailor: 0.04,
       rankPerRole: 0.0001,
+      scoreRole: 0.01,
       read: null,
       readRevision: null,
       rewrite: null,

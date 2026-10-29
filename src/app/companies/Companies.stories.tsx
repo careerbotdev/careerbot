@@ -8,7 +8,7 @@ import type { Note } from "@/components/NoteBlock";
 import { useScreenSize } from "@/components/Panes";
 import { ShellProvider, useShellState } from "../shell/ShellContext";
 import { Companies } from "./Companies";
-import { type Act, type CompaniesData, type CompaniesEnv, CompaniesEnvContext, type Company, type Coverage, type Lookup, type OpenRoles, type Person, type Tab } from "./env";
+import { type Act, type CompaniesData, type CompaniesEnv, CompaniesEnvContext, type Company, type CompanyCoverage, type CompanyRole, type Coverage, type Lookup, type Person, type Tab } from "./env";
 import type { FindSetup } from "./findPlan";
 
 // The Companies screen with fixture data. Rating, keeping, restoring, editing a website or board and notes change the
@@ -44,6 +44,8 @@ function company(key: string, s: Seed): Company {
     found: ["Supply Chain Product (criteria)"],
     foundAt: now - 25 * DAY,
     ranked: !!s.details,
+    rolesAt: s.details?.board ? now - 3 * DAY : null,
+    fitAt: s.details ? now - 3 * DAY : null,
     archived: null,
     ...s,
   };
@@ -128,45 +130,82 @@ const companies: Company[] = [
   company("haulhire", { name: "HaulHire", screened: { employer: false, kind: "job board", by: "you", at: now - 10 * DAY } }),
 ];
 
+// Kestrel's board is too large to read whole: it was searched by their titles, 40 of its 3,048 roles read.
 const coverage: Record<string, Coverage> = Object.fromEntries(
   companies
     .filter((c) => c.rating === "excited" || c.rating === "maybe")
-    .map((c, i) => [
-      c.id,
-      {
-        id: c.id,
-        name: c.name,
-        rating: c.rating as "excited" | "maybe",
-        board: c.details?.board ? { provider: "greenhouse" as const, url: c.details.board.url } : null,
-        searched: false,
-        read: c.details?.board ? [214, 9, 6, 0, 4, 11][i] : 2,
-        boardTotal: null,
-        lastRead: c.details?.board ? now - (i % 3) * DAY : null,
-        lastFailed: null,
-        stale: false,
-        checking: false,
-      },
-    ]),
+    .map((c, i) => {
+      const searched = c.id === "kestrel";
+      const read = searched ? 40 : c.details?.board ? [214, 9, 6, 0, 4, 11][i] : 2;
+      return [
+        c.id,
+        {
+          id: c.id,
+          name: c.name,
+          rating: c.rating as "excited" | "maybe",
+          board: c.details?.board ? { provider: searched ? ("workday" as const) : ("greenhouse" as const), url: c.details.board.url } : null,
+          searched,
+          read,
+          boardTotal: searched ? 3048 : null,
+          complete: !searched && !!c.details?.board,
+          lastRead: c.details?.board ? now - (i % 3) * DAY : null,
+          lastFailed: null,
+          stale: false,
+          checking: false,
+        },
+      ];
+    }),
 );
+// Every company's own coverage, Target or Maybe or not: Orchard (Found) had its roles checked once, today; the other
+// companies that aren't Targets or Maybe never had theirs read.
+const companyCoverage = (c: Company): CompanyCoverage => {
+  const watched = coverage[c.id];
+  if (watched) return { ...watched, watched: true };
+  const board = c.details?.board ? { provider: "greenhouse" as const, url: c.details.board.url } : null;
+  const read = c.id === "orchard";
+  return { id: c.id, name: c.name, board, searched: false, read: read ? 12 : 0, boardTotal: null, complete: read, lastRead: read ? now : null, lastFailed: null, stale: !read, checking: false, watched: false };
+};
 
-const roles: Record<string, OpenRoles> = {
-  loadstar: {
-    count: 6,
-    more: false,
-    top: [
-      { id: "p1" as Id<"postings">, title: "Senior Product Manager, Load Planning", score: 91, level: "strong", place: "Remote, US" },
-      { id: "p2" as Id<"postings">, title: "Solutions Consultant, Shippers", score: 86, level: "strong", place: "Columbus or remote" },
-      { id: "p3" as Id<"postings">, title: "Carrier Success Manager", score: 58, level: "weak", place: "Columbus, OH" },
-    ],
-  },
-  parcelpoint: {
-    count: 2,
-    more: false,
-    top: [
-      { id: "p4" as Id<"postings">, title: "Head of Operations", score: 64, level: "some", place: "Philadelphia or remote" },
-      { id: "p5" as Id<"postings">, title: "Hub Supervisor", score: 55, level: "weak", place: "Philadelphia" },
-    ],
-  },
+// Open roles (roles.atCompany): Loadstar's in every group, more than a search field's worth; Kestrel's searched board;
+// Orchard's read once and never scored.
+const role = (id: string, title: string, group: CompanyRole["group"], s: Partial<CompanyRole> = {}): CompanyRole => ({
+  id: id as Id<"postings">,
+  title,
+  group,
+  directionId: null,
+  level: null,
+  score: null,
+  problems: [],
+  place: "Remote, US",
+  postedAt: now - 3 * DAY,
+  firstSeen: now - 3 * DAY,
+  rating: null,
+  pursuit: null,
+  ...s,
+});
+const OTHER_TITLES = ["Staff Software Engineer, Routing", "Senior Data Engineer", "Account Executive, Carriers", "Product Designer", "Customer Support Specialist", "Payroll Manager", "Recruiter", "Security Engineer", "Technical Writer", "Office Manager", "Controller", "Senior Backend Engineer", "Mobile Engineer, Driver App", "Sales Development Representative", "Data Analyst, Freight Audit", "IT Support Specialist"];
+const roles: Record<string, CompanyRole[]> = {
+  loadstar: [
+    role("p1", "Senior Product Manager, Load Planning", "fit", { directionId: product, level: "strong", score: 91, pursuit: { id: "u1" as Id<"pursuits">, status: "preparing" } }),
+    role("p2", "Solutions Consultant, Shippers", "fit", { directionId: solutions, level: "strong", score: 86, place: "Columbus or remote", postedAt: now - DAY }),
+    role("p3", "Product Manager, Tendering", "fit", { directionId: product, level: "some", score: 72, place: "Columbus, OH", rating: "interested" }),
+    role("p4", "Carrier Success Manager", "fit", { directionId: solutions, level: "weak", score: 58, place: "Columbus, OH" }),
+    role("p5", "Director of Product, Freight Audit", "against", { directionId: product, level: "strong", score: 84, place: "Toronto, Canada", problems: ["Outside where you’ll work"] }),
+    ...OTHER_TITLES.map((t, i) => role(`o${i}`, t, "other", { place: i % 3 ? "Columbus, OH" : "Remote, US", postedAt: now - (i + 2) * DAY })),
+    role("w1", "Implementation Manager, Shippers", "waiting", { postedAt: now }),
+    role("w2", "Member of the Planning Staff", "waiting", { place: "Pittsburgh, PA", postedAt: null, firstSeen: now }),
+  ],
+  kestrel: [
+    role("k1", "Senior Product Manager, Shipper Experience", "fit", { directionId: product, level: "some", score: 77, place: "Chicago, IL" }),
+    role("k2", "Group Product Manager, Carrier App", "fit", { directionId: product, level: "some", score: 63, place: "Remote, US" }),
+    role("k3", "Solutions Engineer, Enterprise", "other", { place: "Chicago, IL" }),
+  ],
+  orchard: [
+    role("r1", "Solutions Consultant, Demand Planning", "waiting", { place: "Denver, CO" }),
+    role("r2", "Implementation Consultant", "waiting", { postedAt: now - DAY }),
+    role("r3", "Senior Solutions Consultant", "waiting", { place: "Chicago, IL" }),
+    role("r4", "Head of Partnerships", "waiting"),
+  ],
 };
 
 const people: Record<string, Person[]> = {
@@ -180,6 +219,7 @@ const base: CompaniesData = {
   apolloJobs: true,
   lens: { industries: "steer", judge: "hide" },
   learn: true,
+  fitRefresh: true,
   filledIn: 112,
   companyGoals: [
     { id: did("g1"), text: "Works on food, freight or the software behind them" },
@@ -218,7 +258,7 @@ const base: CompaniesData = {
 const rankingData: CompaniesData = {
   ...base,
   enriching: { status: "running", error: undefined, remaining: 3 },
-  companies: companies.map((c) => (["ashgrove", "bramblewood", "tidewell"].includes(c.id) ? { ...c, ranked: false, fit: [] } : c)),
+  companies: companies.map((c) => (["ashgrove", "bramblewood", "tidewell"].includes(c.id) ? { ...c, ranked: false, fitAt: null, fit: [] } : c)),
 };
 // Four found companies archived on the same day.
 const archivedData: CompaniesData = {
@@ -282,6 +322,11 @@ function createStore(initial: CompaniesData, initialParams: Params) {
     },
     setLearn: async ({ on }: { on: boolean }) => {
       data = { ...data, learn: on };
+      emit();
+      return null;
+    },
+    setFitRefresh: async ({ on }: { on: boolean }) => {
+      data = { ...data, fitRefresh: on };
       emit();
       return null;
     },
@@ -363,7 +408,11 @@ function Fixture({ data = base, tab = null, company = null, settings = false, so
     return {
       useData,
       useCoverage: (id, watched) => (watched ? (coverage[id] ?? null) : null),
-      useOpenRoles: (id, watched) => (watched ? (roles[id] ?? { top: [], count: 0, more: false }) : undefined),
+      useCompanyCoverage: (id) => {
+        const c = useData()?.companies.find((x) => x.id === id);
+        return c && companyCoverage(c);
+      },
+      useCompanyRoles: (id, search) => ({ rows: (roles[id] ?? []).filter((r) => r.title.toLowerCase().includes(search.toLowerCase())), status: "Exhausted", loadMore: () => {} }),
       useNotes: (id) => useSyncExternalStore(store.subscribe, store.notes, store.notes)[id] ?? [],
       usePeople: (id) => people[id] ?? [],
       useParams: () => ({ ...useSyncExternalStore(store.subscribe, store.params, store.params), set: store.setParams }),
@@ -451,6 +500,18 @@ export const FindCompaniesAiOnlyNoBrave: Story = {
   play: FindCompanies.play,
 };
 export const FoundByWebSearch: Story = { name: "Found by web search", render: () => <Fixture tab="found" company="brinewell" /> };
+// Every open role, grouped: Other roles opened from its fold.
+export const TargetOtherRoles: Story = {
+  name: "Target, other roles",
+  render: () => <Fixture tab="targets" company="loadstar" />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(firstPane(canvasElement)).findByRole("button", { name: /^Other roles/ }));
+  },
+};
+// A board too large to read whole: what a search by their titles found, and the job board for the rest.
+export const SearchedBoard: Story = { name: "Maybe, board searched by your titles", render: () => <Fixture tab="maybe" company="kestrel" /> };
+// Not a Target or Maybe and never read: its roles aren't read every day; Check its roles now reads them once.
+export const FoundRolesNotRead: Story = { name: "Found, roles not read", render: () => <Fixture tab="found" company="fernhill" /> };
 export const SearchSettings: Story = {
   name: "Search settings",
   render: () => <Fixture tab="targets" company="loadstar" />,

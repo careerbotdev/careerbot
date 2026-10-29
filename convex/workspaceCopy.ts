@@ -31,6 +31,7 @@ export const LEFT_OUT: Record<string, string> = {
   importIds: "an import's old and new ids, kept while it runs",
   plans: "an operator's allowance for the workspace on the copy it was set on",
   mergeMoves: "what a direction merge moved, kept for its Undo on the copy it was made on",
+  aiLeases: "what a running pass's workers hold of the AI budget, given back when they stop",
 };
 const FINISHED = new Set(["done", "failed"]);
 

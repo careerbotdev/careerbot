@@ -18,7 +18,7 @@ import { runResume } from "./resume";
 import { runDirections } from "./directions";
 import { runFind } from "./findCompanies";
 import { runEnrich } from "./enrich";
-import { runRoles } from "./roles";
+import { runRoleFit, runRoles } from "./roles";
 import { runDuplicates } from "./duplicates";
 import { runProject } from "./projects";
 import { runSkills } from "./skills";
@@ -56,6 +56,8 @@ const handlers: Record<Doc<"jobs">["kind"], (ctx: ActionCtx, job: Doc<"jobs">) =
   discover: runFind,
   enrich: runEnrich,
   roles: runRoles,
+  // Score it for …: one role, one direction they chose.
+  roleFit: runRoleFit,
   duplicates: runDuplicates,
   project: runProject,
   skills: runSkills,

@@ -29,8 +29,10 @@ const LABELS: Record<Job["kind"], (what: string | null) => [string, string, stri
   directions: (w) => (w ? [`Filling in ${w}`, `Filled in ${w}`, `Couldn’t fill in ${w}`] : ["Suggesting directions", "Suggested directions", "Couldn’t suggest directions"]),
   duplicates: () => ["Looking for duplicates", "Looked for duplicates", "Couldn’t look for duplicates"],
   discover: () => ["Finding companies", "Found companies", "Couldn’t find companies"],
-  enrich: () => ["Looking up companies", "Looked up companies", "Couldn’t look up companies"],
+  // A pass updating fit as roles changed (enrich.refreshFit) names how many companies: "Updating company fit for 3 companies".
+  enrich: (w) => (w ? [`Updating company fit for ${w}`, `Updated company fit for ${w}`, `Couldn’t update company fit for ${w}`] : ["Looking up companies", "Looked up companies", "Couldn’t look up companies"]),
   roles: () => ["Checking roles", "Checked roles", "Couldn’t check roles"],
+  roleFit: (w) => [`Scoring ${w ?? "a role"}`, `Scored ${w ?? "a role"}`, `Couldn’t score ${w ?? "a role"}`],
   project: (w) => [`Reading ${w ?? "a project"}`, `Read ${w ?? "a project"}`, `Couldn’t read ${w ?? "a project"}`],
   skills: () => ["Gathering your skills", "Gathered your skills", "Couldn’t gather your skills"],
   sameWork: () => ["Looking for the same work", "Looked for the same work", "Couldn’t look for the same work"],
@@ -49,7 +51,7 @@ const LABELS: Record<Job["kind"], (what: string | null) => [string, string, stri
 // another workspace names nothing.
 async function subjectOf(ctx: QueryCtx, j: Job): Promise<string | null> {
   const a = j.args ?? {};
-  const get = <T extends "narratives" | "items" | "pursuits" | "contacts">(id: unknown) =>
+  const get = <T extends "narratives" | "items" | "pursuits" | "contacts" | "postings">(id: unknown) =>
     id ? getInWorkspace(ctx, j.workspaceId, id as Doc<T>["_id"]) : Promise.resolve(null);
   switch (j.kind) {
     case "extract": {
@@ -99,6 +101,14 @@ async function subjectOf(ctx: QueryCtx, j: Job): Promise<string | null> {
     case "unmerge":
       // The two directions, as named when it started ("Startup Operations into Chief of Staff").
       return typeof a.from === "string" && typeof a.to === "string" ? `${a.from} into ${a.to}` : null;
+    case "enrich":
+      return typeof a.refit === "number" && a.refit > 0 ? `${a.refit.toLocaleString("en-US")} ${a.refit === 1 ? "company" : "companies"}` : null;
+    case "roleFit": {
+      // The role and the direction it's scored for ("Member of Go-to-Market Staff for Go-to-Market Lead").
+      const p = await get<"postings">(a.postingId);
+      const d = await get<"items">(a.directionId);
+      return p ? `${p.title}${d?.kind === "direction" ? ` for ${d.data.name}` : ""}` : null;
+    }
     default:
       return null;
   }
@@ -120,6 +130,7 @@ type Retry =
   | { fn: "followUpEmails.write"; args: { pursuitId: string; contactId?: string } }
   | { fn: "lineCheck.check"; args: { id: string; line?: string } }
   | { fn: "factChanges.update"; args: { target: { kind: "resume" | "letter" | "answers"; id: string } } }
+  | { fn: "roles.score"; args: { postingId: string; directionId: string } }
   | { fn: "discovery.start" | "enrich.start" | "roles.start" | "insights.start" | "skills.start" | "duplicates.start" | "followups.start" | "conflicts.start"; args: Record<string, never> };
 
 function retryOf(j: Job): Retry | null {
@@ -152,6 +163,8 @@ function retryOf(j: Job): Retry | null {
       return { fn: "enrich.start", args: {} };
     case "roles":
       return { fn: "roles.start", args: {} };
+    case "roleFit":
+      return { fn: "roles.score", args: { postingId: a.postingId, directionId: a.directionId } };
     case "insights":
       return { fn: "insights.start", args: {} };
     case "skills":

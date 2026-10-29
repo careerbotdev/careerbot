@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { clearanceLabel, EMPLOYMENT_LABELS, payText, seniorityLabel, travelText, valuesOf, visaText, whereText, yearsText } from "../../../convex/roleDetails";
@@ -27,8 +27,11 @@ import { ASK_BESIDE, INTERESTED, NOT_FOR_ME, NOT_FOR_ME_NOTE, NOT_INTERESTED, OP
 
 // A role not started yet: what it is and what it pays, Start (S), Interested (I) and Not for me (R, at once; with a note, in ⋯, it asks why); About
 // the job, For you, how it fits each direction, its stretch, the full description and their notes; its details beside
-// (under it on smaller screens). The ⋯ menu holds the rest: tailor a resume, write a letter, ask, find people (each
-// starts the pursuit first where it needs one), rate the company, adjust the direction, open or copy the posting.
+// (under it on smaller screens). Start goes ahead for the direction it fits best; a role that fits none (an other role,
+// or one not scored yet) asks which direction first. The ⋯ menu holds the rest: start a pursuit for any approved
+// direction (best fits first), score it for a direction it has no score for, tailor a resume, write a letter, ask, find
+// people (each starts the pursuit first where it needs one), rate the company, adjust the direction, open or copy the
+// posting.
 
 export const ROLE_REASONS = ["Pay", "Location", "Seniority", "Not the work", "Company"];
 const failed = (e: unknown, fallback: string) => toast({ message: e instanceof ConvexError ? String(e.data) : fallback, icon: "failed" });
@@ -104,20 +107,24 @@ export function useRoleEntries(role: Role | null, directionId: string | null): M
 export function RoleItem({ role, direction, nav, small }: { role: Role; direction: string | null; nav: ItemNav | null; small: boolean }) {
   const rate = useMutation(api.roles.rate);
   const startPursuit = useMutation(api.pursuits.start);
+  const scoreFor = useMutation(api.roles.score);
   const writeLetter = useMutation(api.letters.write);
   const tailored = useQuery(api.resume.forPosting, { postingId: role.id });
   const costs = useQuery(api.estimates.costs, {});
+  const overview = useQuery(api.roles.overview, {});
   const { amount, tailor } = useTailor(role.id);
   const { open } = useThird();
   const [why, setWhy] = useState(false);
+  const startButton = useRef<HTMLButtonElement>(null);
   const common = useRoleEntries(role, direction);
   const fit = role.fit.find((f) => f.directionId === direction) ?? role.fit[0] ?? null;
   const interested = role.rating === "interested";
   const setAside = role.rating === "no";
 
-  // Starting keeps the role's score for the direction it's shown for; Today and the list then show it as a pursuit.
-  const start = () =>
-    startPursuit({ postingId: role.id, directionId: fit?.directionId })
+  // Starting keeps the role's score for the direction it's shown for (or the one they chose); Today and the list then
+  // show it as a pursuit.
+  const start = (directionId?: Id<"items">) =>
+    startPursuit({ postingId: role.id, directionId: directionId ?? fit?.directionId })
       .then((id) => {
         toast({ message: `Started: ${role.title}`, icon: "pursuits" });
         return id;
@@ -126,6 +133,24 @@ export function RoleItem({ role, direction, nav, small }: { role: Role; directio
         failed(e, "Couldn’t start.");
         return null;
       });
+  // Every approved direction, the role's best fits first, then those it wasn't matched to (no score for them).
+  const directions = (overview?.directions ?? [])
+    .map((d) => ({ ...d, fit: role.fit.find((f) => f.directionId === d.id) ?? null }))
+    .sort((a, b) => Number(!a.fit) - Number(!b.fit) || (b.fit?.score ?? -1) - (a.fit?.score ?? -1));
+  const startFor: MenuEntry[] = [
+    { group: "For which direction" },
+    ...directions.map((d) => ({
+      label: d.name,
+      hint: d.fit ? String(d.fit.score ?? d.fit.level.replace(/^./, (x) => x.toUpperCase())) : "Not matched",
+      detail: `Starts a pursuit of this role for ${d.name}: its resume, letter and people use that direction.${d.fit ? "" : " Not matched to this direction; you chose it."}`,
+      note: "Free",
+      onSelect: () => void start(d.id),
+    })),
+  ];
+  const scoreCost = aboutUsd(costs?.scoreRole) ?? "Uses your AI budget";
+  const unscored = directions.filter((d) => !d.fit);
+  const score = (d: { id: Id<"items">; name: string }) =>
+    void scoreFor({ postingId: role.id, directionId: d.id }).then(() => toast({ message: `Scoring it for ${d.name}`, icon: "running" }), (e: unknown) => failed(e, "Couldn’t start."));
   const toggleInterested = () =>
     void rate({ id: role.id, value: interested ? null : "interested" }).then(
       () => !interested && toast({ message: `Interested: ${role.title}`, icon: "approve", action: { label: "Undo", key: "U", run: () => void rate({ id: role.id, value: null }) } }),
@@ -146,6 +171,22 @@ export function RoleItem({ role, direction, nav, small }: { role: Role; directio
   const fits = role.fit.filter((f) => f.level !== "none");
 
   const menu: MenuEntry[] = [
+    { label: "Start a pursuit for", icon: "pursuits", title: "Start a pursuit for", ...(directions.length ? { items: startFor } : { disabled: true, reason: "No directions yet" }) },
+    ...(unscored.length
+      ? [
+          {
+            label: "Score it for",
+            icon: "roles" as const,
+            hint: scoreCost,
+            title: "Score it for",
+            items: [
+              { group: "For which direction" },
+              ...unscored.map((d) => ({ label: d.name, hint: scoreCost, detail: `Scores this role for ${d.name} against your record, with why and what it means for you.`, note: `${scoreCost} · Scoring again replaces it`, onSelect: () => score(d) })),
+            ] satisfies MenuEntry[],
+          },
+        ]
+      : []),
+    "separator",
     {
       label: "Tailor a resume",
       icon: "resumes",
@@ -171,7 +212,7 @@ export function RoleItem({ role, direction, nav, small }: { role: Role; directio
 
   useEffect(() => {
     const onKey = onItemKey({
-      s: () => void start(),
+      s: () => (fit ? void start() : startButton.current?.click()),
       i: toggleInterested,
       r: () => (setAside ? restore() : notForMe()),
       l: () => hasResume && letter(),
@@ -187,9 +228,25 @@ export function RoleItem({ role, direction, nav, small }: { role: Role; directio
   const actions = (size: ButtonSize) => {
     const phone = size === "lg";
     const list = [
-      <Button key="start" variant="primary" size={size} keys={phone ? undefined : "S"} className={phone ? "flex-1" : ""} detail="Starts a pursuit of this role: its status, resume, letter, answers and people in one place." note="Free" onClick={() => void start()}>
-        Start
-      </Button>,
+      fit ? (
+        <Button key="start" variant="primary" size={size} keys={phone ? undefined : "S"} className={phone ? "flex-1" : ""} detail="Starts a pursuit of this role: its status, resume, letter, answers and people in one place." note="Free" onClick={() => void start()}>
+          Start
+        </Button>
+      ) : (
+        // A role matched to no direction asks which one first.
+        <Menu
+          key="start"
+          label="Start a pursuit for"
+          title="Start a pursuit for"
+          align="start"
+          items={startFor}
+          trigger={
+            <Button ref={startButton} variant="primary" size={size} keys={phone ? undefined : "S"} className={phone ? "flex-1" : ""}>
+              Start
+            </Button>
+          }
+        />
+      ),
       ...(phone
         ? []
         : [

@@ -5,7 +5,7 @@ import { type ActionCtx, internalAction, internalMutation, internalQuery, type Q
 import { openrouterHeaders } from "./openrouterApp";
 import type { Reasoning } from "./aiTasks";
 import { APOLLO_CREDITS } from "./apolloPricing";
-import { addAiSpend, BUDGET_REACHED, type BudgetReached, monthStart, resumeHeld } from "./budgets";
+import { addAiSpend, BUDGET_REACHED, type BudgetReached, leaseOf, monthStart, resumeHeld } from "./budgets";
 import { cancelledError } from "./cancel";
 import { priceOf, worstCase } from "./modelPrices";
 import { apolloBalance, apolloKeyFor } from "./apolloKey";
@@ -23,10 +23,36 @@ import { addSpend } from "./tallies";
 // What a paid call is spent on: the job it runs in, who started that job, and the pursuit it's for. It rides on the
 // action's ctx, so every call a job makes carries it without each step passing it on: jobs.run sets it for every job,
 // the roles pass for its workers (roles.work), and an action the person calls directly sets its own (people.ts).
+// holder: a worker of a pass with many calls at once, whose calls take what they hold from its lease (budgets.ts); it
+// gives back what's left when it stops (giveBack).
 export type SpentFor = { jobId?: Id<"jobs">; origin?: Doc<"jobs">["origin"]; pursuitId?: Id<"pursuits"> };
-type MeteredCtx = ActionCtx & { spentFor?: SpentFor };
-export function spendingFor(ctx: ActionCtx, spentFor: SpentFor): ActionCtx {
-  return { ...ctx, spentFor } as MeteredCtx;
+type MeteredCtx = ActionCtx & { spentFor?: SpentFor; holder?: string };
+export function spendingFor(ctx: ActionCtx, spentFor: SpentFor, holder?: string): ActionCtx {
+  return { ...ctx, spentFor, holder } as MeteredCtx;
+}
+
+// Convex runs a write that lost to writes made at the same moment again a few times itself, then fails it with this
+// message; calls reserving and settling at once can lose every time. A write that failed this way changed nothing.
+export const isConflict = (e: unknown) => /changed while this mutation was being run/.test(e instanceof Error ? e.message : String(e));
+
+// Runs a write again when it lost to others (isConflict), up to `tries` times in all, after a random pause that grows
+// each time (about 0.2, 0.4, 0.8 seconds and on, up to 5), so writes that collided don't collide again in step. Any
+// other error is thrown at once.
+export async function retryConflicts<T>(fn: () => Promise<T>, tries = 8): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (!isConflict(e) || attempt >= tries) throw e;
+      await new Promise((r) => setTimeout(r, Math.min(5000, 100 * 2 ** attempt) * (0.5 + Math.random())));
+    }
+  }
+}
+
+// A worker with a lease (spendingFor's holder) gives back what's left of it.
+export async function giveBack(ctx: ActionCtx, workspaceId: Id<"workspaces">) {
+  const { holder } = ctx as MeteredCtx;
+  if (holder) await retryConflicts(() => ctx.runMutation(internal.budgets.giveBack, { workspaceId, holder }));
 }
 
 export const settle = internalMutation({
@@ -43,9 +69,11 @@ export const settle = internalMutation({
     state: v.optional(v.literal("indeterminate")),
     lookup: v.optional(v.array(v.string())),
     unseen: v.optional(v.number()),
+    // The worker whose lease takes what this call cost and gives back (budgets.ts), when it has one for the call's month.
+    holder: v.optional(v.string()),
   },
   // Returns whether the call's job was cancelled from Activity meanwhile: the call is paid, but its answer isn't used.
-  handler: async (ctx, { usageId, state, ...patch }) => {
+  handler: async (ctx, { usageId, state, holder, ...patch }) => {
     const row = await ctx.db.get(usageId);
     if (!row) return false;
     // An indeterminate call keeps what it holds until the daily check knows what it cost.
@@ -53,19 +81,32 @@ export const settle = internalMutation({
     const next = { ...patch, state: state ?? ("settled" as const), ...(release ? { reservedUsd: undefined } : {}) };
     await ctx.db.patch(usageId, next);
     const usd = (patch.costUsd ?? 0) - (row.costUsd ?? 0);
-    if (row.service === "openrouter") await addAiSpend(ctx, row.workspaceId, row.at, { usd, held: -release });
-    if (row.platform) await addPlatformSpend(ctx, monthStart(row.at), { usd, held: -release });
-    if (release) await resumeHeld(ctx, row.workspaceId);
-    if (release && row.platform) await resumePlatformHeld(ctx);
+    // A worker's call settles into its lease, which the month's total holds whole until it's given back, so the total
+    // isn't written.
+    const lease = release && holder && row.service === "openrouter" ? await leaseOf(ctx, row.workspaceId, holder) : null;
+    if (lease && lease.month === monthStart(row.at) && !!lease.platform === !!row.platform) {
+      await ctx.db.patch(lease._id, { left: lease.left + release - usd, spent: lease.spent + usd });
+    } else {
+      if (row.service === "openrouter") await addAiSpend(ctx, row.workspaceId, row.at, { usd, held: -release });
+      if (row.platform) await addPlatformSpend(ctx, monthStart(row.at), { usd, held: -release });
+      if (release) await resumeHeld(ctx, row.workspaceId);
+      if (release && row.platform) await resumePlatformHeld(ctx);
+    }
     await addSpend(ctx, { ...row, ...next });
     return !!row.jobId && (await ctx.db.get(row.jobId))?.status === "cancelled";
   },
 });
 
 // Every AI call records itself as reserved before it's made, holding `amount` (the most it could cost) against the
-// budget; budgets.reserve refuses it when that doesn't fit. Settling replaces what it holds with its real cost.
+// budget; budgets.reserve refuses it when that doesn't fit. Settling replaces what it holds with its real cost. A
+// refused call's worker gives back its lease, so workers waiting on what each other's leases hold don't wait forever.
 async function reserveAi(ctx: MeteredCtx, args: { workspaceId: Id<"workspaces">; purpose: string; model: string; amount: number; platform: boolean }) {
-  return ctx.runMutation(internal.budgets.reserve, { ...args, ...ctx.spentFor, service: "openrouter", automated: true });
+  try {
+    return await retryConflicts(() => ctx.runMutation(internal.budgets.reserve, { ...args, ...ctx.spentFor, holder: ctx.holder, service: "openrouter", automated: true }));
+  } catch (e) {
+    if (e instanceof ConvexError && (e.data as BudgetReached)?.code === BUDGET_REACHED) await giveBack(ctx, args.workspaceId);
+    throw e;
+  }
 }
 
 // The key an AI call goes with: the workspace's own, else CareerBot's (plan.ts), which only takes the recommended
@@ -143,22 +184,25 @@ export async function chat(ctx: ActionCtx, args: ChatArgs): Promise<ChatReply> {
     body = await res.json().catch(() => ({}));
   } catch (e) {
     // It failed on its way, so OpenRouter may have charged for it, with no reply to say what.
-    await ctx.runMutation(internal.metering.settle, { usageId, ok: false, costUsd: 0, state: "indeterminate", unseen: 1 });
+    await retryConflicts(() => ctx.runMutation(internal.metering.settle, { usageId, ok: false, costUsd: 0, state: "indeterminate", unseen: 1 }));
     throw e;
   }
   // An answer that doesn't say what it cost was still charged: its generation is looked up later (reconcile).
   const unknownCost = res.ok && body.usage?.cost === undefined;
   // A job cancelled while this call was out still pays for it, but gets no answer (cancel.ts).
-  const cancelled = await ctx.runMutation(internal.metering.settle, {
-    usageId,
-    ok: res.ok,
-    model: body.model ?? price.target ?? args.model,
-    inputTokens: body.usage?.prompt_tokens,
-    outputTokens: body.usage?.completion_tokens,
-    costUsd: body.usage?.cost ?? 0,
-    generationId: body.id,
-    ...(unknownCost ? { state: "indeterminate" as const, ...(body.id ? { lookup: [body.id] } : { unseen: 1 }) } : {}),
-  });
+  const cancelled = await retryConflicts(() =>
+    ctx.runMutation(internal.metering.settle, {
+      usageId,
+      holder: (ctx as MeteredCtx).holder,
+      ok: res.ok,
+      model: body.model ?? price.target ?? args.model,
+      inputTokens: body.usage?.prompt_tokens,
+      outputTokens: body.usage?.completion_tokens,
+      costUsd: body.usage?.cost ?? 0,
+      generationId: body.id,
+      ...(unknownCost ? { state: "indeterminate" as const, ...(body.id ? { lookup: [body.id] } : { unseen: 1 }) } : {}),
+    }),
+  );
   if (cancelled) throw cancelledError();
   if (!res.ok) throw new OpenRouterError(body.error?.message ?? `OpenRouter returned ${res.status}.`, res.status, retryAfterMs(res.headers.get("retry-after")), body.error?.metadata?.limit_source, body.error?.metadata?.raw);
   return {
@@ -250,27 +294,29 @@ export async function apollo(
   if (!key) throw new Error("Add your Apollo key in settings first.");
   const balance = await apolloBalance(key);
   const credits = APOLLO_CREDITS[args.endpoint];
-  const usageId = await ctx.runMutation(internal.budgets.reserve, {
-    ...ctx.spentFor,
-    workspaceId: args.workspaceId,
-    service: "apollo",
-    automated: args.automated,
-    amount: credits,
-    purpose: args.purpose,
-    endpoint: args.endpoint,
-    accountLeft: balance?.left,
-    cycleStart: balance?.cycleStart,
-  });
+  const usageId = await retryConflicts(() =>
+    ctx.runMutation(internal.budgets.reserve, {
+      ...ctx.spentFor,
+      workspaceId: args.workspaceId,
+      service: "apollo",
+      automated: args.automated,
+      amount: credits,
+      purpose: args.purpose,
+      endpoint: args.endpoint,
+      accountLeft: balance?.left,
+      cycleStart: balance?.cycleStart,
+    }),
+  );
   const qs = new URLSearchParams();
   for (const [k, x] of Object.entries(args.params)) for (const item of Array.isArray(x) ? x : [x]) qs.append(Array.isArray(x) ? `${k}[]` : k, String(item));
   let res: Response;
   try {
     res = await fetch(`https://api.apollo.io/api/v1/${args.path ?? args.endpoint}?${qs}`, { method: args.method ?? "POST", headers: { "x-api-key": key, "Content-Type": "application/json", "Cache-Control": "no-cache" } });
   } catch (e) {
-    await ctx.runMutation(internal.metering.settle, { usageId, ok: false, credits, state: "indeterminate" });
+    await retryConflicts(() => ctx.runMutation(internal.metering.settle, { usageId, ok: false, credits, state: "indeterminate" }));
     throw e;
   }
-  if (await ctx.runMutation(internal.metering.settle, { usageId, ok: res.ok, credits: res.ok ? credits : 0 })) throw cancelledError();
+  if (await retryConflicts(() => ctx.runMutation(internal.metering.settle, { usageId, ok: res.ok, credits: res.ok ? credits : 0 }))) throw cancelledError();
   if (!res.ok) throw new Error(res.status === 401 ? "Apollo didn't accept your key." : res.status === 403 ? "Your Apollo plan or key doesn't allow this search." : res.status === 429 ? "Apollo's rate limit was hit. Try again in a while." : `Apollo returned ${res.status}.`);
   return res.json() as Promise<unknown>;
 }
@@ -370,7 +416,8 @@ export async function decide(ctx: ActionCtx, args: { workspaceId: Id<"workspaces
   const done = await Promise.allSettled(args.decisions.map((d) => withBackoff(() => one(d))));
   const failed = done.find((r): r is PromiseRejectedResult => r.status === "rejected");
   const unsure = lookup.length || unseen ? { state: "indeterminate" as const, ...(lookup.length ? { lookup } : {}), ...(unseen ? { unseen } : {}) } : {};
-  if (await ctx.runMutation(internal.metering.settle, { usageId, ok: !failed, model, inputTokens, outputTokens, costUsd, ...unsure })) throw cancelledError();
+  const settled = { usageId, holder: (ctx as MeteredCtx).holder, ok: !failed, model, inputTokens, outputTokens, costUsd, ...unsure };
+  if (await retryConflicts(() => ctx.runMutation(internal.metering.settle, settled))) throw cancelledError();
   if (failed) throw failed.reason;
   return { answers: done.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])), costUsd, model };
 }
@@ -426,6 +473,8 @@ export const reconcile = internalAction({
   handler: async (ctx) => {
     const now = Date.now();
     for (const workspaceId of await ctx.runQuery(internal.metering.workspaces, {})) {
+      // Leases of workers that were cut off give back what they held (budgets.ts).
+      await ctx.runMutation(internal.budgets.expireLeases, { workspaceId });
       const ai = await ctx.runQuery(internal.metering.unsettled, { workspaceId, service: "openrouter" });
       // Calls on CareerBot's key (plan.ts) are looked up with it, the rest with the workspace's own.
       const own = ai.some((r) => !r.platform) ? await openrouterKeyFor(ctx, workspaceId) : null;

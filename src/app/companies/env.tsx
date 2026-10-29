@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction, useConvex, useQuery } from "convex/react";
+import { useAction, useConvex, usePaginatedQuery, useQuery } from "convex/react";
 import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useMemo } from "react";
@@ -8,7 +8,6 @@ import { api } from "../../../convex/_generated/api";
 import { COMPANY_SORTS, type CompanySort } from "../../../convex/companySets";
 import type { Resolved, SiteName, Suggestion } from "../../../convex/companyLookup";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { valuesOf, whereText } from "../../../convex/roleDetails";
 import type { Note } from "@/components/NoteBlock";
 import { useDemo } from "../demo/demo";
 import type { FindSetup } from "./findPlan";
@@ -17,10 +16,14 @@ export type CompaniesData = FunctionReturnType<typeof api.discovery.list>;
 export type Company = CompaniesData["companies"][number];
 export type CompanyId = Id<"companies">;
 export type Coverage = FunctionReturnType<typeof api.roles.overview>["coverage"][number];
+// One company's coverage, Target or Maybe or not (watched: its board is read every day).
+export type CompanyCoverage = FunctionReturnType<typeof api.roles.companyCoverage>;
 export type Person = FunctionReturnType<typeof api.people.atCompany>[number];
 export type Balance = FunctionReturnType<typeof api.apolloKey.balance>;
-// A company's best open roles, as its item lists them, and how many it has.
-export type OpenRoles = { top: { id: Id<"postings">; title: string; score: number | null; level: "strong" | "some" | "weak" | "none" | null; place: string | null }[]; count: number; more: boolean };
+// One of a company's open roles as its page lists it (roles.atCompany), and a page at a time of them with whether more
+// can be read.
+export type CompanyRole = FunctionReturnType<typeof api.roles.atCompany>["page"][number];
+export type CompanyRoles = { rows: CompanyRole[]; status: "LoadingFirstPage" | "CanLoadMore" | "LoadingMore" | "Exhausted"; loadMore: () => void };
 
 export const TABS = ["targets", "maybe", "found", "aside", "archived"] as const;
 export type Tab = (typeof TABS)[number];
@@ -44,6 +47,7 @@ export const MUTATIONS = {
   setLikes: api.discovery.setLikes,
   setLens: api.discovery.setLens,
   setLearn: api.discovery.setLearn,
+  setFitRefresh: api.discovery.setFitRefresh,
   addNote: api.notes.add,
   editNote: api.notes.edit,
   removeNote: api.notes.remove,
@@ -58,7 +62,9 @@ export type Act = { [K in keyof Mutations]: (args: FunctionArgs<Mutations[K]>) =
 export type CompaniesEnv = {
   useData: () => CompaniesData | undefined;
   useCoverage: (id: CompanyId, watched: boolean) => Coverage | null | undefined;
-  useOpenRoles: (id: CompanyId, watched: boolean) => OpenRoles | undefined;
+  useCompanyCoverage: (id: CompanyId) => CompanyCoverage | undefined;
+  // Its open roles, ROLES_PAGE at a time; with `search`, those whose title matches.
+  useCompanyRoles: (id: CompanyId, search: string) => CompanyRoles;
   useNotes: (id: CompanyId) => Note[] | undefined;
   usePeople: (id: CompanyId) => Person[] | undefined;
   useParams: () => CompaniesParams;
@@ -73,7 +79,7 @@ export type CompaniesEnv = {
   useLookup: () => Lookup;
 };
 
-const TOP_ROLES = 3;
+export const ROLES_PAGE = 100;
 
 function useConvexAct(): Act {
   const client = useConvex();
@@ -149,21 +155,10 @@ const convexEnv: CompaniesEnv = {
     if (!watched) return null;
     return overview && (overview.coverage.find((c) => c.id === id) ?? null);
   },
-  useOpenRoles: (id, watched) => {
-    const filters = { companies: [id] };
-    const page = useQuery(api.roles.list, watched ? { filters, paginationOpts: { numItems: TOP_ROLES, cursor: null } } : "skip");
-    const count = useQuery(api.roles.count, watched ? { filters } : "skip");
-    return useMemo(
-      () =>
-        page && count
-          ? {
-              top: page.page.map((r) => ({ id: r.id, title: r.title, score: r.score, level: r.level, place: whereText(valuesOf(r.details), r.location) })),
-              count: count.count,
-              more: count.more,
-            }
-          : undefined,
-      [page, count],
-    );
+  useCompanyCoverage: (id) => useQuery(api.roles.companyCoverage, { companyId: id }),
+  useCompanyRoles: (id, search) => {
+    const { results, status, loadMore } = usePaginatedQuery(api.roles.atCompany, { companyId: id, ...(search ? { search } : {}) }, { initialNumItems: ROLES_PAGE });
+    return useMemo(() => ({ rows: results, status, loadMore: () => loadMore(ROLES_PAGE) }), [results, status, loadMore]);
   },
   useNotes: (id) => useQuery(api.notes.list, { subject: { kind: "company", id } }),
   usePeople: (id) => useQuery(api.people.atCompany, { companyId: id }),

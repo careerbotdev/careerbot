@@ -237,6 +237,20 @@ export default defineSchema({
     held: v.optional(v.number()),
   }).index("by_workspace_month", ["workspaceId", "month", "shard"]),
 
+  // What a worker of a roles pass holds of its workspace's AI budget for its calls (budgets.ts), so its calls take their
+  // share here and settle here instead of reading or writing the month's running total. left: what's left to take;
+  // spent: what its settled calls cost. Both are also held in aiSpend for its month (and in platformAiSpend when it's on
+  // CareerBot's key, platform), with what its calls still running hold; given back when the worker waits or stops,
+  // when what was spent becomes settled there.
+  aiLeases: defineTable({
+    workspaceId: v.id("workspaces"),
+    holder: v.string(),
+    month: v.number(),
+    left: v.number(),
+    spent: v.number(),
+    platform: v.optional(v.literal(true)),
+  }).index("by_workspace_holder", ["workspaceId", "holder"]),
+
   // AI spending on CareerBot's own OpenRouter key across every workspace, per month (UTC), as a running total (plan.ts),
   // so workspaces calling at once can't jointly spend past the platform's limit. usd: settled cost; held: reservations
   // of calls not settled yet. Each call adds to one of a few shards, picked at random.
@@ -289,7 +303,7 @@ export default defineSchema({
   // from Activity (jobs.cancel); a running one stops at its next step, and what it already finished stays.
   jobs: defineTable({
     workspaceId: v.id("workspaces"),
-    kind: v.union(v.literal("firstCall"), v.literal("extract"), v.literal("rework"), v.literal("compare"), v.literal("goals"), v.literal("check"), v.literal("limitRule"), v.literal("insights"), v.literal("followups"), v.literal("resume"), v.literal("directions"), v.literal("duplicates"), v.literal("discover"), v.literal("enrich"), v.literal("roles"), v.literal("project"), v.literal("skills"), v.literal("sameWork"), v.literal("letter"), v.literal("ask"), v.literal("outreach"), v.literal("followUp"), v.literal("driveSync"), v.literal("lineCheck"), v.literal("lineUpdate"), v.literal("merge"), v.literal("unmerge")),
+    kind: v.union(v.literal("firstCall"), v.literal("extract"), v.literal("rework"), v.literal("compare"), v.literal("goals"), v.literal("check"), v.literal("limitRule"), v.literal("insights"), v.literal("followups"), v.literal("resume"), v.literal("directions"), v.literal("duplicates"), v.literal("discover"), v.literal("enrich"), v.literal("roles"), v.literal("roleFit"), v.literal("project"), v.literal("skills"), v.literal("sameWork"), v.literal("letter"), v.literal("ask"), v.literal("outreach"), v.literal("followUp"), v.literal("driveSync"), v.literal("lineCheck"), v.literal("lineUpdate"), v.literal("merge"), v.literal("unmerge")),
     args: v.any(),
     status: v.union(v.literal("queued"), v.literal("running"), v.literal("paused"), v.literal("done"), v.literal("failed"), v.literal("cancelled")),
     pausedFor: v.optional(v.union(v.literal("openrouter"), v.literal("apollo"))),
@@ -418,13 +432,18 @@ export default defineSchema({
     // How well it fits each direction, judged from its details against the approved direction and limits.
     fit: v.optional(v.array(v.object({ directionId: v.id("items"), level: v.union(v.literal("strong"), v.literal("some"), v.literal("weak"), v.literal("none")), reason: v.string() }))),
     fitAt: v.optional(v.number()),
+    // When a roles pass's read of its board found its matching roles changed since fitAt (a matching title appeared or
+    // went): its fit is judged again in the next fill-in batch (enrich.refreshFit), which clears this.
+    fitStale: v.optional(v.number()),
     // A job board link they gave, used instead of looking for one (for sites that hide their board).
     boardUrl: v.optional(v.string()),
     // Set when they ask for a company to be checked again; checked before anything else.
     recheckAt: v.optional(v.number()),
     // Their roles, as last read from the job board: when it last read (at) or last failed (failedAt), how many roles were
-    // read, and the board's own total when it gives one. rolesCheckAt: they asked for the roles to be read again.
-    roles: v.optional(v.object({ at: v.optional(v.number()), failedAt: v.optional(v.number()), read: v.number(), total: v.optional(v.number()) })),
+    // read, the board's own total when it gives one, and whether the board was searched by their titles rather than read
+    // whole (searched; unset on reads from before it was kept). rolesCheckAt: they asked for the roles to be read again
+    // (for a company that isn't a Target or Maybe, read once).
+    roles: v.optional(v.object({ at: v.optional(v.number()), failedAt: v.optional(v.number()), read: v.number(), total: v.optional(v.number()), searched: v.optional(v.boolean()) })),
     rolesCheckAt: v.optional(v.number()),
     // A roles worker working out what the company repeats across its postings, so others wait instead of doing it too.
     textsCleaning: v.optional(v.object({ by: v.string(), at: v.number() })),
@@ -461,8 +480,9 @@ export default defineSchema({
     // Companies you like: their own companies as a name is typed (companyLookup.suggest).
     .searchIndex("search_name", { searchField: "name", filterFields: ["workspaceId"] }),
 
-  // Every role read from the job boards of Targets and Maybe companies. One row per role at a company: a role listed
-  // twice (same board id, or same title and location) is one row. closedAt: gone from a complete read of the board.
+  // Every role read from the job boards of Targets and Maybe companies (and of any company whose roles they asked to
+  // check once). One row per role at a company: a role listed twice (same board id, or same title and location) is one
+  // row. closedAt: gone from a complete read of the board.
   postings: defineTable({
     workspaceId: v.id("workspaces"),
     companyId: v.id("companies"),
@@ -541,7 +561,9 @@ export default defineSchema({
     .index("by_external", ["workspaceId", "companyId", "externalId"])
     .index("by_queue", ["workspaceId", "queue", "claimedAt", "spot"])
     // Roles they turned down, for ranking's preferences.
-    .index("by_rating", ["workspaceId", "rating.value"]),
+    .index("by_rating", ["workspaceId", "rating.value"])
+    // A company's roles by title, for its page in Companies.
+    .searchIndex("search_title", { searchField: "title", filterFields: ["companyId"] }),
 
   // Where each listed role stands for each approved direction, and for all of them together (no directionId: its best
   // verdict, from `best`), kept in step with its posting (roles.ts, ranker), so the Roles page reads a page at a time,
@@ -632,6 +654,9 @@ export default defineSchema({
     // Learn from your ratings: targets seed lookalike searches, turned-down companies aren't found again, and what
     // they turned down (companies, roles) and why reaches fit and ranking as preferences. Unset or true: on.
     learn: v.optional(v.boolean()),
+    // Update fit as roles change: a company whose matching roles change in a roles pass has its fit judged again
+    // (automated AI work in their budget). Unset or true: on.
+    fitRefresh: v.optional(v.boolean()),
     // How goals shape the company search (BUILD.md "Goals are explicit"). Unset: steer and rank.
     lens: v.optional(v.object({ industries: v.union(v.literal("steer"), v.literal("only"), v.literal("ignore")), judge: v.union(v.literal("off"), v.literal("rank"), v.literal("hide")) })),
     // Seeds looked up in Apollo: its id and name, or null when Apollo has no such company.
@@ -716,7 +741,8 @@ export default defineSchema({
   // A role they're going after, started from the Roles page (Start), or a company they write to with no open role
   // (Start outreach: no posting, titled with what they're after, on the Outreach path). They set its status; every
   // change is on its timeline, dated. Its role and company are copied when started, so it stands when the posting
-  // closes. direction, score and level: the direction it's pursued for and how the role scored for it then, kept for
+  // closes. direction, score and level: the direction it's pursued for (the role's best fit, or any approved direction
+  // they chose for it) and how the role scored for it then (unset when it had no score for that direction), kept for
   // outcomes. path: the path they chose (Apply, Outreach or both; pursuitSteps.pathOf joins it with what they did).
   // contactedAt: the first outreach message marked sent; appliedAt: the first time it was marked Applied; repliedAt:
   // the first reply from a person there. resumeId: the tailored resume they chose for it (unset: the newest tailored

@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { GROUP_LABELS } from "../../../convex/contactGroups";
-import { pursuitHref } from "../../../convex/pursuitSteps";
+import { pursuitHref, STATUS_LABELS } from "../../../convex/pursuitSteps";
 import { Avatar } from "@/components/Avatar";
 import { BuiltOnPeek, type BuiltOnSource } from "@/components/BuiltOn";
 import { Button } from "@/components/Button";
 import { CostEstimate } from "@/components/CostEstimate";
 import { Field, Input } from "@/components/Field";
 import { Kbd } from "@/components/Kbd";
+import { ListFold } from "@/components/ListFold";
 import { Menu, type MenuEntry } from "@/components/Menu";
 import { NoteBlock } from "@/components/NoteBlock";
 import { PaneHeader } from "@/components/Panes";
@@ -20,12 +21,12 @@ import { Properties, Property, PropertyLink } from "@/components/Properties";
 import { RatingControl } from "@/components/RatingControl";
 import { ReasonField } from "@/components/ReasonField";
 import { ScoreBadge } from "@/components/ScoreBadge";
-import { Count, FitWord } from "@/components/StatusTag";
+import { Count, FitWord, StatusTag } from "@/components/StatusTag";
 import { Heading, Text } from "@/components/Text";
 import { toast } from "@/components/Toast";
 import { Tooltip } from "@/components/Tooltip";
 import { clockNow } from "../clock";
-import { type Company, type CompaniesData, type Coverage, useCompaniesEnv } from "./env";
+import { type Company, type CompaniesData, type CompanyCoverage, type CompanyRole, type Coverage, useCompaniesEnv } from "./env";
 import { ASIDE, type AsideKind } from "./sets";
 
 export type Rating = "excited" | "maybe" | "no";
@@ -56,6 +57,10 @@ export const WORDS = {
   check: "Reads its website and job board afresh, then how it fits your directions.",
   find: { detail: "Shows each search and what it costs before you start one.", note: "Free" },
   settings: { detail: "Sets what searches look for and how found companies are sorted: companies you like, industries, your goals and your ratings.", note: "Free" },
+  checkRoles: "Reads its job board once and lists its open roles here. They aren’t scored, and they’re read again only when you check, or every day once you rate it Target or Maybe.",
+  searched: "Its job board is too large to read whole, so CareerBot searches it for your directions’ titles and reads what it finds. Roles under other titles aren’t here; the job board has them all.",
+  partial: "Its job board shows only so many of its roles to read. The rest are on the job board.",
+  more: { detail: "Lists the next 100 of its open roles.", note: "Free" },
 } as const;
 
 export const RATINGS = [
@@ -77,13 +82,16 @@ const GOALS = {
   unknown: ["Can’t tell", "text-muted"],
 } as const;
 
-// How much of a watched company's board has been read, and whether that's a problem.
-export function coverageText(cv: Coverage): { text: string; caution: boolean } {
+// How much of a company's board has been read: every role ("214 of 214 roles read · today"), or some of them when its
+// board was searched by their titles or lists only so many ("40 of 3,048 roles read · searched by your titles · today");
+// and whether that's a problem (couldn't read it, never read, or not read lately).
+export function coverageText(cv: Omit<Coverage, "rating">): { text: string; caution: boolean } {
   if (!cv.board) return { text: "No board read yet", caution: true };
   if (cv.lastFailed) return { text: `Couldn’t read its board · ${when(cv.lastFailed)}`, caution: true };
   if (!cv.lastRead) return { text: "Not read yet", caution: true };
-  const total = cv.boardTotal !== null && cv.boardTotal !== cv.read ? ` of ${cv.boardTotal.toLocaleString("en-US")}` : "";
-  return { text: `${cv.read.toLocaleString("en-US")} roles${total}${cv.searched ? ", searched by your titles" : ", all read"} · ${when(cv.lastRead)}`, caution: cv.stale };
+  const of = cv.boardTotal !== null && cv.boardTotal > cv.read ? cv.boardTotal : cv.complete ? cv.read : null;
+  const read = `${cv.read.toLocaleString("en-US")}${of !== null ? ` of ${of.toLocaleString("en-US")}` : ""} roles read`;
+  return { text: [read, cv.searched && "searched by your titles", when(cv.lastRead)].filter(Boolean).join(" · "), caution: cv.stale };
 }
 
 // What checking a company again costs: reading its site and board is free; with Ask Apollo on, a company with no public
@@ -139,9 +147,7 @@ export function CompanyItem({
   onEditing: (field: EditField | null) => void;
 }) {
   const env = useCompaniesEnv();
-  const watched = (c.rating === "excited" || c.rating === "maybe") && c.screened?.employer !== false;
-  const coverage = env.useCoverage(c.id, watched);
-  const roles = env.useOpenRoles(c.id, watched);
+  const coverage = env.useCompanyCoverage(c.id);
   const notes = env.useNotes(c.id);
   const people = env.usePeople(c.id);
   // The demo reads no websites or boards: what would ask for them, or say none was read, is left out there.
@@ -214,11 +220,13 @@ export function CompanyItem({
     </Property>
   );
   const covered = coverage && coverageText(coverage);
+  // When its roles were last read and its fit last checked: "Roles read today · fit checked Oct 20".
+  const checked = [c.rolesAt && `Roles read ${when(c.rolesAt)}`, c.fitAt && `${c.rolesAt ? "fit" : "Fit"} checked ${when(c.fitAt)}`].filter(Boolean).join(" · ");
   const details = (columns: 1 | 2, className: string) => (
     <Properties columns={columns} className={className}>
       {website}
       {(!demo || boardUrl) && board}
-      {coverage && covered && !demo && (
+      {coverage?.watched && covered && !demo && (
         <Property label="Coverage">
           <span className="flex flex-col gap-1.5">
             <span className={covered.caution ? "text-caution-text" : ""}>{covered.text}</span>
@@ -228,8 +236,8 @@ export function CompanyItem({
                 icon="tryAgain"
                 loading={coverage.checking}
                 loadingLabel="Checking"
-                detail="Reads its job board again and looks up roles that had no description."
-                note={checkCost(c, data.apolloJobs)}
+                detail={`Reads its job board again and looks up roles that had no description.${data.fitRefresh ? " If roles matching your titles opened or closed, its fit is checked again." : ""}`}
+                note={data.fitRefresh ? `${checkCost(c, data.apolloJobs)} · Its fit, if checked again: under $0.01 from your AI budget` : checkCost(c, data.apolloJobs)}
                 onClick={() => void act.checkRoles({ companyId: c.id }).catch(failed)}
               >
                 Check again
@@ -239,7 +247,7 @@ export function CompanyItem({
           </span>
         </Property>
       )}
-      {!watched && c.details?.jobs && (
+      {coverage && !coverage.watched && c.details?.jobs && (
         <Property label="Open roles">
           <span>
             {c.details.jobs.open.toLocaleString("en-US")}
@@ -251,6 +259,11 @@ export function CompanyItem({
               {j.title}
             </PropertyLink>
           ))}
+        </Property>
+      )}
+      {checked && (
+        <Property label="Checked">
+          <span>{checked}</span>
         </Property>
       )}
       <Property label="Found">
@@ -375,36 +388,7 @@ export function CompanyItem({
               </FitRows>
             </Section>
           )}
-          {watched && roles && (
-            <Section label="Open roles" count={roles.count} tour="companies.roles">
-              {roles.top.length > 0 ? (
-                <>
-                  <ul className="flex flex-col">
-                    {roles.top.map((r) => (
-                      <li key={r.id} className="border-t">
-                        <Link
-                          href={`/pursuits?role=${r.id}`}
-                          className="flex min-h-9 items-center gap-2.5 rounded-sm py-1.5 text-body-sm leading-body-sm transition-colors duration-100 hover:bg-subtle max-md:min-h-11"
-                        >
-                          <ScoreBadge score={r.score} level={r.level} size="sm" />
-                          <span className="min-w-0 flex-1 truncate font-medium text-text">{r.title}</span>
-                          {r.place && <span className="shrink-0 truncate text-muted">{r.place}</span>}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                  <Link href={`/pursuits?company=${c.id}`} className="tap self-start text-body-sm leading-body-sm font-medium text-text underline decoration-border underline-offset-3 hover:decoration-text">
-                    All {roles.count.toLocaleString("en-US")}
-                    {roles.more ? "+" : ""} in Pursuits
-                  </Link>
-                </>
-              ) : (
-                <Text size="sm" muted>
-                  {coverage?.board || demo ? "None of its roles fit your directions yet." : "No roles yet: CareerBot hasn’t found a job board it can read."}
-                </Text>
-              )}
-            </Section>
-          )}
+          <OpenRoles company={c} coverage={coverage} demo={demo} canCheck={!out && !archived} apolloJobs={data.apolloJobs} />
           {size !== "large" && <div className="flex flex-col" data-tour="companies.details">{details(2, "border-t pt-5")}</div>}
           <Section label="Notes" count={notes?.length || undefined}>
             <NoteBlock
@@ -485,6 +469,131 @@ function FitRow({ word, title, line }: { word: ReactNode; title: string; line?: 
         <span className="text-text">{title}</span>
         {line && <span className="text-muted">{line}</span>}
       </span>
+    </li>
+  );
+}
+
+// Where its roles stand, in the order they show: those that fit their directions (best first), those against their
+// limits, the rest (not the work of their directions), and those not scored yet: waiting for the next check, or never
+// scored at a company that isn't a Target or Maybe.
+const GROUPS: { group: CompanyRole["group"]; label: (watched: boolean) => string; note: (watched: boolean) => string | undefined }[] = [
+  { group: "fit", label: () => "Fit your directions", note: () => "Best first" },
+  { group: "against", label: () => "Against your limits", note: () => "Against a firm limit you set" },
+  { group: "other", label: () => "Other roles", note: () => "Not the work of your directions" },
+  { group: "waiting", label: (watched) => (watched ? "Waiting to be scored" : "Not scored"), note: (watched) => (watched ? undefined : "Rate it Target or Maybe to score them") },
+];
+// A search field shows once a company has more roles than this.
+const SEARCH_FROM = 20;
+
+// Its open roles, every one read from its board whatever it was ranked (roles.atCompany), grouped by where each stands
+// (GROUPS), a page at a time. Above them, how much of its board was read: all of it, or what a search by their titles
+// found, with the board itself for the rest. A company that isn't a Target or Maybe isn't read every day: until its
+// roles are checked once, it says so and offers to check them now.
+function OpenRoles({ company: c, coverage, demo, canCheck, apolloJobs }: { company: Company; coverage: CompanyCoverage | undefined; demo: boolean; canCheck: boolean; apolloJobs: boolean }) {
+  const env = useCompaniesEnv();
+  const act = env.useAct();
+  const [search, setSearch] = useState("");
+  const words = search.trim();
+  const roles = env.useCompanyRoles(c.id, words);
+  if (!coverage) return null;
+  const cost = checkCost(c, apolloJobs);
+  const check = (label: string) => (
+    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+      <Button size="sm" icon="tryAgain" loading={coverage.checking} loadingLabel="Checking" detail={WORDS.checkRoles} note={cost} onClick={() => void act.checkRoles({ companyId: c.id }).catch(failed)}>
+        {label}
+      </Button>
+      {label !== "Check again" && <CostEstimate amount={cost} />}
+    </span>
+  );
+  if (!coverage.watched && coverage.lastRead === null) {
+    if (demo) return null;
+    return (
+      <Section label="Open roles" tour="companies.roles">
+        <Text size="sm" muted measure>
+          Roles are read every day only at Targets and Maybe companies. {coverage.board ? `Check now to see what ${c.name} has open.` : "Add its job board in Details to check its roles."}
+        </Text>
+        {coverage.board && canCheck && check("Check its roles now")}
+      </Section>
+    );
+  }
+  const covered = coverageText(coverage);
+  const partial = coverage.lastRead !== null && !coverage.complete;
+  // Best score first, then the newest (posted, else first seen); roles with no score after those with one.
+  const groups = GROUPS.map((g) => ({
+    ...g,
+    rows: roles.rows.filter((r) => r.group === g.group).sort((a, b) => (b.score ?? -1) - (a.score ?? -1) || (b.postedAt ?? b.firstSeen) - (a.postedAt ?? a.firstSeen)),
+  })).filter((g) => g.rows.length);
+  const searchable = !!words || coverage.read > SEARCH_FROM || roles.status === "CanLoadMore";
+  const empty = words ? `No roles match “${words}”.` : coverage.board || demo ? "No open roles on its board." : "No roles yet: CareerBot hasn’t found a job board it can read.";
+  return (
+    <Section label="Open roles" count={!words && roles.status === "Exhausted" ? roles.rows.length : undefined} tour="companies.roles">
+      {!demo && (
+        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-body-sm leading-body-sm">
+          <span className={coverage.watched && covered.caution ? "text-caution-text" : "text-muted"}>
+            {covered.text}
+            {!coverage.watched && " · read again when you check"}
+          </span>
+          {partial && <Button variant="ghost" size="sm" iconOnly icon="help" aria-label="How its roles are read" detail={coverage.searched ? WORDS.searched : WORDS.partial} note="Free" />}
+          {partial && coverage.board && <PropertyLink href={coverage.board.url}>Open the job board</PropertyLink>}
+          {!coverage.watched && canCheck && check("Check again")}
+        </span>
+      )}
+      {searchable && (
+        <Input icon="search" aria-label="Search its roles" placeholder={`Search its ${coverage.read.toLocaleString("en-US")} roles`} value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch("")} />
+      )}
+      {roles.status === "LoadingFirstPage" ? null : groups.length ? (
+        <ul className="-mx-3 flex flex-col">
+          {groups.map((g) => (
+            <ListFold key={`${g.group}:${words}`} label={g.label(coverage.watched)} count={g.rows.length} note={g.note(coverage.watched)} noteInline defaultOpen={g.group === "fit" || !!words || groups.length === 1}>
+              {g.rows.map((r) => (
+                <RoleLine key={r.id} role={r} />
+              ))}
+            </ListFold>
+          ))}
+        </ul>
+      ) : (
+        <Text size="sm" muted>
+          {empty}
+        </Text>
+      )}
+      {(roles.status === "CanLoadMore" || roles.status === "LoadingMore") && (
+        <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <Button size="sm" loading={roles.status === "LoadingMore"} loadingLabel="Loading" detail={WORDS.more.detail} note={WORDS.more.note} onClick={roles.loadMore}>
+            Show more
+          </Button>
+          <Text size="sm" muted>
+            {roles.rows.length.toLocaleString("en-US")} shown
+          </Text>
+        </span>
+      )}
+    </Section>
+  );
+}
+
+// One open role: its score (– when it has none), title, what it is to them (its pursuit, their rating, or the limit
+// it's against), its place and when it was posted (first seen, when the board doesn't say); on a phone the place and
+// date go under the title. Opens the role in Pursuits.
+function RoleLine({ role: r }: { role: CompanyRole }) {
+  const posted = day.format(r.postedAt ?? r.firstSeen);
+  const tag = r.pursuit ? (
+    <StatusTag tone={r.pursuit.status === "offer" ? "good" : r.pursuit.status === "preparing" || r.pursuit.status === "closed" ? "neutral" : "info"}>{STATUS_LABELS[r.pursuit.status]}</StatusTag>
+  ) : r.rating ? (
+    <StatusTag tone="neutral">{r.rating === "interested" ? "Interested" : "Not for me"}</StatusTag>
+  ) : r.group === "against" && r.problems[0] ? (
+    <StatusTag tone="problem">{r.problems[0]}</StatusTag>
+  ) : null;
+  return (
+    <li>
+      <Link href={`/pursuits?role=${r.id}`} className="flex min-h-9 items-center gap-2.5 rounded-sm border-t px-3 py-1.5 text-body-sm leading-body-sm transition-colors duration-100 hover:bg-subtle max-md:min-h-11">
+        <ScoreBadge score={r.score} level={r.level} size="sm" />
+        <span className="flex min-w-0 flex-1 flex-col md:flex-row md:items-center">
+          <span className="min-w-0 truncate font-medium text-text md:flex-1">{r.title}</span>
+          <span className="truncate text-muted md:hidden">{[r.place, posted].filter(Boolean).join(" · ")}</span>
+        </span>
+        {tag && <span className="flex max-w-40 min-w-0 shrink-0">{tag}</span>}
+        <span className="hidden w-32 shrink-0 truncate text-right text-muted md:block">{r.place}</span>
+        <span className="hidden w-12 shrink-0 text-right text-muted tabular-nums md:block">{posted}</span>
+      </Link>
     </li>
   );
 }

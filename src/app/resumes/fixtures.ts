@@ -773,7 +773,7 @@ export function resumesFixtures({
         links: a.links.map((l) => l.trim()).filter(Boolean),
       };
     }),
-    ...answer(api.estimates.costs, () => ({ followUp: 0.01, outreach: 0.01, letter: 0.02, ask: 0.01, tailor: 0.04, rankPerRole: 0.0001, read: 0.05, readRevision: 0.03, rewrite: 0.01, disagreements: 0.02, duplicates: 0.02, sameWork: 0.02, skills: 0.03, insights: 0.05, repository: 0.02, resume: 0.04, directionResume: 0.04, resumeLines: 0.01, resumeLine: 0.01, voiceExample: 0.01, goals: 0.03, limitRule: 0.01, directionDetail: 0.02, suggestDirections: 0.03, lineCheck: 0.002, lineUpdate: 0.01, findRelevant: 0.03, findHiringNow: 0.02})),
+    ...answer(api.estimates.costs, () => ({ followUp: 0.01, outreach: 0.01, letter: 0.02, ask: 0.01, tailor: 0.04, rankPerRole: 0.0001, scoreRole: 0.01, read: 0.05, readRevision: 0.03, rewrite: 0.01, disagreements: 0.02, duplicates: 0.02, sameWork: 0.02, skills: 0.03, insights: 0.05, repository: 0.02, resume: 0.04, directionResume: 0.04, resumeLines: 0.01, resumeLine: 0.01, voiceExample: 0.01, goals: 0.03, limitRule: 0.01, directionDetail: 0.02, suggestDirections: 0.03, lineCheck: 0.002, lineUpdate: 0.01, findRelevant: 0.03, findHiringNow: 0.02})),
     ...answer(api.lineCheck.checking, () => checking),
     ...answer(api.lineCheck.check, ({ line }) => {
       checking =

@@ -21,9 +21,9 @@ import { likeWords } from "./likes";
 
 // Search settings: what searches for companies look for and how found companies are sorted. Companies you like (one
 // list: each is added to your companies and found more like, unless its ⋯ turns that off; a direction adds its own on
-// its Criteria), the industries you want, checking companies against your goals (with Check all again) and learning
-// from your ratings. Every change saves at once with Undo. A dialog on wide screens; on a phone the screen shows it full
-// screen with Back to Companies (SearchSettingsScreen).
+// its Criteria), the industries you want, checking companies against your goals (with Check all again), learning from
+// your ratings and updating fit as roles change. Every change saves at once with Undo. A dialog on wide screens; on a
+// phone the screen shows it full screen with Back to Companies (SearchSettingsScreen).
 
 const INDUSTRIES = [
   { value: "steer", label: "Steer", line: "Searches start with the industries in your goals and add related ones." },
@@ -106,6 +106,19 @@ export function SearchSettingsBody({ data, small }: { data: CompaniesData; small
             void act
               .setLearn({ on })
               .then(() => toast({ message: on ? "Learning from your ratings" : "Not learning from your ratings", action: { label: "Undo", key: "U", run: () => void act.setLearn({ on: !on }).catch(failed) } }))
+              .catch(failed)
+          }
+        />
+      </div>
+      <div className="border-t py-4">
+        <Switch
+          label="Update fit as roles change"
+          description="When the daily check of your Targets and Maybe companies finds roles matching your titles opened or closed, the company’s fit for your directions is checked again. About a cent for every 40 companies, from your AI budget."
+          checked={data.fitRefresh}
+          onChange={(on) =>
+            void act
+              .setFitRefresh({ on })
+              .then(() => toast({ message: on ? "Updating fit as roles change" : "Not updating fit as roles change", action: { label: "Undo", key: "U", run: () => void act.setFitRefresh({ on: !on }).catch(failed) } }))
               .catch(failed)
           }
         />

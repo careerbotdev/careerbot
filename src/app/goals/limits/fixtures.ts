@@ -167,6 +167,7 @@ export function limitsFixtures(): Answers {
     ask: null,
     tailor: null,
     rankPerRole: null,
+    scoreRole: null,
     read: null,
     readRevision: null,
     rewrite: null,

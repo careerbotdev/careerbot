@@ -1,9 +1,10 @@
 import { convexTest, type TestConvex } from "convex-test";
+import { ConvexError } from "convex/values";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { HELD_BY_RUNNING, HELD_BY_UNSETTLED } from "./budgets";
-import { apollo, chat, chatJson, type Decision, decide, LONG_REPLY_TOKENS } from "./metering";
+import { apollo, chat, chatJson, type Decision, decide, isConflict, LONG_REPLY_TOKENS, retryConflicts, spendingFor } from "./metering";
 import { seedModelPrices, TEST_PRICE } from "./modelPrices.testing";
 import schema from "./schema";
 import { seal } from "./secretBox";
@@ -577,4 +578,66 @@ test("Apollo calls that failed on their way are charged as far as Apollo's own c
   await t.action(internal.metering.reconcile, {});
   const by = Object.fromEntries((await usageRows(t)).map((r) => [r.purpose, [r.state, r.credits]]));
   expect(by).toMatchObject({ first: ["settled", 1], second: ["settled", 0], "last cycle": ["unresolved", 1] });
+});
+
+test("a write that lost to writes made at the same moment is tried again after a pause; any other error is thrown at once", async () => {
+  vi.useFakeTimers();
+  const conflict = new Error(
+    '[Request ID: 1] Server Error\nDocuments read from or written to the "aiSpend" table changed while this mutation was being run and on every subsequent retry. Another call to this mutation changed the document with ID "k1".',
+  );
+  expect(isConflict(conflict)).toBe(true);
+  expect(isConflict(new ConvexError({ code: "BUDGET_REACHED", service: "openrouter", message: HELD_BY_RUNNING }))).toBe(false);
+  expect(isConflict(new Error("OpenRouter returned 500."))).toBe(false);
+
+  let tries = 0;
+  const lost = (times: number) => async () => {
+    if (++tries <= times) throw conflict;
+    return "saved";
+  };
+  const saved = retryConflicts(lost(2));
+  await vi.runAllTimersAsync();
+  expect(await saved).toBe("saved");
+  expect(tries).toBe(3);
+
+  // Losing every time, it gives up after the tries it has, with the conflict.
+  tries = 0;
+  const gaveUp = retryConflicts(lost(10), 4).catch((e: unknown) => e);
+  await vi.runAllTimersAsync();
+  expect(await gaveUp).toBe(conflict);
+  expect(tries).toBe(4);
+
+  tries = 0;
+  await expect(
+    retryConflicts(async () => {
+      tries++;
+      throw new Error("a bug");
+    }),
+  ).rejects.toThrow("a bug");
+  expect(tries).toBe(1);
+});
+
+test("a worker's call settles into its lease, and one the budget refuses gives back what the lease holds", async () => {
+  const { t, workspaceId } = await workspaceWithKey();
+  vi.stubGlobal("fetch", vi.fn(async () => costs(0.003)));
+  const call = (maxTokens?: number) => t.action(async (ctx) => chat(spendingFor(ctx, {}, "w0"), { workspaceId, purpose: "role fit", model: "m/x", messages: hello, maxTokens }));
+  const total = () =>
+    t.run(async (ctx) => {
+      const rows = await ctx.db.query("aiSpend").collect();
+      return { settled: rows.reduce((n, r) => n + r.usd, 0), held: rows.reduce((n, r) => n + (r.held ?? 0), 0) };
+    });
+  await call();
+  // A default call holds about $0.08, and its lease three more; it cost $0.003, spent from the lease, and the rest of
+  // what it held is the lease's again. The month's total holds all four until the lease is given back.
+  const [lease] = await t.run((ctx) => ctx.db.query("aiLeases").collect());
+  expect(lease.spent).toBeCloseTo(0.003, 10);
+  expect(lease.left).toBeCloseTo(0.32 - 0.003, 2);
+  expect(await total()).toEqual({ settled: 0, held: expect.closeTo(lease.left + lease.spent, 10) });
+  // A much longer reply doesn't fit what's left of $0.30: it's refused, and the lease is given back.
+  await setAiBudget(t, workspaceId, 0.3);
+  await expect(call(200_000)).rejects.toMatchObject({ data: { code: "BUDGET_REACHED" } });
+  expect(await t.run((ctx) => ctx.db.query("aiLeases").collect())).toEqual([]);
+  expect(await total()).toEqual({ settled: expect.closeTo(0.003, 10), held: expect.closeTo(0, 10) });
+  // A call that fits is held again.
+  await call();
+  expect(await t.run((ctx) => ctx.db.query("usage").collect())).toMatchObject([{ state: "settled", costUsd: 0.003 }, { state: "settled", costUsd: 0.003 }]);
 });

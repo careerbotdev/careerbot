@@ -31,6 +31,10 @@ Before every AI call, CareerBot works out the most that call could cost at its m
 amount aside against your budget. The call is sent with a cap on its reply, so it can't cost more than it holds. When
 it finishes, its real cost replaces what it held, and the rest is given back.
 
+When CareerBot works through many roles at once, it sets aside the most of a few calls together and takes each call's
+share from that, giving back what's left when it's done or when a call doesn't fit. What's set aside counts against
+your budget like a single call's, so the budget is never passed.
+
 A call is refused, and nothing is sent to OpenRouter, when:
 
 <Messages>

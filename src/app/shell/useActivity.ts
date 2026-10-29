@@ -31,6 +31,7 @@ const RETRY: Record<RetryName, FunctionReference<"mutation">> = {
   "discovery.start": api.discovery.start,
   "enrich.start": api.enrich.start,
   "roles.start": api.roles.start,
+  "roles.score": api.roles.score,
   "insights.start": api.insights.start,
   "skills.start": api.skills.start,
   "duplicates.start": api.duplicates.start,

@@ -9,7 +9,7 @@ import { chatJson } from "./metering";
 import { listOf, orNull, type ReplySchema, replyOf, strictObject, string } from "./replyJson";
 import { braveKeyFor } from "./braveKey";
 import { stopIfCancelled } from "./cancel";
-import { boardsIn, get, interleave, type Job, NOT_READ, pageText, publicHost, type Read, readBoard, setSearchTitles, viaReader } from "./boards";
+import { boardsIn, get, interleave, NOT_READ, pageText, publicHost, type Read, readBoard, setSearchTitles, viaReader } from "./boards";
 import { countryCode, countryName, countryNameList } from "./limitBuckets";
 import { DEFAULT_LENS } from "./lens";
 import { directionIndustries, industryGoals } from "./goalIndustries";
@@ -17,7 +17,7 @@ import { apollo } from "./metering";
 import { origin } from "./schema";
 import { dayOf, tally } from "./tallies";
 import { requireWorkspace } from "./workspaces";
-import { learns, toDomain } from "./discovery";
+import { learns, refreshesFit, toDomain } from "./discovery";
 import { screenCompanies } from "./screening";
 
 // Fills in companies from free sources before any paid enrichment: the company's own website (what they say they build)
@@ -83,6 +83,61 @@ export function matchesTitle(job: string, target: string) {
   return want.every((w) => have.has(w) || have.has(w.replace(/s$/, "")));
 }
 
+// Matching roles kept per company.
+const MATCHING_MAX = 20;
+type DirectionTitles = { direction: string; titles: string[] }[];
+type BoardJob = { title: string; url: string; location?: string; remote: boolean };
+
+// The approved directions with approved criteria, and their titles: what a company's roles are matched against.
+async function directionTitles(ctx: QueryCtx, workspaceId: Id<"workspaces">): Promise<DirectionTitles> {
+  return (await itemsOf(ctx, workspaceId, "direction", "approved"))
+    .filter((d) => d.data.criteriaStatus === "approved")
+    .map((d) => ({ direction: d.data.name, titles: d.data.criteria?.titles ?? [] }));
+}
+
+// A company's open roles as one read of its board found them: how many are open (the board's own total when it gives
+// one), how many are remote, and the ones matching a direction's titles, counted only where they said they'd work (their
+// approved Location limit). Fill-in and the roles pass both count this way.
+function jobsSummary(jobs: BoardJob[], titles: DirectionTitles, area: WorkArea | null, total?: number) {
+  const matching = jobs
+    .filter((j) => inWorkArea(j, area))
+    .flatMap((j) => titles.flatMap((t) => (t.titles.some((x) => matchesTitle(j.title, x)) ? [{ title: j.title, url: j.url, ...(j.location ? { location: j.location } : {}), direction: t.direction }] : [])))
+    .slice(0, MATCHING_MAX);
+  return { open: total ?? jobs.length, remote: jobs.filter((j) => j.remote).length, matching };
+}
+
+// The same matching role however its board words or links it.
+const matchKey = (m: { direction: string; title: string }) => `${m.direction}|${m.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()}`;
+
+// A filled-in company whose fit was judged and has to be judged again: its matching roles changed since (fitStale),
+// and they leave updating fit on.
+const needsRefit = (c: Doc<"companies">, on: boolean) => on && !!c.fitStale && !!c.details && c.fitAt !== undefined && c.screened?.employer !== false;
+
+// A board read by the roles pass brings a filled-in company's open roles up to date, for free (no AI): a complete read
+// replaces its counts and matching roles with its open roles; a partial one (searched by title, or capped) takes the
+// board's own total when it states one and adds the matches it found, taking none away. A company not filled in yet is
+// left to its fill-in, which reads its site too. When a matching role appeared or went and its fit was judged, its fit
+// is marked stale (fitStale), for refreshFit to judge again, unless they turned Update fit as roles change off.
+export async function freshenJobs(ctx: MutationCtx, c: Doc<"companies">, open: BoardJob[], read: { complete: boolean; total?: number; at: number }) {
+  if (!c.details) return;
+  const now = jobsSummary(open, await directionTitles(ctx, c.workspaceId), await workAreaOf(ctx, c.workspaceId));
+  const had = c.details.jobs;
+  const before = new Set((had?.matching ?? []).map(matchKey));
+  const jobs = read.complete
+    ? now
+    : {
+        open: read.total ?? Math.max(had?.open ?? 0, now.open),
+        remote: Math.max(had?.remote ?? 0, now.remote),
+        matching: [...(had?.matching ?? []), ...now.matching.filter((m) => !before.has(matchKey(m)))].slice(0, MATCHING_MAX),
+      };
+  const after = new Set(jobs.matching.map(matchKey));
+  const changed = after.size !== before.size || [...after].some((k) => !before.has(k));
+  const settings = await ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", c.workspaceId)).unique();
+  const stale = changed && c.fitAt !== undefined && c.screened?.employer !== false && refreshesFit(settings);
+  if (!stale && JSON.stringify(jobs) === JSON.stringify(had)) return;
+  await ctx.db.patch(c._id, { details: { ...c.details, jobs }, ...(stale ? { fitStale: read.at } : {}) });
+}
+
 const slugGuesses = (c: { name: string; domain?: string }) => {
   const base = c.domain?.split(".")[0] ?? "";
   const squashed = (c.name ?? "").toLowerCase().replace(/\b(inc|llc|corp|corporation|co|ltd|technologies|technology|labs|ai)\b/g, "").replace(/[^a-z0-9]+/g, "");
@@ -102,22 +157,23 @@ export const todo = internalQuery({
   args: { workspaceId: v.id("workspaces") },
   handler: async (ctx, { workspaceId }) => {
     const all = await ctx.db.query("companies").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect();
-    const titles = (await itemsOf(ctx, workspaceId, "direction", "approved"))
-      .filter((d) => d.data.criteriaStatus === "approved")
-      .map((d) => ({ direction: d.data.name, titles: d.data.criteria?.titles ?? [] }));
+    const titles = await directionTitles(ctx, workspaceId);
+    const settings = await ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
+    const refit = refreshesFit(settings);
     // Strongest signals first: your list, hiring now, lookalikes, large companies, then plain criteria matches and
     // companies the web search found fit.
     const rank = (c: Doc<"companies">) => Math.min(...c.found.map((f) => ({ hand: 0, hiring: 1, hiringNow: 1, lookalike: 2, large: 3, criteria: 4, relevant: 4 })[f.via]));
     // What they asked to check again goes first, then strongest source.
     const order = (a: Doc<"companies">, b: Doc<"companies">) => (b.recheckAt ?? 0) - (a.recheckAt ?? 0) || rank(a) - rank(b);
     const left = all.filter((c) => !c.details && c.screened?.employer !== false && c.domain).sort(order);
-    const needFit = all.filter((c) => c.details && !c.fitAt && c.screened?.employer !== false).sort(order).slice(0, FIT_BATCH);
+    // Fit for the ones never judged, and again for the ones whose matching roles changed since (needsRefit).
+    const unjudged = all.filter((c) => (c.details && !c.fitAt && c.screened?.employer !== false) || needsRefit(c, refit)).sort(order);
+    const needFit = unjudged.slice(0, FIT_BATCH);
     const goals = await industryGoals(ctx, workspaceId);
     const directions = (await itemsOf(ctx, workspaceId, "direction", "approved"))
       .filter((d) => d.data.criteriaStatus === "approved")
       .map((d) => ({ id: d._id, name: d.data.name, positioning: d.data.detail?.positioning, titles: d.data.criteria?.titles ?? [], industries: directionIndustries(goals, d.data.name, d.data.criteria?.industries ?? []), sizes: d.data.criteria?.sizes ?? [] }));
     const limits = (await activeLimits(ctx, workspaceId)).filter((l) => ["companies", "work", "seniority", "location"].includes(l.data.kind)).map((l) => ({ label: l.data.label, value: l.data.value }));
-    const settings = await ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique();
     const judge = (settings?.lens ?? DEFAULT_LENS).judge !== "off";
     // Their approved company goals, as they approved them: the words and the structured lists.
     const companyGoals = (await activeLimits(ctx, workspaceId)).filter((l) => l.data.kind === "companies").map((l) => ({ value: l.data.value, note: l.data.note, rule: l.data.rule }));
@@ -132,7 +188,7 @@ export const todo = internalQuery({
     const area = await workAreaOf(ctx, workspaceId);
     return {
       area, batch: left.slice(0, BATCH).map((c) => ({ id: c._id, name: c.name, domain: c.domain!, ...(c.apolloId ? { apolloId: c.apolloId } : {}), ...(c.boardUrl ? { boardUrl: c.boardUrl } : {}) })), remaining: left.length, titles, useApollo: !!settings?.apolloJobs,
-      fit: { companies: needFit.map((c) => ({ id: c._id, name: c.name, domain: c.domain, summary: c.details?.summary, openRoles: c.details?.jobs?.open, matchingRoles: c.details?.jobs?.matching.slice(0, 5).map((j) => j.title) })), fitLeft: all.filter((c) => c.details && !c.fitAt && c.screened?.employer !== false).length, directions, limits, judge, companyGoals, turnedDown } };
+      fit: { companies: needFit.map((c) => ({ id: c._id, name: c.name, domain: c.domain, summary: c.details?.summary, openRoles: c.details?.jobs?.open, matchingRoles: c.details?.jobs?.matching.slice(0, 5).map((j) => j.title) })), fitLeft: unjudged.length, directions, limits, judge, companyGoals, turnedDown } };
   },
 });
 
@@ -145,14 +201,46 @@ export const save = internalMutation({
   },
 });
 
+// The companies that have fit to judge again (needsRefit), while they leave updating fit on; and all their companies.
+async function refitting(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
+  const on = refreshesFit(await ctx.db.query("discovery").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).unique());
+  const all = await ctx.db.query("companies").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).collect();
+  return { all, refit: all.filter((c) => needsRefit(c, on)).length };
+}
+
 // The next batch of a pass, as the one before it (`after`) was started (origin); none when that one was cancelled from
-// Activity.
+// Activity. A pass updating fit (refreshFit) says how many companies it has left to update, while it has some; once it
+// has none, and no company is left to fill in or judge for the first time, it's done.
 export const next = internalMutation({
   args: { workspaceId: v.id("workspaces"), origin: v.optional(origin), after: v.id("jobs") },
   handler: async (ctx, { workspaceId, origin, after }) => {
-    if ((await ctx.db.get(after))?.status === "cancelled") return;
-    const jobId = await ctx.db.insert("jobs", { workspaceId, kind: "enrich", args: {}, status: "queued", origin });
+    const before = await ctx.db.get(after);
+    if (before?.status === "cancelled") return;
+    let refit = 0;
+    if (before?.kind === "enrich" && before.args?.refit) {
+      const left = await refitting(ctx, workspaceId);
+      refit = left.refit;
+      if (!refit && !left.all.some((c) => c.screened?.employer !== false && (c.details ? !c.fitAt : !!c.domain))) return;
+    }
+    const jobId = await ctx.db.insert("jobs", { workspaceId, kind: "enrich", args: refit ? { refit } : {}, status: "queued", origin });
     await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId });
+  },
+});
+
+// After a roles pass reads its boards: fit judged again, FIT_BATCH companies a batch, for the companies whose matching
+// roles changed (freshenJobs), unless a fill-in pass is queued, running or paused for the budget (it judges them too
+// once it runs). It starts on its own, so its AI calls are automated work in their AI budget, which pauses it when
+// it's used up. Activity names it "Updating company fit for N companies".
+export const refreshFit = internalMutation({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    const { refit } = await refitting(ctx, workspaceId);
+    if (!refit) return null;
+    const jobs = await ctx.db.query("jobs").withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)).order("desc").take(100);
+    if (jobs.some((j) => j.kind === "enrich" && (j.status === "queued" || j.status === "running" || j.status === "paused"))) return null;
+    const jobId = await ctx.db.insert("jobs", { workspaceId, kind: "enrich", args: { refit }, status: "queued", origin: "automatic" });
+    await ctx.scheduler.runAfter(0, internal.jobs.run, { jobId });
+    return jobId;
   },
 });
 
@@ -262,7 +350,7 @@ export function apolloJobsFor(ctx: ActionCtx, ws: Id<"workspaces">): NonNullable
   };
 }
 
-async function one(c: { name: string; domain: string; apolloId?: string; boardUrl?: string }, titles: { direction: string; titles: string[] }[], braveKey: string | null, apolloJobs: ApolloJobs, area: WorkArea | null) {
+async function one(c: { name: string; domain: string; apolloId?: string; boardUrl?: string }, titles: DirectionTitles, braveKey: string | null, apolloJobs: ApolloJobs, area: WorkArea | null) {
   const sources: string[] = [];
   if (!publicHost(c.domain)) return { text: "", details: { sources, at: Date.now() } };
   const home = await get(`https://${c.domain}`);
@@ -314,17 +402,11 @@ async function one(c: { name: string; domain: string; apolloId?: string; boardUr
   }
   if (found) sources.push(found.board.url);
   if (!found && apolloJobs && c.apolloId) found = await apolloPostings(apolloJobs, c.apolloId);
-  // A match counts only where they said they'd work (their approved Location limit).
-  const where = (j: Job) => inWorkArea(j, area);
-  const matching = found
-    ? found.jobs.filter(where).flatMap((j) => titles.flatMap((t) => (t.titles.some((x) => matchesTitle(j.title, x)) ? [{ title: j.title, url: j.url, ...(j.location ? { location: j.location } : {}), direction: t.direction }] : []))).slice(0, 20)
-    : [];
-
   return {
     text,
     details: {
       ...(description ? { siteDescription: description.slice(0, 300) } : {}),
-      ...(found ? { board: found.board, jobs: { open: found.total ?? found.jobs.length, remote: found.jobs.filter((j) => j.remote).length, matching } } : {}),
+      ...(found ? { board: found.board, jobs: jobsSummary(found.jobs, titles, area, found.total) } : {}),
       sources,
       at: Date.now(),
     },
@@ -469,7 +551,7 @@ export const saveFit = internalMutation({
     // Judged against the directions approved when it started: none for a direction merged away (or set aside) since.
     const live = new Set((await itemsOf(ctx, workspaceId, "direction", "approved")).map((d) => d._id));
     fit = fit.filter((f) => live.has(f.directionId));
-    await ctx.db.patch(id, { fit, fitAt: Date.now(), recheckAt: undefined, ...(goals ? { goals: { ...goals, ...(c.goals?.keep ? { keep: true } : {}), at: Date.now() } } : {}) });
+    await ctx.db.patch(id, { fit, fitAt: Date.now(), fitStale: undefined, recheckAt: undefined, ...(goals ? { goals: { ...goals, ...(c.goals?.keep ? { keep: true } : {}), at: Date.now() } } : {}) });
   },
 });
 

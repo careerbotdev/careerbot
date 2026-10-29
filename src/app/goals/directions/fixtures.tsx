@@ -1075,6 +1075,7 @@ export function directionsFixtures({
       ask: 0.01,
       tailor: 0.04,
       rankPerRole: 0.0001,
+      scoreRole: 0.01,
       read: null,
       readRevision: null,
       rewrite: null,

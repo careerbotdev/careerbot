@@ -1605,6 +1605,7 @@ export function recordAnswers(state: RecordState): Answers {
     ask: 0.01,
     tailor: 0.04,
     rankPerRole: 0.0004,
+    scoreRole: 0.01,
     read: 0.05,
     readRevision: 0.03,
     rewrite: 0.01,

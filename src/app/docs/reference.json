@@ -540,7 +540,7 @@
       "id": "enrich",
       "name": "Fill in companies",
       "stage": "companies",
-      "starts": "After a company search, or when you choose Fill in details, Check again or Check all again.",
+      "starts": "After a company search, or when you choose Fill in details, Check again or Check all again; and after the daily roles check finds roles matching your titles opened or closed at a company, unless Update fit as roles change is off.",
       "reads": [
         {
           "text": "The company’s website",

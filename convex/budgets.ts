@@ -4,7 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, query, type QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { refuseCancelled } from "./cancel";
-import { allowanceOf, type Plan, platformMonth, PLATFORM_USED_UP, reservePlatform } from "./plan";
+import { addPlatformSpend, allowanceOf, type Plan, platformMonth, PLATFORM_USED_UP, reservePlatform, resumePlatformHeld } from "./plan";
 import { origin } from "./schema";
 import { clockOf, requireWorkspace } from "./workspaces";
 
@@ -46,10 +46,12 @@ const aiSpendShard = (ctx: QueryCtx, workspaceId: Id<"workspaces">, month: numbe
   ctx.db.query("aiSpend").withIndex("by_workspace_month", (q) => q.eq("workspaceId", workspaceId).eq("month", month).eq("shard", shard)).unique();
 
 // A month's settled AI spending (this month's unless another is named): the running total once the month's first call
-// has started it, else summed from the usage rows.
+// has started it, with what the calls of workers' leases have cost so far, else summed from the usage rows.
 async function aiSpent(ctx: QueryCtx, workspaceId: Id<"workspaces">, month = monthStart()) {
   const rows = await ctx.db.query("aiSpend").withIndex("by_workspace_month", (q) => q.eq("workspaceId", workspaceId).eq("month", month)).collect();
-  return rows.some((r) => r.shard === 0) ? rows.reduce((n, r) => n + r.usd, 0) : spent(ctx, workspaceId, "openrouter", month);
+  if (!rows.some((r) => r.shard === 0)) return spent(ctx, workspaceId, "openrouter", month);
+  const leases = await ctx.db.query("aiLeases").withIndex("by_workspace_holder", (q) => q.eq("workspaceId", workspaceId)).collect();
+  return rows.reduce((n, r) => n + r.usd, 0) + leases.reduce((n, l) => n + (l.month === month ? l.spent : 0), 0);
 }
 
 // This month's settled AI spending, for the operator's view of a workspace (admin).
@@ -83,6 +85,55 @@ export async function addAiSpend(ctx: MutationCtx, workspaceId: Id<"workspaces">
   else await ctx.db.insert("aiSpend", { workspaceId, month, shard, usd, held });
 }
 
+// A reservation reads the month's whole running total, so it collides with every other call reserving or settling at
+// the same moment; a roles pass's many workers calling at once made reservations lose to each other until Convex gave
+// up retrying. So a worker of such a pass (its `holder`) holds a lease (aiLeases): the reservation that starts it also
+// holds what LEASE_CALLS - 1 more calls like it could cost, and the worker's next calls each take their share from it;
+// when one of them settles (metering.settle), what it cost and what it didn't spend go to the lease too (spent, left).
+// Those calls read and write only the lease, never the month's total, which still holds all of it: the budget is never
+// spent past what's held. The worker gives back its lease when it waits, stops, or the budget refuses one of its calls
+// (giveBack): what it spent goes into the month's total, and what's left is no longer held. A lease whose worker was
+// cut off is given back by the daily check (expireLeases).
+const LEASE_CALLS = 4;
+
+export const leaseOf = (ctx: QueryCtx, workspaceId: Id<"workspaces">, holder: string) =>
+  ctx.db.query("aiLeases").withIndex("by_workspace_holder", (q) => q.eq("workspaceId", workspaceId).eq("holder", holder)).unique();
+
+// A lease ends: what its calls spent moves from held to settled in the month's total, and what's left is no longer
+// held (in CareerBot's key's total too, for a lease on it).
+async function endLease(ctx: MutationCtx, lease: Doc<"aiLeases">) {
+  await ctx.db.delete(lease._id);
+  const change = { usd: lease.spent, held: -(lease.left + lease.spent) };
+  await addAiSpend(ctx, lease.workspaceId, lease.month, change);
+  if (lease.platform) await addPlatformSpend(ctx, lease.month, change);
+}
+
+// A lease given back frees what it held: work paused for it starts again, and pauses again if it still doesn't fit.
+async function giveBackLeases(ctx: MutationCtx, leases: Doc<"aiLeases">[]) {
+  for (const lease of leases) await endLease(ctx, lease);
+  if (!leases.length) return;
+  await resumeHeld(ctx, leases[0].workspaceId);
+  if (leases.some((l) => l.platform)) await resumePlatformHeld(ctx);
+}
+
+// A worker gives back its lease: it waits for work, stopped, or the budget refused one of its calls.
+export const giveBack = internalMutation({
+  args: { workspaceId: v.id("workspaces"), holder: v.string() },
+  handler: async (ctx, { workspaceId, holder }) => {
+    const lease = await leaseOf(ctx, workspaceId, holder);
+    if (lease) await giveBackLeases(ctx, [lease]);
+  },
+});
+
+// The daily check (metering's reconcile): leases older than an action can run belong to workers that were cut off.
+export const expireLeases = internalMutation({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    const leases = await ctx.db.query("aiLeases").withIndex("by_workspace_holder", (q) => q.eq("workspaceId", workspaceId)).collect();
+    await giveBackLeases(ctx, leases.filter((l) => l._creationTime < Date.now() - RUNNING_MS));
+  },
+});
+
 // Why a job paused when calls already running hold what's left of the budget; it picks up as they settle (resumeHeld).
 export const HELD_BY_RUNNING = "Waiting on AI work already running, which could use the rest of this month's AI budget.";
 // Why a job paused when what's left is held by calls that aren't running but weren't settled: cut off, or answered
@@ -107,11 +158,15 @@ export async function aiHeld(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
 // Actions stop after 10 minutes, so a call reserved longer ago than that was cut off; the daily check settles it.
 const RUNNING_MS = 10 * 60 * 1000;
 
-// Whether an AI call of the workspace is on its way right now: reserved and not settled yet. Calls that settled without
-// knowing what they cost (indeterminate) may still hold some of the budget, but aren't running.
+// Whether an AI call of the workspace is on its way right now: reserved and not settled yet, or a worker holding a lease
+// for its calls is. Calls that settled without knowing what they cost (indeterminate) may still hold some of the
+// budget, but aren't running.
 export async function aiRunning(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
-  const reserved = ctx.db.query("usage").withIndex("by_workspace_state", (q) => q.eq("workspaceId", workspaceId).eq("state", "reserved").gt("at", Date.now() - RUNNING_MS));
-  return !!(await reserved.filter((q) => q.eq(q.field("service"), "openrouter")).first());
+  const since = Date.now() - RUNNING_MS;
+  const reserved = ctx.db.query("usage").withIndex("by_workspace_state", (q) => q.eq("workspaceId", workspaceId).eq("state", "reserved").gt("at", since));
+  if (await reserved.filter((q) => q.eq(q.field("service"), "openrouter")).first()) return true;
+  const leases = await ctx.db.query("aiLeases").withIndex("by_workspace_holder", (q) => q.eq("workspaceId", workspaceId)).collect();
+  return leases.some((l) => l._creationTime > since);
 }
 
 // A call settled and gave back what it held: work paused for what running calls held starts again, and pauses again if
@@ -152,7 +207,9 @@ export const aiCheck = internalQuery({
 // prices, metering.chat), against this month's budget (aiCap) less what's settled and what calls still running hold; the
 // month's running total (a few rows) is what's read, so the check stays small. A call on CareerBot's key (platform) is
 // also held against the platform's limit across every workspace (plan.reservePlatform). Without a budget, nothing is
-// recorded or spent.
+// recorded or spent. A call of a worker with a lease (`holder`) takes what it holds from the lease when it's enough;
+// else the lease is given back and the check starts a new one, holding LEASE_CALLS calls like this one when they fit
+// and this call alone when only it does.
 export const reserve = internalMutation({
   args: {
     workspaceId: v.id("workspaces"),
@@ -171,16 +228,22 @@ export const reserve = internalMutation({
     pursuitId: v.optional(v.id("pursuits")),
     // AI only: the call goes on CareerBot's key (plan.aiKeyFor).
     platform: v.optional(v.boolean()),
+    // AI only: the worker whose lease the call takes its share from.
+    holder: v.optional(v.string()),
   },
-  handler: async (ctx, { workspaceId, service, automated, amount, purpose, model, endpoint, accountLeft, cycleStart, jobId, origin, pursuitId, platform }) => {
+  handler: async (ctx, { workspaceId, service, automated, amount, purpose, model, endpoint, accountLeft, cycleStart, jobId, origin, pursuitId, platform, holder }) => {
     const reached = (message: string): BudgetReached => ({ code: BUDGET_REACHED, service, message });
     // Nothing new is reserved for a job cancelled from Activity (cancel.ts).
     await refuseCancelled(ctx, jobId);
-    if (service === "openrouter") {
+    const lease = service === "openrouter" && holder ? await leaseOf(ctx, workspaceId, holder) : null;
+    const month = monthStart();
+    if (lease && lease.month === month && !!lease.platform === !!platform && lease.left >= amount) {
+      await ctx.db.patch(lease._id, { left: lease.left - amount });
+    } else if (service === "openrouter") {
       const { capUsd, byPlan } = await aiCap(ctx, workspaceId, platform);
       if (capUsd <= 0) throw new ConvexError(reached(noBudget(byPlan)));
+      if (lease) await endLease(ctx, lease);
       // The month's first call starts its running total with what was spent and held so far.
-      const month = monthStart();
       if (!(await aiSpendShard(ctx, workspaceId, month, 0))) {
         const calls = await monthCalls(ctx, workspaceId, "openrouter");
         const sum = (f: (r: (typeof calls)[number]) => number | undefined) => calls.reduce((n, r) => n + (f(r) ?? 0), 0);
@@ -194,11 +257,14 @@ export const reserve = internalMutation({
       // Held by calls running now, which will settle and give back what they don't spend; or by calls that won't settle
       // until the nightly check (read in the same transaction, so a call settling meanwhile can't be missed).
       if (settled + held + amount > capUsd) throw new ConvexError(reached((await aiRunning(ctx, workspaceId)) ? HELD_BY_RUNNING : HELD_BY_UNSETTLED));
+      let leased = holder && settled + held + LEASE_CALLS * amount <= capUsd ? (LEASE_CALLS - 1) * amount : 0;
       if (platform) {
         const refused = await reservePlatform(ctx, month, amount);
         if (refused) throw new ConvexError(reached(refused));
+        if (leased && (await reservePlatform(ctx, month, leased))) leased = 0;
       }
-      await addAiSpend(ctx, workspaceId, Date.now(), { held: amount });
+      await addAiSpend(ctx, workspaceId, Date.now(), { held: amount + leased });
+      if (holder && leased) await ctx.db.insert("aiLeases", { workspaceId, holder, month, left: leased, spent: 0, ...(platform ? { platform: true as const } : {}) });
     } else {
       const b = await budgetRow(ctx, workspaceId);
       if (!b || b.apolloMode === "paused" || (automated && b.apolloMode === "onRequest"))

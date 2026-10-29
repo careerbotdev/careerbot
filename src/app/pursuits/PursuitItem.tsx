@@ -8,12 +8,14 @@ import { useEffect, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import { CLOSED_REASONS, type ClosedReason, DONE, PURSUIT_STATUSES, type PursuitStatus, REASON_LABELS, remindersOf, STATUS_LABELS, takesApply } from "../../../convex/pursuitSteps";
 import { Button, type ButtonSize, buttonLook } from "@/components/Button";
+import { CostAction } from "@/components/CostEstimate";
 import { Icons } from "@/components/icons";
 import { Menu, type MenuEntry } from "@/components/Menu";
 import { Select } from "@/components/Select";
 import { TabPanel, Tabs } from "@/components/Tabs";
 import { Text } from "@/components/Text";
 import { toast } from "@/components/Toast";
+import { aboutUsd } from "../costs";
 import { useNow } from "../clock";
 import { useBar } from "../shell/ShellContext";
 import { AnswersTab } from "./Answers";
@@ -30,9 +32,10 @@ import { ASK_BESIDE, placeAndPay, type Pursuit, RESUME_BESIDE, type Role } from 
 // A started pursuit: its status (Closed with why), when it was sent or the step to take (Apply, prepare for the
 // interview), Ask and People, and the tailored resume beside it. Tabs: Overview (next step, the follow-up, the
 // interview day, timeline), Role (the role as it showed before it was started), Resume, Letter, Answers, People, Notes;
-// ?tab= opens it at one (Getting started's links). A pursuit with no open role (role null) has Overview, Role (what the
-// company does and the direction it's for; none if neither is known), People and Notes, and no resume, letter or Ask
-// beside it.
+// ?tab= opens it at one (Getting started's links). A role pursued for a direction it wasn't matched to says so on
+// Overview, with Score it for … and the offer to add its title to the direction's titles. A pursuit with no open role
+// (role null) has Overview, Role (what the company does and the direction it's for; none if neither is known), People
+// and Notes, and no resume, letter or Ask beside it.
 
 const failed = (e: unknown, fallback: string) => toast({ message: e instanceof ConvexError ? String(e.data) : fallback, icon: "failed" });
 type Choice = Exclude<PursuitStatus, "closed"> | `closed:${ClosedReason}`;
@@ -194,6 +197,7 @@ export function PursuitItem({ p, role, nav, small }: { p: Pursuit; role: Role | 
       </Head>
       <Tabs tabs={tabs} value={tab} onValueChange={(v) => setTab(v as Tab)} label="Pursuit" inFlow className="sticky top-0 z-10 bg-surface px-4 md:px-6 lg:px-8">
         <TabPanel value="overview" className="px-4 py-6 md:px-6 lg:px-8">
+          {role && <ChosenDirection p={p} role={role} small={small} />}
           <PursuitOverview p={p} f={f} due={due} onPeople={() => setTab("people")} />
         </TabPanel>
         {role ? (
@@ -261,6 +265,59 @@ function OutreachRole({ p }: { p: Pursuit }) {
       <Text size="sm" muted measure>
         No open role: this pursuit reaches out to {p.company} directly.
       </Text>
+    </div>
+  );
+}
+
+// A role pursued for a direction it wasn't matched to (it has no score for it): says so, and offers to score it for
+// that direction (one judging call), and, when its title isn't one of the direction's titles yet, to add it there so
+// roles like it are matched next time (Undo takes it off again).
+function ChosenDirection({ p, role, small }: { p: Pursuit; role: Role; small: boolean }) {
+  const scoreFor = useMutation(api.roles.score);
+  const addTitle = useMutation(api.directions.addTitle);
+  const removeTitle = useMutation(api.directions.removeTitle);
+  const costs = useQuery(api.estimates.costs, {});
+  const d = p.direction;
+  if (!d || d.matched) return null;
+  const cost = aboutUsd(costs?.scoreRole) ?? "Uses your AI budget";
+  const score = () => void scoreFor({ postingId: role.id, directionId: d.id }).then(() => toast({ message: `Scoring it for ${d.name}`, icon: "running" }), (e: unknown) => failed(e, "Couldn’t start."));
+  const teach = () =>
+    void addTitle({ id: d.id, title: role.title }).then(
+      (was) =>
+        was &&
+        toast({
+          message: `Added to ${d.name}’s titles`,
+          icon: "done",
+          action: { label: "Undo", key: "U", run: () => void removeTitle({ id: d.id, title: role.title, created: was.created, changedAt: was.changedAt }).catch((e: unknown) => failed(e, "Couldn’t undo that.")) },
+        }),
+      (e: unknown) => failed(e, "Couldn’t save that."),
+    );
+  return (
+    <div className="mb-6 flex flex-col gap-3 border-b pb-5">
+      <Text size="sm" muted measure>
+        <span className="font-medium text-text">For {d.name}</span> · Not matched to this direction; you chose it.
+      </Text>
+      <CostAction size="sm" amount={cost} budget="From your AI budget" detail={`Scores this role for ${d.name} against your record, with why and what it means for you.`} note={`${cost} · Scoring again replaces it`} onClick={score}>
+        Score it for {d.name}
+      </CostAction>
+      {!d.titled && (
+        <span className="flex min-w-0">
+          <Button
+            size="sm"
+            icon="add"
+            className="max-w-full"
+            detail={
+              d.criteriaApproved
+                ? `Roles called “${role.title}” are matched to ${d.name} from the next check. Its titles stay approved; Rank again sorts the roles you already have.`
+                : `Adds “${role.title}” to ${d.name}’s titles, which wait for your review in Goals; roles are matched on them once you approve.`
+            }
+            note="Free · Undo with U"
+            onClick={teach}
+          >
+            {small ? "Add to its titles" : `Add “${role.title}” to ${d.name}’s titles`}
+          </Button>
+        </span>
+      )}
     </div>
   );
 }

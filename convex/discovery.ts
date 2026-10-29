@@ -43,6 +43,8 @@ async function settings(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
 
 // Learn from your ratings: on unless they turned it off.
 export const learns = (row: Doc<"discovery"> | null) => row?.learn !== false;
+// Update fit as roles change: on unless they turned it off.
+export const refreshesFit = (row: Doc<"discovery"> | null) => row?.fitRefresh !== false;
 
 // Targets that seed lookalike searches: places to work Apollo knows, each for the directions it fits (strong or some).
 function targetSeeds(companies: Doc<"companies">[]) {
@@ -378,6 +380,8 @@ export const list = query({
       lens: row?.lens ?? DEFAULT_LENS,
       // Learn from your ratings; when on, each direction lists the targets that seed its lookalike searches.
       learn,
+      // Update fit as roles change: whether a company whose matching roles changed has its fit judged again.
+      fitRefresh: refreshesFit(row),
       // How many companies are filled in: what Check all again goes over.
       filledIn: companies.filter((c) => c.fitAt !== undefined).length,
       companyGoals,
@@ -426,6 +430,9 @@ export const list = query({
         foundAt: Math.min(...c.found.map((f) => f.at), c.at),
         // Its fit has been judged (it's ranked); while a pass runs, the rest wait in Not ranked yet.
         ranked: c.fitAt !== undefined,
+        // When its roles were last read from its board (by its fill-in or a roles pass), and its fit last judged.
+        rolesAt: Math.max(c.roles?.at ?? 0, c.details?.board ? c.details.at : 0) || null,
+        fitAt: c.fitAt ?? null,
         // Archived: out of every list but Archived until restored.
         archived: c.archived ?? null,
       })),
@@ -483,5 +490,17 @@ export const setLearn = mutation({
     const row = await settings(ctx, workspaceId);
     if (row) await ctx.db.patch(row._id, { learn: on });
     else await ctx.db.insert("discovery", { workspaceId, resolved: [], learn: on });
+  },
+});
+
+// Update fit as roles change, on or off. Off: a company whose matching roles change keeps its fit until it's checked
+// again; companies already waiting to be judged again aren't.
+export const setFitRefresh = mutation({
+  args: { on: v.boolean() },
+  handler: async (ctx, { on }) => {
+    const { workspaceId } = await requireWorkspace(ctx);
+    const row = await settings(ctx, workspaceId);
+    if (row) await ctx.db.patch(row._id, { fitRefresh: on });
+    else await ctx.db.insert("discovery", { workspaceId, resolved: [], fitRefresh: on });
   },
 });

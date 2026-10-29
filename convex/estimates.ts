@@ -48,6 +48,8 @@ export const costs = query({
       ask: average("ask about this role"),
       tailor: average("tailored resume"),
       rankPerRole: sort === null && judge === null ? null : (sort ?? 0) / MODEL_BATCH + (judge ?? 0) / JUDGE_BATCH,
+      // Score it for …: one judging call of its own, for one role.
+      scoreRole: judge,
       read: average("extract"),
       readRevision: average("revision"),
       rewrite: average("rework"),
